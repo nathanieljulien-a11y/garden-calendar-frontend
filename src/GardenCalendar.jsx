@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Analytics } from "@vercel/analytics/react";
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
@@ -821,7 +822,7 @@ Rules:
     else { setPfState("idle"); setMeta(null); }
   },[city,orientation,prefetchMeta]);
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Submit ──────────────────────────────────��──────────────────────────────
   const handleSubmit = async () => {
     if (!city||!orientation) { setError("Please fill in city and orientation."); return; }
     setRateLimitMsg("");
@@ -1298,6 +1299,7 @@ Rules:
           </div>
         )}
       </div>
+      <Analytics />
     </>
   );
 }
