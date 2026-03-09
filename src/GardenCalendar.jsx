@@ -254,19 +254,28 @@ const emptyMonth = (name) => ({
 });
 
 // ─── Proxy base URL (set at build time via env, falls back to relative path) ──
-const PROXY_BASE = (typeof window !== "undefined" && window.__VITE_PROXY_URL__)
-  ? window.__VITE_PROXY_URL__.replace(/\/$/, "")
-  : "";
-
-// True when running in Claude artifact sandbox (no proxy available)
-const IS_ARTIFACT = !PROXY_BASE && typeof window !== "undefined" && !window.location.hostname.includes("vercel");
+// Evaluated at call time so main.jsx has chance to set window.__VITE_PROXY_URL__
+function getProxyBase() {
+  return (typeof window !== "undefined" && window.__VITE_PROXY_URL__)
+    ? window.__VITE_PROXY_URL__.replace(/\/$/, "")
+    : "";
+}
+function isArtifact() {
+  if (typeof window === "undefined") return false;
+  const proxy = getProxyBase();
+  if (proxy) return false;
+  const host = window.location.hostname;
+  // Vercel deployments, localhost dev, and custom domains all use the proxy
+  if (host.includes("vercel.app") || host === "localhost" || host === "127.0.0.1") return false;
+  return true; // claude.ai artifact sandbox
+}
 
 // ─── Streaming helper ─────────────────────────────────────────────────────────
 async function streamClaude(prompt, maxTokens, onChunk, signal, apiKey) {
-  const url = IS_ARTIFACT
+  const url = isArtifact()
     ? "https://api.anthropic.com/v1/messages"
-    : `${PROXY_BASE}/api/stream`;
-  const headers = IS_ARTIFACT
+    : `${getProxyBase()}/api/stream`;
+  const headers = isArtifact()
     ? { "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" }
     : { "Content-Type":"application/json" };
   const res = await fetch(url, {
@@ -301,10 +310,10 @@ async function streamClaude(prompt, maxTokens, onChunk, signal, apiKey) {
 
 // Non-streaming for small payloads
 async function callClaude(prompt, maxTokens, signal, apiKey) {
-  const url = IS_ARTIFACT
+  const url = isArtifact()
     ? "https://api.anthropic.com/v1/messages"
-    : `${PROXY_BASE}/api/call`;
-  const headers = IS_ARTIFACT
+    : `${getProxyBase()}/api/call`;
+  const headers = isArtifact()
     ? { "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" }
     : { "Content-Type":"application/json" };
   const res = await fetch(url, { method:"POST", headers,
@@ -835,7 +844,7 @@ Rules:
   },[]);
 
   useEffect(()=>{
-    if (city&&orientation&&(!IS_ARTIFACT||apiKey)) prefetchMeta(city,orientation);
+    if (city&&orientation&&(!isArtifact()||apiKey)) prefetchMeta(city,orientation);
     else { setPfState("idle"); setMeta(null); }
   },[city,orientation,apiKey,prefetchMeta]);
 
@@ -1199,7 +1208,7 @@ Rules:
           <p className="subtitle">A personalised year of growing, tending & harvesting</p>
         </header>
 
-        {IS_ARTIFACT && stage !== "calendar" && (
+        {isArtifact() && stage !== "calendar" && (
           <div className="api-banner">
             <label>🔑 Anthropic API Key</label>
             <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-…"/>
@@ -1266,7 +1275,7 @@ Rules:
                 </div>
               </div>
             ))}
-            <button className="btn-generate" onClick={handleSubmit} disabled={!city||!orientation||(IS_ARTIFACT&&!apiKey)}>
+            <button className="btn-generate" onClick={handleSubmit} disabled={!city||!orientation||(isArtifact()&&!apiKey)}>
               {prefetchState==="ready"?"✦ Generate My Calendar — Ready!":"✦ Generate My Garden Calendar"}
             </button>
           </div>
