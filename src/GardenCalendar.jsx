@@ -28,6 +28,11 @@ const styles = `
   .demo-name { color:var(--straw); font-weight:600; letter-spacing:.04em; font-family:'Playfair Display',serif; }
   .demo-sep { opacity:.35; }
   .demo-tag { font-style:italic; }
+  .api-banner { background:rgba(44,26,14,.7); border:1px dashed rgba(200,169,110,.3); border-radius:2px; padding:1.1rem 1.5rem; margin-bottom:2rem; }
+  .api-banner label { display:block; font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; color:var(--bloom); margin-bottom:.4rem; }
+  .api-banner input { width:100%; background:rgba(30,18,8,.9); border:1px solid rgba(200,169,110,.25); border-radius:2px; color:var(--cream); padding:.65rem 1rem; font-family:'Crimson Pro',serif; font-size:1rem; outline:none; transition:border-color .2s; }
+  .api-banner input:focus { border-color:var(--straw); }
+  .api-note { font-size:.82rem; color:var(--sage); margin-top:.45rem; font-style:italic; }
   .rate-limit-box { background:rgba(92,122,74,.18); border:1px solid rgba(92,122,74,.35); border-radius:2px; padding:.9rem 1.4rem; color:var(--fern); font-size:.93rem; margin-bottom:1.2rem; }
 
   @keyframes fadeUp  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
@@ -249,21 +254,29 @@ const emptyMonth = (name) => ({
 });
 
 // ─── Proxy base URL (set at build time via env, falls back to relative path) ──
-const PROXY_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_PROXY_URL)
-  ? import.meta.env.VITE_PROXY_URL.replace(/\/$/, "")
+const PROXY_BASE = (typeof window !== "undefined" && window.__VITE_PROXY_URL__)
+  ? window.__VITE_PROXY_URL__.replace(/\/$/, "")
   : "";
 
+// True when running in Claude artifact sandbox (no proxy available)
+const IS_ARTIFACT = !PROXY_BASE && typeof window !== "undefined" && !window.location.hostname.includes("vercel");
+
 // ─── Streaming helper ─────────────────────────────────────────────────────────
-async function streamClaude(prompt, maxTokens, onChunk, signal) {
-  const res = await fetch(`${PROXY_BASE}/api/stream`, {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
+async function streamClaude(prompt, maxTokens, onChunk, signal, apiKey) {
+  const url = IS_ARTIFACT
+    ? "https://api.anthropic.com/v1/messages"
+    : `${PROXY_BASE}/api/stream`;
+  const headers = IS_ARTIFACT
+    ? { "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" }
+    : { "Content-Type":"application/json" };
+  const res = await fetch(url, {
+    method:"POST", headers,
     body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:maxTokens, stream:true, messages:[{role:"user",content:prompt}] }),
     signal,
   });
   if (!res.ok) {
     const e = await res.json().catch(()=>({}));
-    const err = new Error(e.message || `HTTP ${res.status}`);
+    const err = new Error(e.message || e.error?.message || `HTTP ${res.status}`);
     err.status = res.status;
     err.isRateLimit = res.status === 429;
     throw err;
@@ -280,24 +293,26 @@ async function streamClaude(prompt, maxTokens, onChunk, signal) {
       try {
         const evt = JSON.parse(d);
         if (evt.type==="content_block_delta"&&evt.delta?.type==="text_delta") onChunk(evt.delta.text);
-        if (evt.type==="message_delta"&&evt.delta?.stop_reason==="max_tokens") {
-          onChunk("\n");
-        }
+        if (evt.type==="message_delta"&&evt.delta?.stop_reason==="max_tokens") onChunk("\n");
       } catch {}
     }
   }
 }
 
 // Non-streaming for small payloads
-async function callClaude(prompt, maxTokens, signal) {
-  const res = await fetch(`${PROXY_BASE}/api/call`, {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
+async function callClaude(prompt, maxTokens, signal, apiKey) {
+  const url = IS_ARTIFACT
+    ? "https://api.anthropic.com/v1/messages"
+    : `${PROXY_BASE}/api/call`;
+  const headers = IS_ARTIFACT
+    ? { "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" }
+    : { "Content-Type":"application/json" };
+  const res = await fetch(url, { method:"POST", headers,
     body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,messages:[{role:"user",content:prompt}]}),
     signal,
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
+  if (data.error) throw new Error(data.error.message||data.error);
   return JSON.parse(data.content.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim());
 }
 
@@ -564,6 +579,7 @@ function Shimmer({lines=3}) {
 // References panel — open by default, shows pending state while fetching
 function RefsPanel({refs, pending}) {
   const [open,setOpen] = useState(true);
+  const catIcon = { Climate:"🌦", "Plant care":"🌿", Phenology:"🗓", Wildlife:"🐦", Gardens:"🌳", Broadcasters:"📺" };
   return (
     <div className="refs-panel">
       <div className="refs-toggle" onClick={()=>setOpen(o=>!o)}>
@@ -583,7 +599,7 @@ function RefsPanel({refs, pending}) {
                 <div key={i} className="ref-item">
                   <span className="ref-dot">◆</span>
                   <span>
-                    <span className="ref-cat">{r.category}</span>
+                    <span className="ref-cat">{catIcon[r.category]||"◆"} {r.category}</span>
                     <span>{(r.sources || (r.name ? [r.name] : [])).join(" · ")}</span>
                   </span>
                 </div>
@@ -758,6 +774,7 @@ function InsightsPanel({insights, onFetch, hasPlants, stream1Done}) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function GardenCalendar() {
+  const [apiKey,setApiKey]   = useState("");
   const [city,setCity]       = useState("");
   const [rateLimitMsg,setRateLimitMsg] = useState("");
   const [orientation,setOri] = useState("");
@@ -802,24 +819,25 @@ export default function GardenCalendar() {
     try {
       const r = await callClaude(`Location:${c}, orientation:${o}.
 Return ONLY valid JSON — no markdown, no explanation:
-{"zone":"<zone>","lastFrost":"<typical month only e.g. mid-April — no years>","firstFrost":"<typical month only e.g. late October — no years>","climate":"<brief label>","references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]}]}
+{"zone":"<zone>","lastFrost":"<typical month only e.g. mid-April — no years>","firstFrost":"<typical month only e.g. late October — no years>","climate":"<brief label>","references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
 Rules:
 - Each category: 2-3 distinct real organisations or publications
-- Climate: Met Office, BBC Weather, local services
-- Plant care: RHS, Kew, specialist nurseries
-- Phenology: Nature's Calendar (Woodland Trust), UK Phenology Network, academic sources
-- Wildlife: RSPB, Wildlife Trusts, Buglife, Plantlife
-- Gardens near ${c}: mix from National Trust, Royal Parks, local botanic gardens, Historic England — NOT just RHS
-- No source repeated across categories`,900, pfAbort.signal);
+- Climate: national met service, major broadcaster weather, local services for this region
+- Plant care: leading horticultural institutions for this country (e.g. RHS and Kew for UK)
+- Phenology: citizen science and academic phenology networks for this region
+- Wildlife: leading wildlife charities or ornithological societies for this country
+- Gardens near ${c}: mix from national heritage trusts, royal/state parks, local botanic gardens — NOT always the same institution
+- Broadcasters: 2-3 gardening broadcasters, presenters, or writer-practitioners who are well known in the country or region of ${c}. These should be real people who present or have presented gardening on TV, radio, or major publications in that country. For UK: e.g. Monty Don, Carol Klein, Sarah Raven, James Wong, Alan Titchmarsh. Choose equivalents for other regions.
+- No source repeated across categories`,900, pfAbort.signal, apiKey);
       if (rid!==prefetchIdRef.current) return;
       setMeta(r); setPfState("ready");
     } catch { if (rid===prefetchIdRef.current) setPfState("error"); }
   },[]);
 
   useEffect(()=>{
-    if (city&&orientation) prefetchMeta(city,orientation);
+    if (city&&orientation&&(!IS_ARTIFACT||apiKey)) prefetchMeta(city,orientation);
     else { setPfState("idle"); setMeta(null); }
-  },[city,orientation,prefetchMeta]);
+  },[city,orientation,apiKey,prefetchMeta]);
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -864,15 +882,16 @@ Rules:
     try {
         m = await callClaude(`Location:${city}, orientation:${orientation}.
 Return ONLY valid JSON — no markdown, no explanation:
-{"zone":"<zone>","lastFrost":"<typical month only e.g. mid-April — no years>","firstFrost":"<typical month only e.g. late October — no years>","climate":"<brief label>","references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]}]}
+{"zone":"<zone>","lastFrost":"<typical month only e.g. mid-April — no years>","firstFrost":"<typical month only e.g. late October — no years>","climate":"<brief label>","references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
 Rules:
 - Each category: 2-3 distinct real organisations or publications
-- Climate: Met Office, BBC Weather, local services
-- Plant care: RHS, Kew, specialist nurseries
-- Phenology: Nature's Calendar (Woodland Trust), UK Phenology Network, academic sources
-- Wildlife: RSPB, Wildlife Trusts, Buglife, Plantlife
-- Gardens near ${city}: mix from National Trust, Royal Parks, local botanic gardens, Historic England — NOT just RHS
-- No source repeated across categories`,900, abort.signal);
+- Climate: national met service, major broadcaster weather, local services for this region
+- Plant care: leading horticultural institutions for this country (e.g. RHS and Kew for UK)
+- Phenology: citizen science and academic phenology networks for this region
+- Wildlife: leading wildlife charities or ornithological societies for this country
+- Gardens near ${city}: mix from national heritage trusts, royal/state parks, local botanic gardens — NOT always the same institution
+- Broadcasters: 2-3 gardening broadcasters, presenters, or writer-practitioners who are well known in the country or region of ${city}. These should be real people who present or have presented gardening on TV, radio, or major publications in that country. For UK: e.g. Monty Don, Carol Klein, Sarah Raven, James Wong, Alan Titchmarsh. Choose equivalents for other regions.
+- No source repeated across categories`,900, abort.signal, apiKey);
         if (rid===submitIdRef.current) setMeta(m);
     } catch(e) {
       if (e.name==="AbortError") return;
@@ -892,33 +911,69 @@ Use ONLY this exact line format. No extra text, no markdown, no explanation.
 MONTH:February
 SEASON:Winter
 SUN:2.5
-TASK:Prune autumn-fruiting raspberries to ground level
-TASK:Sow sweet peas in root trainers under glass
-TASK:Apply slow-release fertiliser around rose bushes
-TASK:Chit seed potatoes on a bright windowsill
-ENJOY:Snowdrops — carpeting the ground under the apple trees
-ENJOY:Robin song — territorial calls from dawn, louder each week
-ENJOY:Hellebores — dusky pink flowers nodding above the mud
+TASK:Cut ALL autumn-fruiting raspberry canes to ground level, clearing old growth
+TASK:Sow sweet peas singly in 7cm root trainers on a bright frost-free windowsill
+ENJOY:Forsythia — tight yellow buds swelling on bare stems, days from opening
+ENJOY:Blackbird — males singing territorial song from the apple tree at first light
 ---
-MONTH:March
-...
+MONTH:June
+SEASON:Summer
+SUN:7.5
+TASK:Trim rosemary and thyme lightly after flowering, cutting only green leafy growth
+TASK:Pot up strawberry runners into 9cm pots, pinning into compost while still attached
+TASK:Pinch fig shoot tips to 5 leaves to concentrate energy into swelling fruitlets
+TASK:Harvest courgettes when 15–20cm, checking every 2 days to prevent marrow formation
+ENJOY:Swift — screaming low over the raised beds in tight formation, hawking insects
+ENJOY:Lavender — first purple spikes opening at the tips, bees working methodically upward
+---
 
-CRITICAL LINE LENGTH RULE: Every TASK and ENJOY line MUST be 80 characters or
-fewer including the prefix. Count carefully. If a line would exceed 80 chars,
-end it at the last word before 80 chars. Do not split — just cut shorter.
+ENJOY RULE — apply before writing every ENJOY line:
+Each observation must capture something actively happening or transitioning THIS specific month — an emergence, arrival, behaviour, or sensory shift. Never a static description of appearance.
+GOOD: "Forsythia — tight yellow buds swelling on bare stems, days from opening"
+GOOD: "Swift — screaming low over the raised beds in tight formation, hawking insects"
+BAD: "Lavender — purple flowers in the garden" / "Roses — beautiful blooms"
 
-ENJOY FORMAT RULE: Start every ENJOY line with the subject (plant, bird, insect
-or phenomenon) followed by an em-dash, then a short concrete observation.
-Example: "Blackbirds — males singing from the rooftops from first light"
-NOT: "Listen for the melodious song of blackbirds filling the morning air"
+COVERAGE MANDATE — plan this before writing any months.
+Use 3 task slots in winter months (Nov–Mar) and up to 4 in peak months (Apr–Oct). Every plant in the inventory must appear by name in at least one TASK with an appropriate task type. Required task types per plant type:
+- Fruit trees (apple, pear, fig): prune + harvest
+- Spring-flowering shrubs (forsythia, camellia, lilac): prune after flowering
+- Summer-flowering shrubs (hydrangea, buddleja): prune in spring before growth
+- Mediterranean shrubs (lavender, rosemary, sage, thyme): light trim after flowering only
+- Bulbs (tulip, allium, daffodil): plant in autumn + lift/store after foliage dies
+- Perennials (peony, salvia, geranium): mulch or divide at least once
+- Fruiting vegetables (tomatoes, courgettes, peppers): sow + harvest + pest monitor
+- Climbing/podding veg (runner beans, peas): sow + harvest
+- Soft fruit (strawberries, raspberries, currants): prune + harvest
+- Herbs: light trim after flowering
+
+LIFECYCLE RULES — apply before every pruning task:
+- Forsythia, Camellia and other spring-bloomers: flower Feb–Apr on last year's wood. Prune ONLY May–Jun after flowering. NEVER suggest pruning Jan–Apr.
+- Hydrangea (mophead/lacecap): leave flowerheads ALL winter for frost protection. Prune in April only, after last frost risk passes, cutting to first pair of fat buds.
+- Lavender: trim in August after flowering to base of spike. Spring: remove frost-damaged tips 2–3cm max only. NO hard prune ever.
+- Rosemary, Thyme, Sage: FULLY HARDY in most UK and temperate climates — do NOT suggest lifting or bringing indoors for winter. Light trim after flowering only. Never cut into old leafless wood.
+- Apple: summer prune new laterals to 3 leaves above basal cluster (Jul–Aug). Structural prune late Feb only — not January.
+- Raspberries: autumn-fruiting → cut ALL canes to ground level in Feb. Summer-fruiting → cut only fruited canes after harvest in Aug.
+
+TIMING RULES:
+- Last frost ${m?.lastFrost || "mid-March"}: no tender crops outdoors before this.
+- First frost ${m?.firstFrost || "mid-November"}: harvest or protect tender crops before this.
+- Lawn feed: spring/summer blend Apr–Aug only. Autumn low-N feed Sep only. NEVER apply Oct–Mar.
+
+INVENTORY RULE: ONLY suggest tasks for plants listed in this garden. Do NOT introduce unlisted plants.
+
+SPECIFICITY RULE: Every TASK must include a measurement, plant part, method, or timing cue.
+FAIL: "Prune apple" / "Feed lawn" / "Check for pests" / "Water plants"
+PASS: "Summer prune apple laterals to 3 leaves above basal cluster" / "Apply 35g/m² balanced granular feed" / "Inspect tomato leaves weekly for early blight — remove affected leaves immediately"
+
+ENJOY FORMAT: Start every ENJOY line with the subject (plant, bird, insect or phenomenon) followed by an em-dash, then a short concrete observation.
 
 Other rules:
 - SUN: avg daily hours adjusted for ${orientation}. One decimal.
-- TASK: exactly 3 lines max. Within those 3, include at least one task referencing a garden feature (${features.length ? features.join(", ") : "any features present"}) where seasonally relevant. Specific, name actual plants.
-- ENJOY: exactly 2 items max. Within those 2, at least one should reference a garden feature (${features.length ? features.join(", ") : "any features present"}) or wildlife it attracts, where seasonally relevant.
+- TASK: 3 lines in winter months (Nov–Mar); up to 4 lines in peak months (Apr–Oct). Include at least one task referencing a garden feature (${features.length ? features.join(", ") : "any features present"}) where seasonally relevant.
+- ENJOY: exactly 2 lines. At least one wildlife or seasonal visitor.
 - SEASON: Winter/Spring/Summer/Autumn only
-- End each month block with ---
-- Output all 12 months in the order listed above with NO other text`;
+- End each block with ---
+- Output all 12 months in order. NO other text.`;
 
     const parser1 = makeLineParser((snapshot) => {
       if (rid!==submitIdRef.current) return;
@@ -945,7 +1000,7 @@ Other rules:
       await streamClaude(s1prompt, 12000, (chunk) => {
         chunkCountRef.current++;
         parser1.onChunk(chunk);
-      }, abort.signal);
+      }, abort.signal, apiKey);
       parser1.flush();
     } catch(e) {
       clearInterval(uiIntervalRef.current); uiIntervalRef.current = null;
@@ -1006,7 +1061,7 @@ Rules:
 - Real, publicly accessible garden only
 - Draw from a WIDE range of operators: National Trust, Royal Parks, Historic England, Kew, local boroughs, independent — not always RHS
 - highlight must name the specific plant or seasonal feature (not vague phrases)
-- highlight must be 10-20 words${exclusionClause}`, 400);
+- highlight must be 10-20 words${exclusionClause}`, 400, undefined, apiKey);
 
       // Guard against vague highlights — require at least 8 words
       const wordCount = (result.highlight || "").trim().split(/\s+/).length;
@@ -1049,7 +1104,7 @@ Rules:
 - Max 4 items. Only flag genuine concerns — skip anything broadly suitable.
 - If everything suits the location well, allLookingGood:true and empty items array.
 - Tone: curious and encouraging. "How is X doing?" not "X will fail."
-- context + suggestion together under 35 words per item.`, 700);
+- context + suggestion together under 35 words per item.`, 700, undefined, apiKey);
       setInsights({state:"done", items:result.items||[], allLookingGood:result.allLookingGood, goodNewsLine:result.goodNewsLine});
     } catch(e) {
       setInsights({state:"error", items:[]});
@@ -1144,6 +1199,13 @@ Rules:
           <p className="subtitle">A personalised year of growing, tending & harvesting</p>
         </header>
 
+        {IS_ARTIFACT && stage !== "calendar" && (
+          <div className="api-banner">
+            <label>🔑 Anthropic API Key</label>
+            <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-…"/>
+            <p className="api-note">Used only in your browser · Get a key at console.anthropic.com</p>
+          </div>
+        )}
         {error && <div className="error-box">⚠ {error}</div>}
         {rateLimitMsg && <div className="rate-limit-box">🌿 {rateLimitMsg}</div>}
 
@@ -1204,7 +1266,7 @@ Rules:
                 </div>
               </div>
             ))}
-            <button className="btn-generate" onClick={handleSubmit} disabled={!city||!orientation}>
+            <button className="btn-generate" onClick={handleSubmit} disabled={!city||!orientation||(IS_ARTIFACT&&!apiKey)}>
               {prefetchState==="ready"?"✦ Generate My Calendar — Ready!":"✦ Generate My Garden Calendar"}
             </button>
           </div>
