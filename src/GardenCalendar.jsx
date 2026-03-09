@@ -254,27 +254,25 @@ const emptyMonth = (name) => ({
 });
 
 // ─── Proxy base URL (set at build time via env, falls back to relative path) ──
-// Evaluated at call time so main.jsx has chance to set window.__VITE_PROXY_URL__
-function getProxyBase() {
-  return (typeof window !== "undefined" && window.__VITE_PROXY_URL__)
-    ? window.__VITE_PROXY_URL__.replace(/\/$/, "")
-    : "";
-}
+// Proxy URL is baked in at Vite build time from VITE_PROXY_URL env var.
+// Falls back to "" which triggers artifact/direct mode.
+const PROXY_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_PROXY_URL)
+  ? import.meta.env.VITE_PROXY_URL.replace(/\/$/, "")
+  : "";
+
+// True only in Claude artifact sandbox — no proxy, needs direct API key
 function isArtifact() {
   if (typeof window === "undefined") return false;
-  const proxy = getProxyBase();
-  if (proxy) return false;
+  if (PROXY_BASE) return false;
   const host = window.location.hostname;
-  // Vercel deployments, localhost dev, and custom domains all use the proxy
-  if (host.includes("vercel.app") || host === "localhost" || host === "127.0.0.1") return false;
-  return true; // claude.ai artifact sandbox
+  return !host.includes("vercel.app") && host !== "localhost" && host !== "127.0.0.1";
 }
 
 // ─── Streaming helper ─────────────────────────────────────────────────────────
 async function streamClaude(prompt, maxTokens, onChunk, signal, apiKey) {
   const url = isArtifact()
     ? "https://api.anthropic.com/v1/messages"
-    : `${getProxyBase()}/api/stream`;
+    : `${PROXY_BASE}/api/stream`;
   const headers = isArtifact()
     ? { "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" }
     : { "Content-Type":"application/json" };
@@ -312,7 +310,7 @@ async function streamClaude(prompt, maxTokens, onChunk, signal, apiKey) {
 async function callClaude(prompt, maxTokens, signal, apiKey) {
   const url = isArtifact()
     ? "https://api.anthropic.com/v1/messages"
-    : `${getProxyBase()}/api/call`;
+    : `${PROXY_BASE}/api/call`;
   const headers = isArtifact()
     ? { "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" }
     : { "Content-Type":"application/json" };
