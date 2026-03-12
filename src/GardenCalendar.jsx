@@ -79,6 +79,14 @@ const styles = `
   .tag { background:rgba(74,94,58,.45); border:1px solid rgba(122,140,106,.35); border-radius:2px; padding:.28rem .7rem; font-size:.88rem; color:var(--cream); display:flex; align-items:center; gap:.45rem; animation:popIn .18s ease; }
   .tag-x { background:none; border:none; color:var(--sage); cursor:pointer; font-size:1rem; padding:0; }
   .tag-x:hover { color:var(--bloom); }
+  .clarify-row { display:flex; flex-wrap:wrap; gap:.35rem; margin:.4rem 0 .2rem; align-items:center; animation:fadeIn .25s ease; }
+  .clarify-label { font-size:.76rem; color:var(--sage); font-style:italic; margin-right:.15rem; }
+  .clarify-btn { background:rgba(122,140,106,.15); border:1px solid rgba(122,140,106,.3); border-radius:2px; padding:.22rem .6rem; font-size:.76rem; color:var(--sage); cursor:pointer; transition:all .15s; font-family:'Crimson Pro',serif; }
+  .clarify-btn:hover { background:rgba(122,140,106,.28); color:var(--cream); }
+  .clarify-btn.selected { background:rgba(92,122,74,.35); border-color:var(--fern); color:var(--cream); }
+  .gbif-badge { font-size:.68rem; color:rgba(122,140,106,.55); font-style:italic; margin-left:.3rem; }
+  .gbif-occ-badge { font-size:.68rem; color:rgba(122,140,106,.55); font-style:italic; margin-left:.4rem; font-weight:normal; }
+  .gbif-attribution { font-size:.68rem; color:rgba(180,180,160,.4); margin-top:.75rem; padding-top:.5rem; border-top:1px solid rgba(255,255,255,.05); line-height:1.5; }
   .btn-generate { width:100%; margin-top:1rem; background:var(--fern); border:1px solid var(--moss); color:var(--cream); padding:1rem; font-family:'Playfair Display',serif; font-size:1.15rem; font-style:italic; letter-spacing:.04em; border-radius:2px; cursor:pointer; transition:all .2s; display:flex; align-items:center; justify-content:center; gap:.6rem; }
   .btn-generate:hover:not(:disabled) { background:var(--moss); transform:translateY(-1px); box-shadow:0 6px 20px rgba(0,0,0,.35); }
   .btn-generate:disabled { opacity:.45; cursor:not-allowed; }
@@ -245,6 +253,220 @@ const SEASON_EMOJIS = {
   July:"🌻",August:"🍅",September:"🍂",October:"🎃",November:"🍁",December:"❄️",
 };
 
+// ─── Plant validation & clarification ────────────────────────────────────────
+
+// Principle-based clarification rules. Each rule fires when the resolved genus matches.
+// To add a new rule: add one entry here — no other code changes needed.
+const CLARIFICATION_RULES = [
+  {
+    test: ({ genus }) => genus === "Magnolia",
+    question: "Deciduous or evergreen?",
+    options: ["Deciduous (loses leaves)", "Evergreen", "Not sure"],
+    promptHint: (ans) => ans.startsWith("Deciduous")
+      ? "deciduous — prune immediately after flowering in spring only"
+      : ans === "Evergreen" ? "evergreen — prune lightly after flowering, avoid hard cuts" : null,
+  },
+  {
+    test: ({ genus }) => genus === "Rosa",
+    question: "What type of rose?",
+    options: ["Bush / hybrid tea / floribunda", "Climbing or rambler", "Shrub rose", "Not sure"],
+    promptHint: (ans) => ans.startsWith("Climbing")
+      ? "climbing/rambler — prune flowered laterals after bloom, train new canes"
+      : ans.startsWith("Bush") ? "bush/hybrid tea — hard prune early spring to outward-facing buds"
+      : ans.startsWith("Shrub") ? "shrub rose — remove one third of oldest stems annually" : null,
+  },
+  {
+    test: ({ genus }) => genus === "Malus",
+    question: "Eating, cooking, or crab apple?",
+    options: ["Eating apple", "Cooking apple", "Crab apple", "Not sure"],
+    promptHint: (ans) => ans === "Crab apple"
+      ? "crab apple — ornamental, prune for shape after flowering only"
+      : ans.includes("apple") ? "fruiting apple — summer prune laterals Jul–Aug, structural prune Feb only" : null,
+  },
+  {
+    test: ({ genus }) => genus === "Lavandula",
+    question: "Common or French lavender?",
+    options: ["Common / English lavender", "French lavender (butterfly ears)", "Not sure"],
+    promptHint: (ans) => ans.startsWith("French")
+      ? "French lavender (Lavandula stoechas) — less hardy, protect in hard frosts"
+      : ans.startsWith("Common") ? "common lavender — fully hardy, trim after flowering in Aug" : null,
+  },
+  {
+    test: ({ genus }) => genus === "Camellia",
+    question: "When does it flower?",
+    options: ["Spring (Feb–April)", "Autumn/Winter (Oct–Jan)", "Not sure"],
+    promptHint: (ans) => ans.startsWith("Spring")
+      ? "Camellia japonica — prune immediately after spring flowering"
+      : ans.startsWith("Autumn") ? "Camellia sasanqua — prune after autumn/winter flowering" : null,
+  },
+];
+
+// Common English name → scientific name / genus for GBIF lookup.
+// GBIF species/match works well with scientific names but not vernacular English names.
+// This map is the bridge — we own the translation, GBIF owns the taxonomy.
+const COMMON_TO_SCIENTIFIC = {
+  // Clarification-rule plants (genus only — GBIF resolves to accepted species)
+  "magnolia":   "Magnolia",
+  "rose":       "Rosa",
+  "roses":      "Rosa",
+  "apple":      "Malus",
+  "apples":     "Malus",
+  "lavender":   "Lavandula",
+  "camellia":   "Camellia",
+  // Scientific name enrichment — specific accepted names
+  "rosemary":   "Salvia rosmarinus",
+  "hydrangea":  "Hydrangea",
+  "forsythia":  "Forsythia",
+  "tomato":     "Solanum lycopersicum",
+  "tomatoes":   "Solanum lycopersicum",
+  "fig":        "Ficus carica",
+  "figs":       "Ficus carica",
+  "peony":      "Paeonia",
+  "peonies":    "Paeonia",
+  "wisteria":   "Wisteria",
+  "clematis":   "Clematis",
+  "dahlia":     "Dahlia",
+  "dahlias":    "Dahlia",
+  "allium":     "Allium",
+  "tulip":      "Tulipa",
+  "tulips":     "Tulipa",
+  "daffodil":   "Narcissus",
+  "daffodils":  "Narcissus",
+  "snowdrop":   "Galanthus",
+  "snowdrops":  "Galanthus",
+  "bluebell":   "Hyacinthoides",
+  "bluebells":  "Hyacinthoides",
+  "buddleia":   "Buddleja",
+  "buddleja":   "Buddleja",
+  "viburnum":   "Viburnum",
+  "photinia":   "Photinia",
+  "elderflower": "Sambucus nigra",
+  "elderberry": "Sambucus nigra",
+  "ivy":        "Hedera",
+  "fern":       "Dryopteris",
+  "ferns":      "Dryopteris",
+  "mint":       "Mentha",
+  "thyme":      "Thymus",
+  "sage":       "Salvia officinalis",
+  "basil":      "Ocimum basilicum",
+  "chives":     "Allium schoenoprasum",
+  "parsley":    "Petroselinum crispum",
+  "strawberry": "Fragaria",
+  "strawberries": "Fragaria",
+  "raspberry":  "Rubus idaeus",
+  "raspberries": "Rubus idaeus",
+  "blackberry": "Rubus fruticosus",
+  "blackberries": "Rubus fruticosus",
+  "gooseberry": "Ribes uva-crispa",
+  "gooseberries": "Ribes uva-crispa",
+  "currant":    "Ribes",
+  "currants":   "Ribes",
+  "courgette":  "Cucurbita pepo",
+  "courgettes": "Cucurbita pepo",
+  "zucchini":   "Cucurbita pepo",
+  "bean":       "Phaseolus",
+  "beans":      "Phaseolus",
+  "pea":        "Pisum sativum",
+  "peas":       "Pisum sativum",
+  "potato":     "Solanum tuberosum",
+  "potatoes":   "Solanum tuberosum",
+  "carrot":     "Daucus carota",
+  "carrots":    "Daucus carota",
+  "onion":      "Allium cepa",
+  "onions":     "Allium cepa",
+  "garlic":     "Allium sativum",
+};
+
+// Validates a plant name via GBIF species/match API.
+// GBIF names backbone derives from WCVP (World Checklist of Vascular Plants, Royal Botanic Gardens, Kew)
+// and Plants of the World Online (POWO) — so this lookup honours both sources.
+// Source attribution: Global Biodiversity Information Facility (GBIF) · gbif.org · CC BY 4.0
+async function validatePlantName(name) {
+  // Translate common English name → scientific name for GBIF lookup
+  const queryName = COMMON_TO_SCIENTIFIC[name.toLowerCase()] || name;
+  const proxyUrl  = PROXY_BASE ? `${PROXY_BASE}/api/species?name=${encodeURIComponent(queryName)}` : null;
+  const directUrl = `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(queryName)}&verbose=false`;
+
+  const tryFetch = async (url) => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  };
+
+  try {
+    let data;
+    try {
+      data = proxyUrl ? await tryFetch(proxyUrl) : await tryFetch(directUrl);
+    } catch {
+      data = await tryFetch(directUrl); // fall back to direct
+    }
+
+    // GBIF returns matchType:"NONE" when nothing found
+    if (!data || data.matchType === "NONE" || !data.canonicalName) {
+      return { status: "unknown", name };
+    }
+
+    const genus   = data.genus || data.canonicalName?.split(" ")[0] || "";
+    const family  = data.family || "";
+    const sciName = data.canonicalName || data.scientificName || "";
+    const rule    = CLARIFICATION_RULES.find(r => r.test({ genus, family }));
+
+    return {
+      status: "valid", name,
+      scientificName: sciName,
+      family, genus,
+      usageKey: data.usageKey,        // GBIF taxon key — used for occurrence lookup
+      confidence: data.confidence,
+      // Attribution chain: GBIF → WCVP → POWO (Kew)
+      attribution: "GBIF / WCVP (Royal Botanic Gardens, Kew)",
+      clarificationRule: rule || null,
+      clarificationAnswer: null,
+    };
+  } catch {
+    return { status: "unknown", name };
+  }
+}
+
+// Checks how many times a plant has been recorded growing near a location.
+// Fires once coordinates are known (after climate prefetch).
+// Source: GBIF occurrence records · gbif.org · CC BY 4.0 / CC0 per dataset
+async function checkRegionalOccurrence(scientificName, lat, lng) {
+  if (!scientificName || !lat || !lng) return null;
+  const proxyUrl  = PROXY_BASE
+    ? `${PROXY_BASE}/api/occurrences?name=${encodeURIComponent(scientificName)}&lat=${lat}&lng=${lng}&radius=0.5`
+    : null;
+  const directUrl = `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(scientificName)}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`;
+
+  try {
+    const tryFetch = async (url) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    };
+    let data;
+    try { data = proxyUrl ? await tryFetch(proxyUrl) : await tryFetch(directUrl); }
+    catch { data = await tryFetch(directUrl); }
+    const count = data.count ?? 0;
+    return { count, recorded: count > 0 };
+  } catch {
+    return null;
+  }
+}
+
+function enrichedPlantName(name, meta) {
+  if (!meta || meta.status !== "valid") return name;
+  let label = name;
+  if (meta.scientificName && meta.scientificName.toLowerCase() !== name.toLowerCase()) {
+    label += ` (${meta.scientificName})`;
+  }
+  if (meta.clarificationAnswer && meta.clarificationRule) {
+    const hint = meta.clarificationRule.promptHint(meta.clarificationAnswer);
+    if (hint) label += ` — ${hint}`;
+  }
+  return label;
+}
+
+
 // ─── Empty month template ─────────────────────────────────────────────────────
 const emptyMonth = (name) => ({
   month:name, season:null, sunHours:null,
@@ -256,8 +478,9 @@ const emptyMonth = (name) => ({
 // ─── Proxy base URL (set at build time via env, falls back to relative path) ──
 // Proxy URL is baked in at Vite build time from VITE_PROXY_URL env var.
 // Falls back to "" which triggers artifact/direct mode.
-const PROXY_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_PROXY_URL)
-  ? import.meta.env.VITE_PROXY_URL.replace(/\/$/, "")
+// Set by main.jsx (Vite) before render. Undefined in artifact sandbox → empty string.
+const PROXY_BASE = (typeof window !== "undefined" && window.__VITE_PROXY_URL__)
+  ? String(window.__VITE_PROXY_URL__).replace(/\/$/, "")
   : "";
 
 // True only in Claude artifact sandbox — no proxy, needs direct API key
@@ -555,9 +778,13 @@ function exportPDF(months, city, meta) {
   triggerDownload(html, "garden-calendar.html", "text/html");
 }
 
-function TagInput({value,onChange,placeholder}) {
+function TagInput({value,onChange,placeholder,onAdd}) {
   const [inp,setInp]=useState("");
-  const add=()=>{ const v=inp.trim(); if(v&&!value.includes(v)) onChange([...value,v]); setInp(""); };
+  const add=()=>{
+    const v=inp.trim();
+    if(v&&!value.includes(v)){ onChange([...value,v]); if(onAdd) onAdd(v); }
+    setInp("");
+  };
   return (
     <div>
       <div className="tag-row">
@@ -729,11 +956,14 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo}) {
 }
 
 // ─── InsightsPanel ───────────────────────────────────────────────────────────
-function InsightsPanel({insights, onFetch, hasPlants, stream1Done}) {
+function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done}) {
   const [open, setOpen] = useState(false);
   const canUnlock = stream1Done && hasPlants;
-
   const handleUnlock = () => { setOpen(true); onFetch(); };
+
+  // Count how many plants have GBIF occurrence data loaded
+  const gbifCount = Object.values(plantMeta||{}).filter(m => m?.occurrence != null).length;
+  const totalValidated = Object.values(plantMeta||{}).filter(m => m?.status === "valid").length;
 
   return (
     <div className="insights-panel">
@@ -767,12 +997,27 @@ function InsightsPanel({insights, onFetch, hasPlants, stream1Done}) {
           )}
           {insights.state === "done" && (insights.items||[]).map((item,i) => (
             <div key={i} className="insight-item">
-              <div className="insight-plant">{item.plant}</div>
+              <div className="insight-plant">{item.plant}
+                {plantMeta?.[item.plant]?.occurrence?.count != null && (
+                  <span className="gbif-occ-badge">
+                    {plantMeta[item.plant].occurrence.count === 0
+                      ? "· no local GBIF records"
+                      : `· ${plantMeta[item.plant].occurrence.count} local records`}
+                  </span>
+                )}
+              </div>
               <div className="insight-q">{item.question}</div>
               <div className="insight-ctx">{item.context}</div>
               <div className="insight-tip">{item.suggestion}</div>
             </div>
           ))}
+          {insights.state === "done" && gbifCount > 0 && (
+            <div className="gbif-attribution">
+              Regional occurrence data: <a href="https://gbif.org" target="_blank" rel="noopener" style={{color:"inherit"}}>GBIF</a>
+              {" · "}names: <a href="https://powo.science.kew.org" target="_blank" rel="noopener" style={{color:"inherit"}}>Plants of the World Online</a> / WCVP (Royal Botanic Gardens, Kew)
+              {" · "}{gbifCount} of {totalValidated} plants checked
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -787,6 +1032,30 @@ export default function GardenCalendar() {
   const [orientation,setOri] = useState("");
   const [plants,setPlants]   = useState({trees:[],shrubs:[],flowers:[],vegetables:[],fruit:[],herbs:[]});
   const [features,setFeatures] = useState([]);
+  // plantMeta: { [plantName]: { status, scientificName, genus, clarificationRule, clarificationAnswer, occurrence } }
+  const [plantMeta,setPlantMeta] = useState({});
+  const plantMetaRef = useRef({});
+  // Keep ref in sync so async callbacks (occurrence checks) read current state
+  useEffect(() => { plantMetaRef.current = plantMeta; }, [plantMeta]);
+
+  const onPlantAdded = useCallback(async (name) => {
+    // Use ref-style check via functional updater to avoid stale closure
+    setPlantMeta(prev => {
+      if (prev[name]) return prev; // already validated or loading
+      // Kick off async validation outside the updater
+      validatePlantName(name).then(result =>
+        setPlantMeta(p => ({ ...p, [name]: result }))
+      );
+      return { ...prev, [name]: { status: "loading", name } };
+    });
+  }, []);
+
+  const onClarify = useCallback((name, answer) => {
+    setPlantMeta(prev => ({
+      ...prev,
+      [name]: { ...prev[name], clarificationAnswer: answer }
+    }));
+  }, []);
 
   const [meta,setMeta]               = useState(null);
   const [prefetchState,setPfState]   = useState("idle");
@@ -826,7 +1095,7 @@ export default function GardenCalendar() {
     try {
       const r = await callClaude(`Location:${c}, orientation:${o}.
 Return ONLY valid JSON — no markdown, no explanation:
-{"zone":"<zone>","lastFrost":"<typical month only e.g. mid-April — no years>","firstFrost":"<typical month only e.g. late October — no years>","climate":"<brief label>","references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
+{"zone":"<zone>","lastFrost":"<typical month only e.g. mid-April — no years>","firstFrost":"<typical month only e.g. late October — no years>","climate":"<brief label>","lat":<decimal latitude of city>,"lng":<decimal longitude of city>,"references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
 Rules:
 - Each category: 2-3 distinct real organisations or publications
 - Climate: national met service, major broadcaster weather, local services for this region
@@ -876,7 +1145,7 @@ Rules:
     // offset 0 shows [prev, current, next] — current month is the middle panel
     setPageIdx(0);
 
-    const allPlants = Object.entries(plants).map(([k,v])=>v.length?`${k}: ${v.join(", ")}`:null).filter(Boolean).join(" | ")||"general/unspecified mix";
+    const allPlants = Object.entries(plants).map(([k,v])=>v.length?`${k}: ${v.map(p=>enrichedPlantName(p,plantMeta[p])).join(", ")}`:null).filter(Boolean).join(" | ")||"general/unspecified mix";
     const featuresCtx = features.length ? ` Garden features: ${features.join(", ")}.` : "";
     const now = `${MONTH_NAMES[nowIdx]} ${new Date().getFullYear()}`;
 
@@ -899,7 +1168,25 @@ Rules:
 - Gardens near ${city}: mix from national heritage trusts, royal/state parks, local botanic gardens — NOT always the same institution
 - Broadcasters: 2-3 gardening broadcasters, presenters, or writer-practitioners who are well known in the country or region of ${city}. These should be real people who present or have presented gardening on TV, radio, or major publications in that country. For UK: e.g. Monty Don, Carol Klein, Sarah Raven, James Wong, Alan Titchmarsh. Choose equivalents for other regions.
 - No source repeated across categories`,900, abort.signal, apiKey);
-        if (rid===submitIdRef.current) setMeta(m);
+        if (rid===submitIdRef.current) {
+          setMeta(m);
+          // Fire GBIF occurrence checks for all validated plants — async, non-blocking
+          if (m?.lat && m?.lng) {
+            Object.values(plants).flat().forEach(plantName => {
+              const meta = plantMetaRef.current[plantName];
+              if (meta?.status === "valid" && meta?.scientificName) {
+                checkRegionalOccurrence(meta.scientificName, m.lat, m.lng).then(occ => {
+                  if (occ !== null) {
+                    setPlantMeta(prev => ({
+                      ...prev,
+                      [plantName]: { ...prev[plantName], occurrence: occ }
+                    }));
+                  }
+                });
+              }
+            });
+          }
+        }
     } catch(e) {
       if (e.name==="AbortError") return;
       if (e.isRateLimit) { setRateLimitMsg(e.message); return; }
@@ -936,6 +1223,9 @@ ENJOY:Lavender — first purple spikes opening at the tips, bees working methodi
 
 ENJOY RULE — apply before writing every ENJOY line:
 Each observation must capture something actively happening or transitioning THIS specific month — an emergence, arrival, behaviour, or sensory shift. Never a static description of appearance.
+SCALE RULE — this is a residential town garden, NOT a stately home or nature reserve. Every wildlife observation must be plausible in a small urban garden. Ask: could a person realistically see this from their kitchen window in a city?
+PASS: Robin singing from a fence post. Blackbird foraging under shrubs. Swift passing overhead. Bumblebee on lavender.
+FAIL: Murmuration of starlings (landscape-scale). Barn owl hunting (farmland). Deer grazing. Red kite circling (rural).
 GOOD: "Forsythia — tight yellow buds swelling on bare stems, days from opening"
 GOOD: "Swift — screaming low over the raised beds in tight formation, hawking insects"
 BAD: "Lavender — purple flowers in the garden" / "Roses — beautiful blooms"
@@ -1003,18 +1293,32 @@ Other rules:
       setChunkCount(chunkCountRef.current); // sync chunk count to React
     }, 50);
 
+    // Stall detector — if no chunks for 22s, abort and show error
+    let lastChunkAt = Date.now();
+    const stallTimer = setInterval(() => {
+      if (Date.now() - lastChunkAt > 22000) {
+        clearInterval(stallTimer);
+        abort.abort();
+        clearInterval(uiIntervalRef.current); uiIntervalRef.current = null;
+        setError("Stream stalled — no data received for 20 seconds. Please try again.");
+      }
+    }, 2000);
+
     try {
       await streamClaude(s1prompt, 12000, (chunk) => {
         chunkCountRef.current++;
+        lastChunkAt = Date.now();
         parser1.onChunk(chunk);
       }, abort.signal, apiKey);
       parser1.flush();
     } catch(e) {
+      clearInterval(stallTimer);
       clearInterval(uiIntervalRef.current); uiIntervalRef.current = null;
       if (e.name==="AbortError"||rid!==submitIdRef.current) return;
       if (e.isRateLimit) { setRateLimitMsg(e.message); return; }
       setError("Stream failed: "+e.message); return;
     }
+    clearInterval(stallTimer);
     clearInterval(uiIntervalRef.current); uiIntervalRef.current = null;
     if (rid!==submitIdRef.current) return;
     // Mark all remaining active months as done
@@ -1034,7 +1338,7 @@ Other rules:
     ++prefetchIdRef.current; ++submitIdRef.current;
     unlockedPages.current = new Set();
     setStage("form"); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
-    setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]);
+    setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
   };
 
   // ── On-demand inspiration fetch for a single month ────────────────────────
@@ -1086,13 +1390,27 @@ Rules:
     const allPlants = Object.entries(plants).map(([k,v])=>v.length?`${k}: ${v.join(", ")}`:null).filter(Boolean).join(" | ");
     const featuresCtx = features.length ? ` Garden features: ${features.join(", ")}.` : "";
     const metaCtx = meta ? `Zone: ${meta.zone}. Climate: ${meta.climate}. Last frost: ${meta.lastFrost}. First frost: ${meta.firstFrost}.` : "";
+    // Build GBIF occurrence context string for the prompt
+    const occurrenceCtx = Object.entries(plantMeta)
+      .filter(([,m]) => m?.occurrence != null && m?.scientificName)
+      .map(([name, m]) => {
+        const c = m.occurrence.count;
+        const level = c === 0 ? "no GBIF records near location"
+          : c < 10  ? `${c} GBIF records near location — rarely recorded`
+          : c < 50  ? `${c} GBIF records near location — occasionally recorded`
+          : c < 200 ? `${c} GBIF records near location — well established`
+          : `${c} GBIF records near location — very common`;
+        return `${name} (${m.scientificName}): ${level}`;
+      }).join("\n");
+
     try {
       const result = await callClaude(`You are a knowledgeable, curious gardening friend — warm and non-alarmist in tone.
 Location: ${city}. Orientation: ${orientation}. ${metaCtx}
 Plants in this garden: ${allPlants}${featuresCtx}
-
+${occurrenceCtx ? `\nRegional occurrence data from GBIF (citizen science records within ~50km):\n${occurrenceCtx}\n` : ""}
 Review the plant list for any worth a gentle conversation given this climate and location.
 Consider cold hardiness, heat needs, sun/shade, and regional suitability.
+Where GBIF records are available, use occurrence count as supporting evidence — low counts may indicate marginal suitability.
 
 Return ONLY valid JSON, no markdown:
 {
@@ -1258,13 +1576,44 @@ Rules:
             {PLANT_CATEGORIES.map(cat=>(
               <div key={cat.key} className="category-row">
                 <div className="cat-label">{cat.icon} {cat.label}</div>
-                <TagInput value={plants[cat.key]} onChange={v=>setPlants({...plants,[cat.key]:v})} placeholder={`Add ${cat.label.toLowerCase()}, press Enter…`}/>
+                <TagInput
+                  value={plants[cat.key]}
+                  onChange={v=>setPlants({...plants,[cat.key]:v})}
+                  placeholder={`Add ${cat.label.toLowerCase()}, press Enter…`}
+                  onAdd={onPlantAdded}
+                />
+                {/* Clarification prompts — one per plant that needs it */}
+                {plants[cat.key].map(plantName => {
+                  const m = plantMeta[plantName];
+                  if (!m || m.status !== "valid" || !m.clarificationRule) return null;
+                  return (
+                    <div key={plantName} className="clarify-row">
+                      <span className="clarify-label">{plantName}: {m.clarificationRule.question}</span>
+                      {m.clarificationRule.options.map(opt => (
+                        <button key={opt}
+                          className={`clarify-btn${m.clarificationAnswer===opt?" selected":""}`}
+                          onClick={()=>onClarify(plantName, opt)}
+                          type="button">
+                          {opt}
+                        </button>
+                      ))}
+                      {m.scientificName && (
+                        <span className="gbif-badge">· {m.scientificName} · GBIF/WCVP</span>
+                      )}
+                    </div>
+                  );
+                })}
                 <div className="suggestions">
                   {cat.suggestions.map(s=>{
                     const added = plants[cat.key].map(p=>p.toLowerCase()).includes(s.toLowerCase());
                     return (
                       <button key={s} className={`chip${added?" added":""}`}
-                        onClick={()=>{ if(!added) setPlants(p=>({...p,[cat.key]:[...p[cat.key],s]})); }}
+                        onClick={()=>{
+                          if(!added){
+                            setPlants(p=>({...p,[cat.key]:[...p[cat.key],s]}));
+                            onPlantAdded(s);
+                          }
+                        }}
                         type="button">
                         {added ? "✓ " : "+ "}{s}
                       </button>
@@ -1307,6 +1656,7 @@ Rules:
             {/* Insights panel — between references and the calendar months */}
             <InsightsPanel
               insights={insights}
+              plantMeta={plantMeta}
               onFetch={fetchInsights}
               hasPlants={totalPlants > 0}
               stream1Done={stream1Done}
