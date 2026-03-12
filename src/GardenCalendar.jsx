@@ -475,11 +475,12 @@ const emptyMonth = (name) => ({
   _state:"pending",
 });
 
-// ─── Proxy base URL (set at build time via env, falls back to relative path) ──
-// Proxy URL is baked in at Vite build time from VITE_PROXY_URL env var.
-// Falls back to "" which triggers artifact/direct mode.
-// Set by main.jsx (Vite) before render. Undefined in artifact sandbox → empty string.
-const PROXY_BASE = (typeof window !== "undefined" && window.__VITE_PROXY_URL__)
+// ─── Proxy base URL ───────────────────────────────────────────────────────────
+// Read directly from Vite env at build time — window.__VITE_PROXY_URL__ set by
+// main.jsx is unreliable due to module evaluation order.
+const PROXY_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_PROXY_URL)
+  ? String(import.meta.env.VITE_PROXY_URL).replace(/\/$/, "")
+  : (typeof window !== "undefined" && window.__VITE_PROXY_URL__)
   ? String(window.__VITE_PROXY_URL__).replace(/\/$/, "")
   : "";
 
