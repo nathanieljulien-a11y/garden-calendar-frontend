@@ -433,13 +433,12 @@ async function validatePlantName(name) {
 // Source: GBIF occurrence records · gbif.org · CC BY 4.0 / CC0 per dataset
 async function checkRegionalOccurrence(scientificName, lat, lng, taxonKey) {
   if (!lat || !lng) return null;
-  // Build proxy URL — prefer taxonKey for exact matching, fall back to name-based resolution
-  const proxyUrl = PROXY_BASE
-    ? taxonKey
-      ? `${PROXY_BASE}/api/occurrences?taxonKey=${encodeURIComponent(taxonKey)}&lat=${lat}&lng=${lng}&radius=0.5`
-      : `${PROXY_BASE}/api/occurrences?name=${encodeURIComponent(scientificName||"")}&lat=${lat}&lng=${lng}&radius=0.5`
+  // Proxy: always send name (old proxy expects it); server resolves to taxonKey internally
+  // If proxy unavailable, use taxonKey directly against GBIF for exact matching
+  const proxyUrl = PROXY_BASE && scientificName
+    ? `${PROXY_BASE}/api/occurrences?name=${encodeURIComponent(scientificName)}&lat=${lat}&lng=${lng}&radius=0.5${taxonKey ? `&taxonKey=${encodeURIComponent(taxonKey)}` : ""}`
     : null;
-  // Direct GBIF fallback — taxonKey is the reliable filter
+  // Direct GBIF: taxonKey is exact; fall back to scientificName if no key
   const directUrl = taxonKey
     ? `https://api.gbif.org/v1/occurrence/search?taxonKey=${taxonKey}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`
     : `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(scientificName||"")}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`;
