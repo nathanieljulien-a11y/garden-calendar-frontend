@@ -455,19 +455,20 @@ async function checkRegionalOccurrence(scientificName, lat, lng) {
 }
 
 function enrichedPlantName(name, meta) {
-  if (!meta || meta.status !== "valid") return name;
   let label = name;
-  if (meta.scientificName && meta.scientificName.toLowerCase() !== name.toLowerCase()) {
-    label += ` (${meta.scientificName})`;
+  if (meta?.status === "valid") {
+    if (meta.scientificName && meta.scientificName.toLowerCase() !== name.toLowerCase()) {
+      label += ` (${meta.scientificName})`;
+    }
+    if (meta.clarificationAnswer && meta.clarificationRule) {
+      const hint = meta.clarificationRule.promptHint(meta.clarificationAnswer);
+      if (hint) label += ` — ${hint}`;
+    }
   }
-  if (meta.clarificationAnswer && meta.clarificationRule) {
-    const hint = meta.clarificationRule.promptHint(meta.clarificationAnswer);
-    if (hint) label += ` — ${hint}`;
-  }
-  // Flag plants with zero local GBIF records — Claude uses this as regional suitability context
-  if (meta.occurrence?.count === 0) {
+  // Flag plants with zero local GBIF records — applies to all plants, validated or not
+  if (meta?.occurrence?.count === 0) {
     label += ` — ⚠ 0 GBIF records near location, likely unsuitable for this climate`;
-  } else if (meta.occurrence?.count != null && meta.occurrence.count > 0) {
+  } else if (meta?.occurrence?.count > 0) {
     label += ` — ${meta.occurrence.count} local GBIF records`;
   }
   return label;
@@ -1178,20 +1179,20 @@ Rules:
 - No source repeated across categories`,900, abort.signal, apiKey);
         if (rid===submitIdRef.current) {
           setMeta(m);
-          // Fire GBIF occurrence checks for all validated plants — async, non-blocking
+          // Fire GBIF occurrence checks for ALL plants — async, non-blocking
+          // Uses scientific name if validated, raw name otherwise (catches unlisted plants like coconut)
           if (m?.lat && m?.lng) {
             Object.values(plants).flat().forEach(plantName => {
               const meta = plantMetaRef.current[plantName];
-              if (meta?.status === "valid" && meta?.scientificName) {
-                checkRegionalOccurrence(meta.scientificName, m.lat, m.lng).then(occ => {
-                  if (occ !== null) {
-                    setPlantMeta(prev => ({
-                      ...prev,
-                      [plantName]: { ...prev[plantName], occurrence: occ }
-                    }));
-                  }
-                });
-              }
+              const queryName = meta?.scientificName || plantName;
+              checkRegionalOccurrence(queryName, m.lat, m.lng).then(occ => {
+                if (occ !== null) {
+                  setPlantMeta(prev => ({
+                    ...prev,
+                    [plantName]: { ...(prev[plantName]||{}), occurrence: occ }
+                  }));
+                }
+              });
             });
           }
         }
@@ -1614,11 +1615,12 @@ Rules:
                 {/* Regional suitability warnings — shown once occurrence data loads */}
                 {plants[cat.key].map(plantName => {
                   const m = plantMeta[plantName];
-                  if (!m || m.occurrence == null) return null;
+                  if (!m?.occurrence) return null;
                   if (m.occurrence.count === 0) return (
                     <div key={`occ-${plantName}`} className="occ-warning">
                       ⚠ <strong>{plantName}</strong> — no GBIF records within 50km · may be unsuitable for this location
                       {m.scientificName && <span className="gbif-badge"> · {m.scientificName}</span>}
+                      <span className="gbif-badge"> · GBIF</span>
                     </div>
                   );
                   return null;
