@@ -431,12 +431,18 @@ async function validatePlantName(name) {
 // Checks how many times a plant has been recorded growing near a location.
 // Fires once coordinates are known (after climate prefetch).
 // Source: GBIF occurrence records · gbif.org · CC BY 4.0 / CC0 per dataset
-async function checkRegionalOccurrence(scientificName, lat, lng) {
-  if (!scientificName || !lat || !lng) return null;
-  const proxyUrl  = PROXY_BASE
-    ? `${PROXY_BASE}/api/occurrences?name=${encodeURIComponent(scientificName)}&lat=${lat}&lng=${lng}&radius=0.5`
+async function checkRegionalOccurrence(scientificName, lat, lng, taxonKey) {
+  if (!lat || !lng) return null;
+  // Build proxy URL — prefer taxonKey for exact matching, fall back to name-based resolution
+  const proxyUrl = PROXY_BASE
+    ? taxonKey
+      ? `${PROXY_BASE}/api/occurrences?taxonKey=${encodeURIComponent(taxonKey)}&lat=${lat}&lng=${lng}&radius=0.5`
+      : `${PROXY_BASE}/api/occurrences?name=${encodeURIComponent(scientificName||"")}&lat=${lat}&lng=${lng}&radius=0.5`
     : null;
-  const directUrl = `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(scientificName)}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`;
+  // Direct GBIF fallback — taxonKey is the reliable filter
+  const directUrl = taxonKey
+    ? `https://api.gbif.org/v1/occurrence/search?taxonKey=${taxonKey}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`
+    : `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(scientificName||"")}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`;
 
   try {
     const tryFetch = async (url) => {
@@ -1187,7 +1193,7 @@ Rules:
                 try {
                   const meta = plantMetaRef.current[plantName];
                   const queryName = meta?.scientificName || plantName;
-                  const occ = await checkRegionalOccurrence(queryName, m.lat, m.lng);
+                  const occ = await checkRegionalOccurrence(queryName, m.lat, m.lng, meta?.usageKey);
                   return { plantName, occ };
                 } catch {
                   return { plantName, occ: null }; // individual plant failure — skip silently
