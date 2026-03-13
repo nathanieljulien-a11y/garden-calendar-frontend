@@ -451,9 +451,9 @@ async function checkRegionalOccurrence(scientificName, lat, lng, taxonKey) {
   }
   const proxyUrl = null; // bypass proxy for occurrences — use GBIF directly
   const directUrl = resolvedKey
-    ? `https://api.gbif.org/v1/occurrence/search?taxonKey=${resolvedKey}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`
+    ? `https://api.gbif.org/v1/occurrence/search?taxonKey=${resolvedKey}&decimalLatitude=${lat-3.0},${lat+3.0}&decimalLongitude=${lng-3.0},${lng+3.0}&limit=1`
     : scientificName
-    ? `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(scientificName)}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`
+    ? `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(scientificName)}&decimalLatitude=${lat-3.0},${lat+3.0}&decimalLongitude=${lng-3.0},${lng+3.0}&limit=1`
     : null;
   if (!directUrl) return null;
 
@@ -1661,7 +1661,7 @@ Rules:
                   if (!m?.occurrence) return null;
                   if (m.occurrence.count === 0) return (
                     <div key={`occ-${plantName}`} className="occ-warning">
-                      ⚠ <strong>{plantName}</strong> — no GBIF records within 50km · may be unsuitable for this location
+                      ⚠ <strong>{plantName}</strong> — no GBIF records within 300km · likely unsuitable for this location
                       {m.scientificName && <span className="gbif-badge"> · {m.scientificName}</span>}
                       <span className="gbif-badge"> · GBIF</span>
                     </div>
@@ -1722,7 +1722,7 @@ Rules:
                   .filter(([,m]) => m?.occurrence?.count === 0)
                   .map(([plantName, m]) => (
                     <div key={plantName} className="occ-warning">
-                      ⚠ <strong>{plantName}</strong> — no GBIF records within 50km · may be unsuitable for {city}
+                      ⚠ <strong>{plantName}</strong> — no GBIF records within 300km · likely unsuitable for {city}
                       {m.scientificName && <span className="gbif-badge"> · {m.scientificName}</span>}
                       <span className="gbif-badge"> · GBIF</span>
                     </div>
