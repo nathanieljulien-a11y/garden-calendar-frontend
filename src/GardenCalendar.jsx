@@ -965,14 +965,13 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo}) {
 }
 
 // ─── InsightsPanel ───────────────────────────────────────────────────────────
-function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done}) {
+function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, totalPlantCount}) {
   const [open, setOpen] = useState(false);
   const canUnlock = stream1Done && hasPlants;
   const handleUnlock = () => { setOpen(true); onFetch(); };
 
   // Count how many plants have GBIF occurrence data loaded
   const gbifCount = Object.values(plantMeta||{}).filter(m => m?.occurrence != null).length;
-  const totalPlantCount = Object.values(plants||{}).flat().length;
 
   return (
     <div className="insights-panel">
@@ -1727,6 +1726,7 @@ Rules:
               onFetch={fetchInsights}
               hasPlants={totalPlants > 0}
               stream1Done={stream1Done}
+              totalPlantCount={totalPlants}
             />
 
             {/* Export buttons — shown once generation is complete */}
