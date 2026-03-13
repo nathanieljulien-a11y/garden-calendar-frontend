@@ -1182,28 +1182,36 @@ Rules:
           // Fire GBIF occurrence checks for ALL plants and AWAIT them before building prompt
           // Uses scientific name if validated, raw name otherwise (catches plants like coconut)
           if (m?.lat && m?.lng) {
-            const allPlantNames = Object.values(plants).flat();
-            const occResults = await Promise.all(allPlantNames.map(async plantName => {
-              const meta = plantMetaRef.current[plantName];
-              const queryName = meta?.scientificName || plantName;
-              const occ = await checkRegionalOccurrence(queryName, m.lat, m.lng);
-              return { plantName, occ };
-            }));
-            // Batch update plantMeta with all occurrence results
-            setPlantMeta(prev => {
-              const next = { ...prev };
-              occResults.forEach(({ plantName, occ }) => {
-                if (occ !== null) {
-                  next[plantName] = { ...(next[plantName]||{}), occurrence: occ };
+            try {
+              const allPlantNames = Object.values(plants).flat();
+              const occResults = await Promise.all(allPlantNames.map(async plantName => {
+                try {
+                  const meta = plantMetaRef.current[plantName];
+                  const queryName = meta?.scientificName || plantName;
+                  const occ = await checkRegionalOccurrence(queryName, m.lat, m.lng);
+                  return { plantName, occ };
+                } catch {
+                  return { plantName, occ: null }; // individual plant failure — skip silently
                 }
+              }));
+              // Batch update plantMeta with all occurrence results
+              setPlantMeta(prev => {
+                const next = { ...prev };
+                occResults.forEach(({ plantName, occ }) => {
+                  if (occ !== null) {
+                    next[plantName] = { ...(next[plantName]||{}), occurrence: occ };
+                  }
+                });
+                return next;
               });
-              return next;
-            });
-            // Build occurrenceByName for immediate use in prompt (before React re-renders)
-            occurrenceByName = {};
-            occResults.forEach(({ plantName, occ }) => {
-              if (occ !== null) occurrenceByName[plantName] = occ;
-            });
+              // Build occurrenceByName for immediate use in prompt (before React re-renders)
+              occurrenceByName = {};
+              occResults.forEach(({ plantName, occ }) => {
+                if (occ !== null) occurrenceByName[plantName] = occ;
+              });
+            } catch {
+              // GBIF batch failed entirely — continue without occurrence data
+            }
           }
         }
     } catch(e) {
