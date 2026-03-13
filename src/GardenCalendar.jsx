@@ -433,25 +433,34 @@ async function validatePlantName(name) {
 // Source: GBIF occurrence records · gbif.org · CC BY 4.0 / CC0 per dataset
 async function checkRegionalOccurrence(scientificName, lat, lng, taxonKey) {
   if (!lat || !lng) return null;
-  // Proxy: always send name (old proxy expects it); server resolves to taxonKey internally
-  // If proxy unavailable, use taxonKey directly against GBIF for exact matching
-  const proxyUrl = PROXY_BASE && scientificName
-    ? `${PROXY_BASE}/api/occurrences?name=${encodeURIComponent(scientificName)}&lat=${lat}&lng=${lng}&radius=0.5${taxonKey ? `&taxonKey=${encodeURIComponent(taxonKey)}` : ""}`
+  // Always go direct to GBIF for occurrences — proxy's scientificName filter is unreliable.
+  // taxonKey (numeric GBIF ID) is an exact match; fall back to scientificName only if no key.
+  // For plants without a taxonKey, resolve one first via species/match.
+  let resolvedKey = taxonKey;
+  if (!resolvedKey && scientificName) {
+    try {
+      const matchUrl = PROXY_BASE
+        ? `${PROXY_BASE}/api/species?name=${encodeURIComponent(scientificName)}`
+        : `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}&verbose=false`;
+      const matchRes = await fetch(matchUrl);
+      if (matchRes.ok) {
+        const matchData = await matchRes.json();
+        if (matchData.usageKey && matchData.matchType !== "NONE") resolvedKey = matchData.usageKey;
+      }
+    } catch {}
+  }
+  const proxyUrl = null; // bypass proxy for occurrences — use GBIF directly
+  const directUrl = resolvedKey
+    ? `https://api.gbif.org/v1/occurrence/search?taxonKey=${resolvedKey}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`
+    : scientificName
+    ? `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(scientificName)}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`
     : null;
-  // Direct GBIF: taxonKey is exact; fall back to scientificName if no key
-  const directUrl = taxonKey
-    ? `https://api.gbif.org/v1/occurrence/search?taxonKey=${taxonKey}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`
-    : `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(scientificName||"")}&decimalLatitude=${lat-0.5},${lat+0.5}&decimalLongitude=${lng-0.5},${lng+0.5}&limit=1`;
+  if (!directUrl) return null;
 
   try {
-    const tryFetch = async (url) => {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    };
-    let data;
-    try { data = proxyUrl ? await tryFetch(proxyUrl) : await tryFetch(directUrl); }
-    catch { data = await tryFetch(directUrl); }
+    const res = await fetch(directUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
     const count = data.count ?? 0;
     return { count, recorded: count > 0 };
   } catch {
