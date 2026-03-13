@@ -972,7 +972,7 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done}) {
 
   // Count how many plants have GBIF occurrence data loaded
   const gbifCount = Object.values(plantMeta||{}).filter(m => m?.occurrence != null).length;
-  const totalValidated = Object.values(plantMeta||{}).filter(m => m?.status === "valid").length;
+  const totalPlantCount = Object.values(plants||{}).flat().length;
 
   return (
     <div className="insights-panel">
@@ -1024,7 +1024,7 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done}) {
             <div className="gbif-attribution">
               Regional occurrence data: <a href="https://gbif.org" target="_blank" rel="noopener" style={{color:"inherit"}}>GBIF</a>
               {" · "}names: <a href="https://powo.science.kew.org" target="_blank" rel="noopener" style={{color:"inherit"}}>Plants of the World Online</a> / WCVP (Royal Botanic Gardens, Kew)
-              {" · "}{gbifCount} of {totalValidated} plants checked
+              {" · "}{gbifCount} of {totalPlantCount} plants checked
             </div>
           )}
         </div>
@@ -1154,7 +1154,6 @@ Rules:
     // offset 0 shows [prev, current, next] — current month is the middle panel
     setPageIdx(0);
 
-    const allPlants = Object.entries(plants).map(([k,v])=>v.length?`${k}: ${v.map(p=>enrichedPlantName(p,plantMeta[p])).join(", ")}`:null).filter(Boolean).join(" | ")||"general/unspecified mix";
     const featuresCtx = features.length ? ` Garden features: ${features.join(", ")}.` : "";
     const now = `${MONTH_NAMES[nowIdx]} ${new Date().getFullYear()}`;
 
@@ -1164,6 +1163,7 @@ Rules:
 
     // Ensure meta
     let m = null; // always fetch fresh — prefetch data may be stale or wrong format
+    let occurrenceByName = {}; // populated after GBIF checks, used to build allPlants
     try {
         m = await callClaude(`Location:${city}, orientation:${orientation}.
 Return ONLY valid JSON — no markdown, no explanation:
@@ -1179,20 +1179,30 @@ Rules:
 - No source repeated across categories`,900, abort.signal, apiKey);
         if (rid===submitIdRef.current) {
           setMeta(m);
-          // Fire GBIF occurrence checks for ALL plants — async, non-blocking
-          // Uses scientific name if validated, raw name otherwise (catches unlisted plants like coconut)
+          // Fire GBIF occurrence checks for ALL plants and AWAIT them before building prompt
+          // Uses scientific name if validated, raw name otherwise (catches plants like coconut)
           if (m?.lat && m?.lng) {
-            Object.values(plants).flat().forEach(plantName => {
+            const allPlantNames = Object.values(plants).flat();
+            const occResults = await Promise.all(allPlantNames.map(async plantName => {
               const meta = plantMetaRef.current[plantName];
               const queryName = meta?.scientificName || plantName;
-              checkRegionalOccurrence(queryName, m.lat, m.lng).then(occ => {
+              const occ = await checkRegionalOccurrence(queryName, m.lat, m.lng);
+              return { plantName, occ };
+            }));
+            // Batch update plantMeta with all occurrence results
+            setPlantMeta(prev => {
+              const next = { ...prev };
+              occResults.forEach(({ plantName, occ }) => {
                 if (occ !== null) {
-                  setPlantMeta(prev => ({
-                    ...prev,
-                    [plantName]: { ...(prev[plantName]||{}), occurrence: occ }
-                  }));
+                  next[plantName] = { ...(next[plantName]||{}), occurrence: occ };
                 }
               });
+              return next;
+            });
+            // Build occurrenceByName for immediate use in prompt (before React re-renders)
+            occurrenceByName = {};
+            occResults.forEach(({ plantName, occ }) => {
+              if (occ !== null) occurrenceByName[plantName] = occ;
             });
           }
         }
@@ -1203,6 +1213,18 @@ Rules:
     }
 
     const metaCtx = m?`Zone:${m.zone}. Last frost:${m.lastFrost}. First frost:${m.firstFrost}. Climate:${m.climate}.`:"";
+
+    // Build allPlants NOW — after occurrence data is available in occurrenceByName
+    // enrichedPlantName reads from plantMeta but React hasn't re-rendered yet,
+    // so we pass occurrence data directly via a local lookup
+    const allPlants = Object.entries(plants).map(([k,v])=>v.length
+      ? `${k}: ${v.map(p => {
+          const meta = plantMetaRef.current[p] || {};
+          const occ = occurrenceByName[p] ?? meta.occurrence ?? null;
+          const metaWithOcc = { ...meta, occurrence: occ };
+          return enrichedPlantName(p, metaWithOcc);
+        }).join(", ")}`
+      : null).filter(Boolean).join(" | ")||"general/unspecified mix";
 
     // ── STREAM 1: line-format tasks + enjoy ──────────────────────────────────
     const s1prompt = `You are an expert horticulturist and naturalist.
@@ -1671,6 +1693,21 @@ Rules:
                 <div style={{maxWidth:340,margin:"1rem auto 0"}}><Shimmer lines={1}/></div>
               )}
             </div>
+
+            {/* Occurrence warnings — shown on calendar page once GBIF data loads */}
+            {Object.entries(plantMeta).filter(([,m]) => m?.occurrence?.count === 0).length > 0 && (
+              <div style={{maxWidth:"860px",margin:"0 auto .75rem",padding:"0 1rem"}}>
+                {Object.entries(plantMeta)
+                  .filter(([,m]) => m?.occurrence?.count === 0)
+                  .map(([plantName, m]) => (
+                    <div key={plantName} className="occ-warning">
+                      ⚠ <strong>{plantName}</strong> — no GBIF records within 50km · may be unsuitable for {city}
+                      {m.scientificName && <span className="gbif-badge"> · {m.scientificName}</span>}
+                      <span className="gbif-badge"> · GBIF</span>
+                    </div>
+                  ))}
+              </div>
+            )}
 
             {/* References panel — open with pending message until meta arrives */}
             <RefsPanel refs={meta?.references} pending={!meta}/>
