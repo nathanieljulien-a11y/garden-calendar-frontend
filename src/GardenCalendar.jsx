@@ -85,6 +85,7 @@ const styles = `
   .clarify-btn:hover { background:rgba(122,140,106,.28); color:var(--cream); }
   .clarify-btn.selected { background:rgba(92,122,74,.35); border-color:var(--fern); color:var(--cream); }
   .gbif-badge { font-size:.68rem; color:rgba(122,140,106,.55); font-style:italic; margin-left:.3rem; }
+  .occ-warning { font-size:.76rem; color:rgba(200,140,60,.85); background:rgba(200,140,60,.06); border:1px solid rgba(200,140,60,.2); border-radius:4px; padding:.35rem .65rem; margin-top:.3rem; line-height:1.5; }
   .gbif-occ-badge { font-size:.68rem; color:rgba(122,140,106,.55); font-style:italic; margin-left:.4rem; font-weight:normal; }
   .gbif-attribution { font-size:.68rem; color:rgba(180,180,160,.4); margin-top:.75rem; padding-top:.5rem; border-top:1px solid rgba(255,255,255,.05); line-height:1.5; }
   .btn-generate { width:100%; margin-top:1rem; background:var(--fern); border:1px solid var(--moss); color:var(--cream); padding:1rem; font-family:'Playfair Display',serif; font-size:1.15rem; font-style:italic; letter-spacing:.04em; border-radius:2px; cursor:pointer; transition:all .2s; display:flex; align-items:center; justify-content:center; gap:.6rem; }
@@ -462,6 +463,12 @@ function enrichedPlantName(name, meta) {
   if (meta.clarificationAnswer && meta.clarificationRule) {
     const hint = meta.clarificationRule.promptHint(meta.clarificationAnswer);
     if (hint) label += ` — ${hint}`;
+  }
+  // Flag plants with zero local GBIF records — Claude uses this as regional suitability context
+  if (meta.occurrence?.count === 0) {
+    label += ` — ⚠ 0 GBIF records near location, likely unsuitable for this climate`;
+  } else if (meta.occurrence?.count != null && meta.occurrence.count > 0) {
+    label += ` — ${meta.occurrence.count} local GBIF records`;
   }
   return label;
 }
@@ -1159,7 +1166,7 @@ Rules:
     try {
         m = await callClaude(`Location:${city}, orientation:${orientation}.
 Return ONLY valid JSON — no markdown, no explanation:
-{"zone":"<zone>","lastFrost":"<typical month only e.g. mid-April — no years>","firstFrost":"<typical month only e.g. late October — no years>","climate":"<brief label>","references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
+{"zone":"<zone>","lastFrost":"<typical month only e.g. mid-April — no years>","firstFrost":"<typical month only e.g. late October — no years>","climate":"<brief label>","lat":<decimal latitude>,"lng":<decimal longitude>,"references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
 Rules:
 - Each category: 2-3 distinct real organisations or publications
 - Climate: national met service, major broadcaster weather, local services for this region
@@ -1603,6 +1610,18 @@ Rules:
                       )}
                     </div>
                   );
+                })}
+                {/* Regional suitability warnings — shown once occurrence data loads */}
+                {plants[cat.key].map(plantName => {
+                  const m = plantMeta[plantName];
+                  if (!m || m.occurrence == null) return null;
+                  if (m.occurrence.count === 0) return (
+                    <div key={`occ-${plantName}`} className="occ-warning">
+                      ⚠ <strong>{plantName}</strong> — no GBIF records within 50km · may be unsuitable for this location
+                      {m.scientificName && <span className="gbif-badge"> · {m.scientificName}</span>}
+                    </div>
+                  );
+                  return null;
                 })}
                 <div className="suggestions">
                   {cat.suggestions.map(s=>{
