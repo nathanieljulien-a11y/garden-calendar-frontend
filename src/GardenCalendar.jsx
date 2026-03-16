@@ -433,34 +433,27 @@ async function validatePlantName(name) {
 // Source: GBIF occurrence records · gbif.org · CC BY 4.0 / CC0 per dataset
 async function checkRegionalOccurrence(scientificName, lat, lng, taxonKey) {
   if (!lat || !lng) return null;
-  // Always go direct to GBIF for occurrences — proxy's scientificName filter is unreliable.
-  // taxonKey (numeric GBIF ID) is an exact match; fall back to scientificName only if no key.
-  // For plants without a taxonKey, resolve one first via species/match.
-  let resolvedKey = taxonKey;
-  if (!resolvedKey && scientificName) {
-    try {
-      const matchUrl = PROXY_BASE
-        ? `${PROXY_BASE}/api/species?name=${encodeURIComponent(scientificName)}`
-        : `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}&verbose=false`;
-      const matchRes = await fetch(matchUrl);
-      if (matchRes.ok) {
-        const matchData = await matchRes.json();
-        if (matchData.usageKey && matchData.matchType !== "NONE") resolvedKey = matchData.usageKey;
-      }
-    } catch {}
-  }
-  const proxyUrl = null; // bypass proxy for occurrences — use GBIF directly
-  const directUrl = resolvedKey
-    ? `https://api.gbif.org/v1/occurrence/search?taxonKey=${resolvedKey}&decimalLatitude=${lat-3.0},${lat+3.0}&decimalLongitude=${lng-3.0},${lng+3.0}&limit=1`
-    : scientificName
-    ? `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(scientificName)}&decimalLatitude=${lat-3.0},${lat+3.0}&decimalLongitude=${lng-3.0},${lng+3.0}&limit=1`
+  // Route through proxy — direct GBIF occurrence search is blocked for browser requests.
+  // Proxy resolves taxonKey for exact matching; client passes taxonKey when already known.
+  const name = scientificName || "";
+  const proxyUrl = PROXY_BASE
+    ? `${PROXY_BASE}/api/occurrences?name=${encodeURIComponent(name)}&lat=${lat}&lng=${lng}&radius=3.0${taxonKey ? `&taxonKey=${encodeURIComponent(taxonKey)}` : ""}`
     : null;
-  if (!directUrl) return null;
+  const directUrl = taxonKey
+    ? `https://api.gbif.org/v1/occurrence/search?taxonKey=${taxonKey}&decimalLatitude=${lat-3.0},${lat+3.0}&decimalLongitude=${lng-3.0},${lng+3.0}&limit=1`
+    : `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(name)}&decimalLatitude=${lat-3.0},${lat+3.0}&decimalLongitude=${lng-3.0},${lng+3.0}&limit=1`;
 
   try {
-    const res = await fetch(directUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    const tryFetch = async (url) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data) && typeof data.count === "number") return data;
+      throw new Error("unexpected_response"); // GBIF returned a message array instead of data
+    };
+    let data;
+    try { data = proxyUrl ? await tryFetch(proxyUrl) : await tryFetch(directUrl); }
+    catch { data = await tryFetch(directUrl); }
     const count = data.count ?? 0;
     return { count, recorded: count > 0 };
   } catch {
