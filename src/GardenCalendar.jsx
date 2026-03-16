@@ -473,7 +473,7 @@ function enrichedPlantName(name, meta) {
     }
   }
   // Flag plants with zero local GBIF records — applies to all plants, validated or not
-  if (meta?.occurrence?.count === 0) {
+  if (meta?.occurrence?.count === 0 && meta?.scientificName) {
     label += ` — ⚠ 0 GBIF records near location, likely unsuitable for this climate`;
   } else if (meta?.occurrence?.count > 0) {
     label += ` — ${meta.occurrence.count} local GBIF records`;
@@ -1150,6 +1150,12 @@ Rules:
     userNavigatedRef.current = false;
     setInspos({}); setInsights({state:"idle", items:[]});
     setShowArrow(true);
+    // Clear stale occurrence data from previous run — keeps species/clarification data intact
+    setPlantMeta(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([k, v]) => { next[k] = { ...v, occurrence: undefined }; });
+      return next;
+    });
     // Scroll to top of page after a tick so the calendar view has mounted
     setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
     // Initialise all months as pending
@@ -1652,7 +1658,7 @@ Rules:
                 {plants[cat.key].map(plantName => {
                   const m = plantMeta[plantName];
                   if (!m?.occurrence) return null;
-                  if (m.occurrence.count === 0) return (
+                  if (m.occurrence.count === 0 && m?.scientificName) return (
                     <div key={`occ-${plantName}`} className="occ-warning">
                       ⚠ <strong>{plantName}</strong> — no GBIF records within 300km · likely unsuitable for this location
                       {m.scientificName && <span className="gbif-badge"> · {m.scientificName}</span>}
@@ -1708,11 +1714,12 @@ Rules:
               )}
             </div>
 
-            {/* Occurrence warnings — shown on calendar page once GBIF data loads */}
-            {Object.entries(plantMeta).filter(([,m]) => m?.occurrence?.count === 0).length > 0 && (
+            {/* Occurrence warnings — only shown when plant was GBIF-validated (has scientificName)
+                 AND returned count=0. Unvalidated plants or proxy failures are silently skipped. */}
+            {Object.entries(plantMeta).filter(([,m]) => m?.occurrence?.count === 0 && m?.scientificName).length > 0 && (
               <div style={{maxWidth:"860px",margin:"0 auto .75rem",padding:"0 1rem"}}>
                 {Object.entries(plantMeta)
-                  .filter(([,m]) => m?.occurrence?.count === 0)
+                  .filter(([,m]) => m?.occurrence?.count === 0 && m?.scientificName)
                   .map(([plantName, m]) => (
                     <div key={plantName} className="occ-warning">
                       ⚠ <strong>{plantName}</strong> — no GBIF records within 300km · likely unsuitable for {city}
