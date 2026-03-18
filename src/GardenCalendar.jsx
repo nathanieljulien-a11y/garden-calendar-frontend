@@ -433,29 +433,55 @@ async function validatePlantName(name) {
 // Source: GBIF occurrence records · gbif.org · CC BY 4.0 / CC0 per dataset
 async function checkRegionalOccurrence(scientificName, lat, lng, taxonKey) {
   if (!lat || !lng) return null;
-  // Route through proxy — direct GBIF occurrence search is blocked for browser requests.
-  // Proxy resolves taxonKey for exact matching; client passes taxonKey when already known.
-  const name = scientificName || "";
-  const proxyUrl = PROXY_BASE
-    ? `${PROXY_BASE}/api/occurrences?name=${encodeURIComponent(name)}&lat=${lat}&lng=${lng}&radius=3.0${taxonKey ? `&taxonKey=${encodeURIComponent(taxonKey)}` : ""}`
-    : null;
-  const directUrl = taxonKey
-    ? `https://api.gbif.org/v1/occurrence/search?taxonKey=${taxonKey}&decimalLatitude=${lat-3.0},${lat+3.0}&decimalLongitude=${lng-3.0},${lng+3.0}&limit=1`
-    : `https://api.gbif.org/v1/occurrence/search?scientificName=${encodeURIComponent(name)}&decimalLatitude=${lat-3.0},${lat+3.0}&decimalLongitude=${lng-3.0},${lng+3.0}&limit=1`;
-
+  // Go direct to GBIF — browser requests work fine (verified), proxy was the problem.
+  // For genus-level keys we need genusKey not taxonKey; resolve rank via species/match first.
+  let gbifParam;
+  if (taxonKey) {
+    // Check if this is a genus-level key by doing a quick lookup
+    try {
+      const matchUrl = PROXY_BASE
+        ? `${PROXY_BASE}/api/species?name=${encodeURIComponent(scientificName)}`
+        : `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}&verbose=false`;
+      const r = await fetch(matchUrl);
+      if (r.ok) {
+        const d = await r.json();
+        const rank = (d.rank || "").toUpperCase();
+        if (rank === "GENUS") {
+          gbifParam = `genusKey=${d.genusKey || d.usageKey}`;
+        } else if (rank === "FAMILY") {
+          gbifParam = `familyKey=${d.familyKey || d.usageKey}`;
+        } else if (d.usageKey && d.matchType !== "NONE") {
+          gbifParam = `taxonKey=${d.usageKey}`;
+        }
+      }
+    } catch {}
+  }
+  if (!gbifParam && scientificName) {
+    // No taxonKey or lookup failed — resolve via species/match
+    try {
+      const matchUrl = PROXY_BASE
+        ? `${PROXY_BASE}/api/species?name=${encodeURIComponent(scientificName)}`
+        : `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}&verbose=false`;
+      const r = await fetch(matchUrl);
+      if (r.ok) {
+        const d = await r.json();
+        const rank = (d.rank || "").toUpperCase();
+        if (d.usageKey && d.matchType !== "NONE") {
+          gbifParam = rank === "GENUS"  ? `genusKey=${d.genusKey || d.usageKey}`
+                    : rank === "FAMILY" ? `familyKey=${d.familyKey || d.usageKey}`
+                    : `taxonKey=${d.usageKey}`;
+        }
+      }
+    } catch {}
+  }
+  if (!gbifParam) return null; // couldn't resolve — skip silently
+  const url = `https://api.gbif.org/v1/occurrence/search?${gbifParam}&decimalLatitude=${lat-3.0},${lat+3.0}&decimalLongitude=${lng-3.0},${lng+3.0}&limit=1`;
   try {
-    const tryFetch = async (url) => {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (!Array.isArray(data) && typeof data.count === "number") return data;
-      throw new Error("unexpected_response"); // GBIF returned a message array instead of data
-    };
-    let data;
-    try { data = proxyUrl ? await tryFetch(proxyUrl) : await tryFetch(directUrl); }
-    catch { data = await tryFetch(directUrl); }
-    const count = data.count ?? 0;
-    return { count, recorded: count > 0 };
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (typeof data.count !== "number") return null; // guard against GBIF message responses
+    return { count: data.count, recorded: data.count > 0 };
   } catch {
     return null;
   }
