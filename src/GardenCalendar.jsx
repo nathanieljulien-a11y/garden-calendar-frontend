@@ -341,6 +341,31 @@ const COMMON_TO_SCIENTIFIC = {
   "buddleja":   "Buddleja",
   "viburnum":   "Viburnum",
   "photinia":   "Photinia",
+  // Additional common names missing from GBIF name backbone
+  "holly":       "Ilex aquifolium",
+  "hollies":     "Ilex aquifolium",
+  "olive":       "Olea europaea",
+  "olives":      "Olea europaea",
+  "quince":      "Cydonia oblonga",
+  "quinces":     "Cydonia oblonga",
+  "rhubarb":     "Rheum rhabarbarum",
+  "blueberry":   "Vaccinium corymbosum",
+  "blueberries": "Vaccinium corymbosum",
+  "edelweiss":   "Leontopodium alpinum",
+  "coconut":     "Cocos nucifera",
+  "coconuts":    "Cocos nucifera",
+  "melon":       "Cucumis melo",
+  "melons":      "Cucumis melo",
+  "hellebore":   "Helleborus",
+  "hellebores":  "Helleborus",
+  "oleander":    "Nerium oleander",
+  "pyracantha":  "Pyracantha",
+  "magnolia":    "Magnolia",
+  "hydrangea":   "Hydrangea",
+  "spruce":      "Picea",
+  "crocus":      "Crocus",
+  "daffodil":    "Narcissus",
+  "daffodils":   "Narcissus",
   "elderflower": "Sambucus nigra",
   "elderberry": "Sambucus nigra",
   "ivy":        "Hedera",
@@ -1234,7 +1259,7 @@ Rules:
               for (const plantName of allPlantNames) {
                 try {
                   const meta = plantMetaRef.current[plantName];
-                  const queryName = meta?.scientificName || plantName;
+                  const queryName = meta?.scientificName || COMMON_TO_SCIENTIFIC[plantName.toLowerCase()] || plantName;
                   const occ = await checkRegionalOccurrence(queryName, m.lat, m.lng, meta?.usageKey);
                   occResults.push({ plantName, occ });
                 } catch {
