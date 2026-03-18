@@ -568,6 +568,147 @@ const emptyMonth = (name) => ({
   _state:"pending",
 });
 
+
+// ─── OpenMeteo climate data ───────────────────────────────────────────────────
+// Fetches 10 years of daily ERA5 data and aggregates to monthly normals.
+// Free, no API key, global coverage, CC BY 4.0.
+const OM_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+async function fetchOpenMeteoClimate(lat, lng) {
+  const vars = [
+    "temperature_2m_mean","temperature_2m_min","temperature_2m_max",
+    "precipitation_sum","sunshine_duration"
+  ].join(",");
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=2014-01-01&end_date=2023-12-31&daily=${vars}&timezone=auto`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`OpenMeteo HTTP ${res.status}`);
+  const raw = await res.json();
+
+  const dates  = raw.daily?.time || [];
+  const tMean  = raw.daily?.temperature_2m_mean || [];
+  const tMin   = raw.daily?.temperature_2m_min  || [];
+  const tMax   = raw.daily?.temperature_2m_max  || [];
+  const precip = raw.daily?.precipitation_sum   || [];
+  const sun    = raw.daily?.sunshine_duration   || [];
+
+  const acc = Array.from({length:12}, () => ({tMean:[],tMin:[],tMax:[],precip:0,sun:0,frostDays:0,count:0}));
+  for (let i = 0; i < dates.length; i++) {
+    const m = new Date(dates[i]).getMonth();
+    if (tMean[i]  != null) acc[m].tMean.push(tMean[i]);
+    if (tMin[i]   != null) acc[m].tMin.push(tMin[i]);
+    if (tMax[i]   != null) acc[m].tMax.push(tMax[i]);
+    if (precip[i] != null) acc[m].precip += precip[i];
+    if (sun[i]    != null) acc[m].sun += sun[i];
+    if (tMin[i]   != null && tMin[i] < 0) acc[m].frostDays++;
+    acc[m].count++;
+  }
+  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+  const YEARS = 10;
+  return {
+    lat: raw.latitude, lng: raw.longitude,
+    tMean:     acc.map(a => avg(a.tMean)),
+    tMin:      acc.map(a => avg(a.tMin)),
+    tMax:      acc.map(a => avg(a.tMax)),
+    precip:    acc.map(a => a.precip / YEARS),
+    sunHrs:    acc.map(a => (a.sun / a.count) / 3600),
+    frostDays: acc.map(a => a.frostDays / YEARS),
+  };
+}
+
+function deriveClimateFromOM(cd, hemisphere) {
+  const { tMean, tMin, tMax, precip, frostDays } = cd;
+  const annualFrost   = frostDays.reduce((a,b) => a+b, 0);
+  const coldestMean   = Math.min(...tMean);
+  const hottestMax    = Math.max(...tMax);
+  const coldestMin    = Math.min(...tMin);
+  const annualPrecip  = precip.reduce((a,b) => a+b, 0);
+  const dryMonthCount = precip.filter(p => p < 30).length;
+  const tempRange     = Math.max(...tMean) - Math.min(...tMean);
+
+  // Hardiness zone from coldest monthly minimum
+  const zone = coldestMin < -17.8 ? "Zone 6" : coldestMin < -12.2 ? "Zone 7"
+    : coldestMin < -6.7 ? "Zone 8" : coldestMin < -1.1 ? "Zone 9"
+    : coldestMin < 4.4  ? "Zone 10" : "Zone 11+";
+
+  // Multi-axis climate classification
+  let climateType;
+  if (annualFrost === 0 && coldestMean > 18) {
+    climateType = "equatorial";
+  } else if (annualFrost === 0 && coldestMean > 15) {
+    climateType = "tropical humid";
+  } else if (annualFrost < 5 && dryMonthCount >= 4) {
+    const summerIdxs = hemisphere === "S" ? [11,0,1] : [5,6,7];
+    const winterIdxs = hemisphere === "S" ? [5,6,7] : [11,0,1];
+    const wetSummer = summerIdxs.reduce((a,i)=>a+precip[i],0) > winterIdxs.reduce((a,i)=>a+precip[i],0) * 1.5;
+    climateType = hottestMax > 35 ? "hot semi-arid" : wetSummer ? "subtropical (wet/dry seasons)" : "mediterranean";
+  } else if (annualFrost < 5 && annualPrecip > 800) {
+    climateType = "subtropical oceanic";
+  } else if (annualFrost < 5 && dryMonthCount >= 3) {
+    climateType = "subtropical (wet/dry seasons)";
+  } else if (annualFrost < 5) {
+    climateType = "subtropical";
+  } else if (coldestMean < 0 || annualFrost > 60) {
+    climateType = "cold temperate";
+  } else if (tempRange < 16) {
+    climateType = "temperate oceanic";
+  } else {
+    climateType = "temperate continental";
+  }
+
+  // Frost months — hemisphere-aware
+  const SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  let lastFrost = null, firstFrost = null;
+  if (hemisphere === "S") {
+    for (let i = 11; i >= 6; i--) if (frostDays[i] > 0.5) { lastFrost = SHORT[i]; break; }
+    for (let i = 0;  i <= 5; i++) if (frostDays[i] > 0.5) { firstFrost = SHORT[i]; break; }
+  } else {
+    for (let i = 5; i >= 0; i--) if (frostDays[i] > 0.5) { lastFrost = SHORT[i]; break; }
+    for (let i = 6; i <= 11; i++) if (frostDays[i] > 0.5) { firstFrost = SHORT[i]; break; }
+  }
+
+  // Dry season months (named)
+  const dryMonths = SHORT.filter((_,i) => precip[i] < 30);
+
+  // Season note for prompt
+  let seasonNote = "";
+  if (hemisphere === "S") {
+    seasonNote = "SOUTHERN HEMISPHERE — seasons are inverted vs Northern Hemisphere. Summer is Dec–Feb, winter is Jun–Aug.";
+  } else if (climateType === "equatorial") {
+    seasonNote = "EQUATORIAL — no seasons. Growing year-round. Tasks governed by wet/dry cycles, not temperature.";
+  } else if (climateType === "tropical humid") {
+    seasonNote = "TROPICAL — no frost ever. Growing year-round. Wet season governs planting timing.";
+  }
+
+  return { zone, climateType, lastFrost, firstFrost, dryMonths, seasonNote, annualFrost, annualPrecip };
+}
+
+function buildClimateContext(cd, derived) {
+  const SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const fmt1  = arr => SHORT.map((m,i) => `${m}:${arr[i]?.toFixed(1)}`).join(" ");
+  const fmt0  = arr => SHORT.map((m,i) => `${m}:${arr[i]?.toFixed(0)}`).join(" ");
+  return [
+    `Hemisphere: ${derived.seasonNote ? (derived.seasonNote.startsWith("SOUTHERN") ? "Southern (seasons inverted)" : "Equatorial") : "Northern"}`,
+    `Climate type: ${derived.climateType}`,
+    `Hardiness zone: ${derived.zone}`,
+    `Monthly mean temps (°C):  ${fmt1(cd.tMean)}`,
+    `Monthly max temps (°C):   ${fmt1(cd.tMax)}`,
+    `Monthly precip (mm):      ${fmt0(cd.precip)}`,
+    `Monthly sunshine (h/day): ${fmt1(cd.sunHrs)}`,
+    `Frost days/month:         ${fmt1(cd.frostDays)}`,
+    `Last spring frost: ${derived.lastFrost || "none"} · First autumn frost: ${derived.firstFrost || "none"}`,
+    `Annual frost days: ${derived.annualFrost.toFixed(0)}`,
+    derived.dryMonths.length ? `Dry months (<30mm rain): ${derived.dryMonths.join(", ")}` : "No pronounced dry season",
+    derived.seasonNote ? `IMPORTANT: ${derived.seasonNote}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+// Detect hemisphere from latitude (equatorial band ±10°)
+function detectHemisphere(lat) {
+  if (lat > 10)  return "N";
+  if (lat < -10) return "S";
+  return "EQ";
+}
+
 // ─── Proxy base URL ───────────────────────────────────────────────────────────
 // Read directly from Vite env at build time — window.__VITE_PROXY_URL__ set by
 // main.jsx is unreliable due to module evaluation order.
@@ -1183,12 +1324,12 @@ export default function GardenCalendar() {
   const prefetchMeta = useCallback(async (c,o) => {
     if (!c||!o) return;
     const rid = ++prefetchIdRef.current;
-    const pfAbort = new AbortController();
     setPfState("fetching"); setMeta(null);
     try {
-      const r = await callClaude(`Location:${c}, orientation:${o}.
+      // Step 1: Get lat/lng from Claude (lightweight call — just geocoding + references)
+      const geoResult = await callClaude(`Location: ${c}.
 Return ONLY valid JSON — no markdown, no explanation:
-{"zone":"<zone>","lastFrost":"<typical month only e.g. mid-April — no years>","firstFrost":"<typical month only e.g. late October — no years>","climate":"<brief label>","lat":<decimal latitude of city>,"lng":<decimal longitude of city>,"references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
+{"lat":<decimal latitude>,"lng":<decimal longitude>,"references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
 Rules:
 - Each category: 2-3 distinct real organisations or publications
 - Climate: national met service, major broadcaster weather, local services for this region
@@ -1196,11 +1337,31 @@ Rules:
 - Phenology: citizen science and academic phenology networks for this region
 - Wildlife: leading wildlife charities or ornithological societies for this country
 - Gardens near ${c}: mix from national heritage trusts, royal/state parks, local botanic gardens — NOT always the same institution
-- Broadcasters: 2-3 gardening broadcasters, presenters, or writer-practitioners who are well known in the country or region of ${c}. These should be real people who present or have presented gardening on TV, radio, or major publications in that country. For UK: e.g. Monty Don, Carol Klein, Sarah Raven, James Wong, Alan Titchmarsh. Choose equivalents for other regions.
-- No source repeated across categories`,900, pfAbort.signal, apiKey);
+- Broadcasters: 2-3 gardening broadcasters, presenters, or writer-practitioners who are well known in the country or region of ${c}. Real people who present gardening on TV, radio, or major publications. For UK: e.g. Monty Don, Carol Klein, Sarah Raven. Choose equivalents for other regions.
+- No source repeated across categories`, 700, undefined, apiKey);
       if (rid!==prefetchIdRef.current) return;
-      setMeta(r); setPfState("ready");
-    } catch { if (rid===prefetchIdRef.current) setPfState("error"); }
+
+      // Step 2: Fetch real climate data from OpenMeteo
+      const hemisphere = detectHemisphere(geoResult.lat);
+      const cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
+      if (rid!==prefetchIdRef.current) return;
+      const derived = deriveClimateFromOM(cd, hemisphere);
+
+      setMeta({
+        lat: geoResult.lat, lng: geoResult.lng,
+        zone: derived.zone,
+        lastFrost: derived.lastFrost || "none",
+        firstFrost: derived.firstFrost || "none",
+        climate: derived.climateType,
+        hemisphere,
+        references: geoResult.references,
+        // Store full climate data for prompt building
+        _cd: cd, _derived: derived,
+      });
+      setPfState("ready");
+    } catch(e) {
+      if (rid===prefetchIdRef.current) setPfState("error");
+    }
   },[]);
 
   // ── Wake-up ping — fires once on mount to pre-warm Render free tier ──────
@@ -1258,22 +1419,43 @@ Rules:
     const startIdx = (nowIdx + 11) % 12;
     const orderedMonths = Array.from({length:12}, (_,i) => MONTH_NAMES[(startIdx + i) % 12]);
 
-    // Ensure meta
-    let m = null; // always fetch fresh — prefetch data may be stale or wrong format
+    // Ensure meta — use prefetched data if available, otherwise fetch fresh
+    let m = null;
     let occurrenceByName = {}; // populated after GBIF checks, used to build allPlants
     try {
-        m = await callClaude(`Location:${city}, orientation:${orientation}.
+        // Reuse prefetched meta if it has real climate data (_cd), otherwise fetch fresh
+        if (meta?._cd && meta?.lat && meta?.lng) {
+          m = meta;
+        } else {
+          // Fallback: geocode + fetch OpenMeteo
+          const geoResult = await callClaude(`Location: ${city}.
 Return ONLY valid JSON — no markdown, no explanation:
-{"zone":"<zone>","lastFrost":"<typical month only e.g. mid-April — no years>","firstFrost":"<typical month only e.g. late October — no years>","climate":"<brief label>","lat":<decimal latitude>,"lng":<decimal longitude>,"references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
+{"lat":<decimal latitude>,"lng":<decimal longitude>,"references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
 Rules:
 - Each category: 2-3 distinct real organisations or publications
 - Climate: national met service, major broadcaster weather, local services for this region
 - Plant care: leading horticultural institutions for this country (e.g. RHS and Kew for UK)
 - Phenology: citizen science and academic phenology networks for this region
 - Wildlife: leading wildlife charities or ornithological societies for this country
-- Gardens near ${city}: mix from national heritage trusts, royal/state parks, local botanic gardens — NOT always the same institution
-- Broadcasters: 2-3 gardening broadcasters, presenters, or writer-practitioners who are well known in the country or region of ${city}. These should be real people who present or have presented gardening on TV, radio, or major publications in that country. For UK: e.g. Monty Don, Carol Klein, Sarah Raven, James Wong, Alan Titchmarsh. Choose equivalents for other regions.
-- No source repeated across categories`,900, abort.signal, apiKey);
+- Gardens near ${city}: mix from national heritage trusts, royal/state parks, local botanic gardens
+- Broadcasters: 2-3 real gardening presenters well known in the country or region of ${city}
+- No source repeated across categories`, 700, abort.signal, apiKey);
+          if (rid!==submitIdRef.current) return;
+          const hemisphere = detectHemisphere(geoResult.lat);
+          const cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
+          if (rid!==submitIdRef.current) return;
+          const derived = deriveClimateFromOM(cd, hemisphere);
+          m = {
+            lat: geoResult.lat, lng: geoResult.lng,
+            zone: derived.zone,
+            lastFrost: derived.lastFrost || "none",
+            firstFrost: derived.firstFrost || "none",
+            climate: derived.climateType,
+            hemisphere,
+            references: geoResult.references,
+            _cd: cd, _derived: derived,
+          };
+        }
         if (rid===submitIdRef.current) {
           setMeta(m);
           // Fire GBIF occurrence checks for ALL plants and AWAIT them before building prompt
@@ -1325,7 +1507,10 @@ Rules:
       setError("Failed to fetch climate data."); return;
     }
 
-    const metaCtx = m?`Zone:${m.zone}. Last frost:${m.lastFrost}. First frost:${m.firstFrost}. Climate:${m.climate}.`:"";
+    // Build rich climate context from real OpenMeteo data
+    const metaCtx = m?._cd && m?._derived
+      ? `\nREAL CLIMATE DATA for ${city} (10-year averages, Open-Meteo/ERA5):\n${buildClimateContext(m._cd, m._derived)}`
+      : m ? `Zone:${m.zone}. Last frost:${m.lastFrost}. First frost:${m.firstFrost}. Climate:${m.climate}.` : "";
 
     // Build allPlants NOW — after occurrence data is available in occurrenceByName
     // enrichedPlantName reads from plantMeta but React hasn't re-rendered yet,
@@ -1395,10 +1580,12 @@ LIFECYCLE RULES — apply before every pruning task:
 - Apple: summer prune new laterals to 3 leaves above basal cluster (Jul–Aug). Structural prune late Feb only — not January.
 - Raspberries: autumn-fruiting → cut ALL canes to ground level in Feb. Summer-fruiting → cut only fruited canes after harvest in Aug.
 
-TIMING RULES:
-- Last frost ${m?.lastFrost || "mid-March"}: no tender crops outdoors before this.
-- First frost ${m?.firstFrost || "mid-November"}: harvest or protect tender crops before this.
-- Lawn feed: spring/summer blend Apr–Aug only. Autumn low-N feed Sep only. NEVER apply Oct–Mar.
+TIMING RULES — use the real climate data above, not assumptions:
+- Last spring frost ${m?._derived?.lastFrost || m?.lastFrost || "mid-March"}: no tender crops outdoors before this.
+- First autumn frost ${m?._derived?.firstFrost || m?.firstFrost || "mid-November"}: harvest or protect tender crops before this.
+- If frost-free year-round: no cold protection tasks needed. Focus on wet/dry season and heat management.
+- Lawn feed: spring/summer blend only. NEVER apply during coldest 3 months.
+- ${m?._derived?.seasonNote ? `HEMISPHERE/SEASON: ${m._derived.seasonNote}` : ""}
 
 INVENTORY RULE: ONLY suggest tasks for plants listed in this garden. Do NOT introduce unlisted plants. Always refer to plants by their common name as listed — never use scientific names in task or enjoy text.
 
@@ -1620,7 +1807,7 @@ Rules:
   const pfLabel = {
     idle:null,
     fetching:<span className="prefetch-chip active"><span className="spin-sm">◌</span> Fetching climate data…</span>,
-    ready:<span className="prefetch-chip ready">✓ Climate data ready</span>,
+    ready:<span className="prefetch-chip ready">✓ Climate data ready · Open-Meteo/ERA5</span>,
     error:<span className="prefetch-chip error">⚠ Will retry on generate</span>,
   }[prefetchState];
 
