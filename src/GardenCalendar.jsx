@@ -1203,16 +1203,19 @@ Rules:
           if (m?.lat && m?.lng) {
             try {
               const allPlantNames = Object.values(plants).flat();
-              const occResults = await Promise.all(allPlantNames.map(async plantName => {
+              // Sequential with small delay — parallel requests trigger GBIF rate limiting
+              const occResults = [];
+              for (const plantName of allPlantNames) {
                 try {
                   const meta = plantMetaRef.current[plantName];
                   const queryName = meta?.scientificName || plantName;
                   const occ = await checkRegionalOccurrence(queryName, m.lat, m.lng, meta?.usageKey);
-                  return { plantName, occ };
+                  occResults.push({ plantName, occ });
                 } catch {
-                  return { plantName, occ: null }; // individual plant failure — skip silently
+                  occResults.push({ plantName, occ: null });
                 }
-              }));
+                await new Promise(r => setTimeout(r, 150)); // 150ms between requests
+              }
               // Batch update plantMeta with all occurrence results
               setPlantMeta(prev => {
                 const next = { ...prev };
