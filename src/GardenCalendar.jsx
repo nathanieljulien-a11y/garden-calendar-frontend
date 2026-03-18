@@ -85,6 +85,9 @@ const styles = `
   .clarify-btn:hover { background:rgba(122,140,106,.28); color:var(--cream); }
   .clarify-btn.selected { background:rgba(92,122,74,.35); border-color:var(--fern); color:var(--cream); }
   .gbif-badge { font-size:.68rem; color:rgba(122,140,106,.55); font-style:italic; margin-left:.3rem; }
+  .spell-row { display:flex; flex-wrap:wrap; gap:.35rem; margin:.3rem 0 .2rem; align-items:center; animation:fadeIn .25s ease; font-size:.76rem; color:var(--sage); }
+  .spell-btn { background:rgba(200,169,110,.15); border:1px solid rgba(200,169,110,.3); border-radius:2px; padding:.22rem .6rem; font-size:.76rem; color:var(--straw); cursor:pointer; transition:all .15s; font-family:'Crimson Pro',serif; }
+  .spell-btn:hover { background:rgba(200,169,110,.28); color:var(--cream); }
   .occ-warning { font-size:.76rem; color:rgba(200,140,60,.85); background:rgba(200,140,60,.06); border:1px solid rgba(200,140,60,.2); border-radius:4px; padding:.35rem .65rem; margin-top:.3rem; line-height:1.5; }
   .gbif-occ-badge { font-size:.68rem; color:rgba(122,140,106,.55); font-style:italic; margin-left:.4rem; font-weight:normal; }
   .gbif-attribution { font-size:.68rem; color:rgba(180,180,160,.4); margin-top:.75rem; padding-top:.5rem; border-top:1px solid rgba(255,255,255,.05); line-height:1.5; }
@@ -340,7 +343,8 @@ const COMMON_TO_SCIENTIFIC = {
   "buddleia":   "Buddleja",
   "buddleja":   "Buddleja",
   "viburnum":   "Viburnum",
-  "photinia":   "Photinia",
+  "photinia":   "Photinia serratifolia",  // specific species avoids "multiple equal matches"
+  "photinias":  "Photinia serratifolia",
   // Additional common names missing from GBIF name backbone
   "holly":       "Ilex aquifolium",
   "hollies":     "Ilex aquifolium",
@@ -387,6 +391,18 @@ const COMMON_TO_SCIENTIFIC = {
   "gooseberries": "Ribes uva-crispa",
   "currant":    "Ribes",
   "currants":   "Ribes",
+  "redcurrant":  "Ribes rubrum",
+  "redcurrants": "Ribes rubrum",
+  "blackcurrant":  "Ribes nigrum",
+  "blackcurrants": "Ribes nigrum",
+  "peach":      "Prunus persica",
+  "peaches":    "Prunus persica",
+  "plum":       "Prunus domestica",
+  "plums":      "Prunus domestica",
+  "cherry":     "Prunus avium",
+  "cherries":   "Prunus avium",
+  "pear":       "Pyrus communis",
+  "pears":      "Pyrus communis",
   "courgette":  "Cucurbita pepo",
   "courgettes": "Cucurbita pepo",
   "zucchini":   "Cucurbita pepo",
@@ -437,16 +453,41 @@ async function validatePlantName(name) {
     const sciName = data.canonicalName || data.scientificName || "";
     const rule    = CLARIFICATION_RULES.find(r => r.test({ genus, family }));
 
+    // Auto-populate the lookup map so occurrence checks use the correct scientific name
+    // even for plants not hardcoded in COMMON_TO_SCIENTIFIC
+    const key = name.toLowerCase();
+    if (!COMMON_TO_SCIENTIFIC[key] && sciName) {
+      COMMON_TO_SCIENTIFIC[key] = sciName;
+    }
+
+    // Spelling suggestion: if the user's input doesn't match any known common name
+    // and differs meaningfully from the canonical scientific name, offer a correction.
+    // Use the first common vernacular name from COMMON_TO_SCIENTIFIC that maps to the
+    // same scientific name, falling back to the canonical name itself.
+    let spellSuggestion = null;
+    const inputKey = name.toLowerCase().trim();
+    const isKnownCommon = !!COMMON_TO_SCIENTIFIC[inputKey];
+    const matchesScientific = sciName.toLowerCase().startsWith(inputKey) || inputKey === sciName.toLowerCase();
+    if (!isKnownCommon && !matchesScientific && sciName) {
+      // Find a friendly common name that maps to this scientific name
+      const commonMatch = Object.entries(COMMON_TO_SCIENTIFIC).find(([k, v]) =>
+        v.toLowerCase() === sciName.toLowerCase() && k !== inputKey
+      );
+      spellSuggestion = commonMatch ? commonMatch[0] : sciName;
+      // Capitalise first letter for display
+      spellSuggestion = spellSuggestion.charAt(0).toUpperCase() + spellSuggestion.slice(1);
+    }
+
     return {
       status: "valid", name,
       scientificName: sciName,
       family, genus,
       usageKey: data.usageKey,        // GBIF taxon key — used for occurrence lookup
       confidence: data.confidence,
-      // Attribution chain: GBIF → WCVP → POWO (Kew)
       attribution: "GBIF / WCVP (Royal Botanic Gardens, Kew)",
       clarificationRule: rule || null,
       clarificationAnswer: null,
+      spellSuggestion,
     };
   } catch {
     return { status: "unknown", name };
@@ -1715,6 +1756,36 @@ Rules:
                     </div>
                   );
                 })}
+                {/* Spelling suggestions — shown when GBIF resolved a likely correction */}
+                {plants[cat.key].map(plantName => {
+                  const m = plantMeta[plantName];
+                  if (!m?.spellSuggestion) return null;
+                  return (
+                    <div key={`spell-${plantName}`} className="spell-row">
+                      <span>Did you mean</span>
+                      <button className="spell-btn" type="button"
+                        onClick={() => {
+                          // Replace the misspelled entry with the suggestion
+                          const corrected = m.spellSuggestion;
+                          setPlants(prev => ({
+                            ...prev,
+                            [cat.key]: prev[cat.key].map(p => p === plantName ? corrected : p)
+                          }));
+                          setPlantMeta(prev => {
+                            const next = { ...prev };
+                            next[corrected] = { ...next[plantName], spellSuggestion: null };
+                            delete next[plantName];
+                            return next;
+                          });
+                          onPlantAdded(corrected);
+                        }}>
+                        {m.spellSuggestion}
+                      </button>
+                      <span style={{opacity:.5}}>· {m.scientificName}</span>
+                    </div>
+                  );
+                })}
+
                 {/* Regional suitability warnings — shown once occurrence data loads */}
                 {plants[cat.key].map(plantName => {
                   const m = plantMeta[plantName];
