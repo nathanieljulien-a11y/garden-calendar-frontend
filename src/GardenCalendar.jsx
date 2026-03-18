@@ -343,8 +343,8 @@ const COMMON_TO_SCIENTIFIC = {
   "buddleia":   "Buddleja",
   "buddleja":   "Buddleja",
   "viburnum":   "Viburnum",
-  "photinia":   "Photinia serratifolia",  // specific species avoids "multiple equal matches"
-  "photinias":  "Photinia serratifolia",
+  "photinia":   "Photinia fraseri",  // Red Robin — most common UK garden photinia
+  "photinias":  "Photinia fraseri",
   // Additional common names missing from GBIF name backbone
   "holly":       "Ilex aquifolium",
   "hollies":     "Ilex aquifolium",
@@ -357,6 +357,8 @@ const COMMON_TO_SCIENTIFIC = {
   "blueberries": "Vaccinium corymbosum",
   "edelweiss":   "Leontopodium alpinum",
   "coconut":     "Cocos nucifera",
+  "pineapple":   "Ananas comosus",
+  "pineapples":  "Ananas comosus",
   "coconuts":    "Cocos nucifera",
   "melon":       "Cucumis melo",
   "melons":      "Cucumis melo",
@@ -497,62 +499,38 @@ async function validatePlantName(name) {
 // Checks how many times a plant has been recorded growing near a location.
 // Fires once coordinates are known (after climate prefetch).
 // Source: GBIF occurrence records · gbif.org · CC BY 4.0 / CC0 per dataset
-async function checkRegionalOccurrence(scientificName, lat, lng, taxonKey) {
-  if (!lat || !lng) return null;
-  // Go direct to GBIF — browser requests work fine (verified), proxy was the problem.
-  // For genus-level keys we need genusKey not taxonKey; resolve rank via species/match first.
+async function checkRegionalOccurrence(scientificName, lat, lng) {
+  if (!lat || !lng || !scientificName) return null;
+  // Single species/match to resolve correct GBIF occurrence parameter.
+  // genusKey aggregates all species under a genus; taxonKey is species-level.
   let gbifParam;
-  if (taxonKey) {
-    // Check if this is a genus-level key by doing a quick lookup
-    try {
-      const matchUrl = PROXY_BASE
-        ? `${PROXY_BASE}/api/species?name=${encodeURIComponent(scientificName)}`
-        : `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}&verbose=false`;
-      const r = await fetch(matchUrl);
-      if (r.ok) {
-        const d = await r.json();
+  try {
+    const matchUrl = PROXY_BASE
+      ? `${PROXY_BASE}/api/species?name=${encodeURIComponent(scientificName)}`
+      : `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}&verbose=false`;
+    const r = await fetch(matchUrl);
+    if (r.ok) {
+      const d = await r.json();
+      if (d.usageKey && d.matchType !== "NONE") {
         const rank = (d.rank || "").toUpperCase();
-        if (rank === "GENUS") {
-          gbifParam = `genusKey=${d.genusKey || d.usageKey}`;
-        } else if (rank === "FAMILY") {
-          gbifParam = `familyKey=${d.familyKey || d.usageKey}`;
-        } else if (d.usageKey && d.matchType !== "NONE") {
-          gbifParam = `taxonKey=${d.usageKey}`;
-        }
+        gbifParam = rank === "GENUS"  ? `genusKey=${d.genusKey || d.usageKey}`
+                  : rank === "FAMILY" ? `familyKey=${d.familyKey || d.usageKey}`
+                  : `taxonKey=${d.usageKey}`;
       }
-    } catch {}
-  }
-  if (!gbifParam && scientificName) {
-    // No taxonKey or lookup failed — resolve via species/match
-    try {
-      const matchUrl = PROXY_BASE
-        ? `${PROXY_BASE}/api/species?name=${encodeURIComponent(scientificName)}`
-        : `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}&verbose=false`;
-      const r = await fetch(matchUrl);
-      if (r.ok) {
-        const d = await r.json();
-        const rank = (d.rank || "").toUpperCase();
-        if (d.usageKey && d.matchType !== "NONE") {
-          gbifParam = rank === "GENUS"  ? `genusKey=${d.genusKey || d.usageKey}`
-                    : rank === "FAMILY" ? `familyKey=${d.familyKey || d.usageKey}`
-                    : `taxonKey=${d.usageKey}`;
-        }
-      }
-    } catch {}
-  }
-  if (!gbifParam) return null; // couldn't resolve — skip silently
+    }
+  } catch {}
+  if (!gbifParam) return null;
   const url = `https://api.gbif.org/v1/occurrence/search?${gbifParam}&decimalLatitude=${lat-3.0},${lat+3.0}&decimalLongitude=${lng-3.0},${lng+3.0}&limit=1`;
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
-    if (typeof data.count !== "number") return null; // guard against GBIF message responses
+    if (typeof data.count !== "number") return null;
     return { count: data.count, recorded: data.count > 0 };
   } catch {
     return null;
   }
 }
-
 function enrichedPlantName(name, meta) {
   let label = name;
   if (meta?.status === "valid") {
@@ -565,7 +543,7 @@ function enrichedPlantName(name, meta) {
     }
   }
   // Flag plants with zero local GBIF records — applies to all plants, validated or not
-  if (meta?.occurrence?.count === 0 && meta?.scientificName) {
+  if (meta?.occurrence?.count === 0 && meta?.scientificName && (meta?.confidence ?? 100) >= 90 && meta?.status === 'valid') {
     label += ` — ⚠ 0 GBIF records near location, likely unsuitable for this climate`;
   } else if (meta?.occurrence?.count > 0) {
     label += ` — ${meta.occurrence.count} local GBIF records`;
@@ -1295,18 +1273,23 @@ Rules:
           if (m?.lat && m?.lng) {
             try {
               const allPlantNames = Object.values(plants).flat();
-              // Sequential with small delay — parallel requests trigger GBIF rate limiting
+              // Concurrent in batches of 5 — fast enough, avoids GBIF rate limiting
+              const BATCH = 5;
               const occResults = [];
-              for (const plantName of allPlantNames) {
-                try {
-                  const meta = plantMetaRef.current[plantName];
-                  const queryName = meta?.scientificName || COMMON_TO_SCIENTIFIC[plantName.toLowerCase()] || plantName;
-                  const occ = await checkRegionalOccurrence(queryName, m.lat, m.lng, meta?.usageKey);
-                  occResults.push({ plantName, occ });
-                } catch {
-                  occResults.push({ plantName, occ: null });
-                }
-                await new Promise(r => setTimeout(r, 150)); // 150ms between requests
+              for (let i = 0; i < allPlantNames.length; i += BATCH) {
+                const batch = allPlantNames.slice(i, i + BATCH);
+                const batchResults = await Promise.all(batch.map(async plantName => {
+                  try {
+                    const meta = plantMetaRef.current[plantName];
+                    const queryName = meta?.scientificName || COMMON_TO_SCIENTIFIC[plantName.toLowerCase()] || plantName;
+                    const occ = await checkRegionalOccurrence(queryName, m.lat, m.lng);
+                    return { plantName, occ };
+                  } catch {
+                    return { plantName, occ: null };
+                  }
+                }));
+                occResults.push(...batchResults);
+                if (i + BATCH < allPlantNames.length) await new Promise(r => setTimeout(r, 200));
               }
               // Batch update plantMeta with all occurrence results
               setPlantMeta(prev => {
@@ -1409,7 +1392,7 @@ TIMING RULES:
 - First frost ${m?.firstFrost || "mid-November"}: harvest or protect tender crops before this.
 - Lawn feed: spring/summer blend Apr–Aug only. Autumn low-N feed Sep only. NEVER apply Oct–Mar.
 
-INVENTORY RULE: ONLY suggest tasks for plants listed in this garden. Do NOT introduce unlisted plants.
+INVENTORY RULE: ONLY suggest tasks for plants listed in this garden. Do NOT introduce unlisted plants. Always refer to plants by their common name as listed — never use scientific names in task or enjoy text.
 
 SPECIFICITY RULE: Every TASK must include a measurement, plant part, method, or timing cue.
 FAIL: "Prune apple" / "Feed lawn" / "Check for pests" / "Water plants"
@@ -1790,7 +1773,7 @@ Rules:
                 {plants[cat.key].map(plantName => {
                   const m = plantMeta[plantName];
                   if (!m?.occurrence) return null;
-                  if (m.occurrence.count === 0 && m?.scientificName) return (
+                  if (m.occurrence.count === 0 && m?.scientificName && (m?.confidence ?? 100) >= 90) return (
                     <div key={`occ-${plantName}`} className="occ-warning">
                       ⚠ <strong>{plantName}</strong> — no GBIF records within 300km · likely unsuitable for this location
                       {m.scientificName && <span className="gbif-badge"> · {m.scientificName}</span>}
@@ -1848,10 +1831,10 @@ Rules:
 
             {/* Occurrence warnings — only shown when plant was GBIF-validated (has scientificName)
                  AND returned count=0. Unvalidated plants or proxy failures are silently skipped. */}
-            {Object.entries(plantMeta).filter(([,m]) => m?.occurrence?.count === 0 && m?.scientificName).length > 0 && (
+            {Object.entries(plantMeta).filter(([,m]) => m?.occurrence?.count === 0 && m?.scientificName && (m?.confidence ?? 100) >= 90).length > 0 && (
               <div style={{maxWidth:"860px",margin:"0 auto .75rem",padding:"0 1rem"}}>
                 {Object.entries(plantMeta)
-                  .filter(([,m]) => m?.occurrence?.count === 0 && m?.scientificName)
+                  .filter(([,m]) => m?.occurrence?.count === 0 && m?.scientificName && (m?.confidence ?? 100) >= 90)
                   .map(([plantName, m]) => (
                     <div key={plantName} className="occ-warning">
                       ⚠ <strong>{plantName}</strong> — no GBIF records within 300km · likely unsuitable for {city}
