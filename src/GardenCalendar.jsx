@@ -519,6 +519,8 @@ async function checkRegionalOccurrence(scientificName, lat, lng) {
         gbifParam = rank === "GENUS"  ? `genusKey=${d.genusKey || d.usageKey}`
                   : rank === "FAMILY" ? `familyKey=${d.familyKey || d.usageKey}`
                   : `taxonKey=${d.usageKey}`;
+      } else {
+        return null; // HIGHERRANK or NONE — not reliable enough for occurrence data
       }
     }
   } catch {}
@@ -1531,7 +1533,7 @@ Rules:
     const metaCtx = meta ? `Zone: ${meta.zone}. Climate: ${meta.climate}. Last frost: ${meta.lastFrost}. First frost: ${meta.firstFrost}.` : "";
     // Build GBIF occurrence context string for the prompt
     const occurrenceCtx = Object.entries(plantMeta)
-      .filter(([,m]) => m?.occurrence != null && m?.scientificName)
+      .filter(([,m]) => m?.occurrence != null && m?.scientificName && m.occurrence.count < 1000000)
       .map(([name, m]) => {
         const c = m.occurrence.count;
         const level = c < 5 ? `only ${c} GBIF record${c===1?"":"s"} near location — likely unsuitable`
@@ -1837,7 +1839,7 @@ Rules:
             {Object.entries(plantMeta).filter(([,m]) => m?.occurrence?.count != null && m.occurrence.count < 5 && m?.scientificName && (m?.confidence ?? 100) >= 90).length > 0 && (
               <div style={{maxWidth:"860px",margin:"0 auto .75rem",padding:"0 1rem"}}>
                 {Object.entries(plantMeta)
-                  .filter(([,m]) => m?.occurrence?.count != null && m.occurrence.count < 5 && m?.scientificName && (m?.confidence ?? 100) >= 90)
+                  .filter(([,m]) => m?.occurrence?.count != null && m.occurrence.count < 5 && m.occurrence.count >= 0 && m?.scientificName && (m?.confidence ?? 100) >= 90)
                   .map(([plantName, m]) => (
                     <div key={plantName} className="occ-warning">
                       ⚠ <strong>{plantName}</strong> — only {m.occurrence.count} GBIF record{m.occurrence.count === 1 ? '' : 's'} within 300km · likely unsuitable for {city}
