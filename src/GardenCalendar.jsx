@@ -504,6 +504,7 @@ async function checkRegionalOccurrence(scientificName, lat, lng) {
   // Single species/match to resolve correct GBIF occurrence parameter.
   // genusKey aggregates all species under a genus; taxonKey is species-level.
   let gbifParam;
+  let resolvedMatchType = null;
   try {
     const matchUrl = PROXY_BASE
       ? `${PROXY_BASE}/api/species?name=${encodeURIComponent(scientificName)}`
@@ -519,6 +520,8 @@ async function checkRegionalOccurrence(scientificName, lat, lng) {
         gbifParam = rank === "GENUS"  ? `genusKey=${d.genusKey || d.usageKey}`
                   : rank === "FAMILY" ? `familyKey=${d.familyKey || d.usageKey}`
                   : `taxonKey=${d.usageKey}`;
+        // Store matchType so badge logic can require EXACT for zero-count warnings
+        resolvedMatchType = matchType;
       } else {
         return null; // HIGHERRANK or NONE — not reliable enough for occurrence data
       }
@@ -531,7 +534,7 @@ async function checkRegionalOccurrence(scientificName, lat, lng) {
     if (!res.ok) return null;
     const data = await res.json();
     if (typeof data.count !== "number") return null;
-    return { count: data.count, recorded: data.count > 0 };
+    return { count: data.count, recorded: data.count > 0, matchType: resolvedMatchType };
   } catch {
     return null;
   }
@@ -548,8 +551,8 @@ function enrichedPlantName(name, meta) {
     }
   }
   // Flag plants with zero local GBIF records — applies to all plants, validated or not
-  if (meta?.occurrence?.count != null && meta.occurrence.count < 5 && meta?.scientificName && (meta?.confidence ?? 100) >= 90) {
-    label += ` — ⚠ only ${meta.occurrence.count} GBIF record${meta.occurrence.count === 1 ? '' : 's'} near location, likely unsuitable for this climate`;
+  if (meta?.occurrence?.count === 0 && meta?.occurrence?.matchType === 'EXACT' && meta?.scientificName) {
+    label += ` — ⚠ 0 GBIF records near location, likely unsuitable for this climate`;
   } else if (meta?.occurrence?.count > 0) {
     label += ` — ${meta.occurrence.count} local GBIF records`;
   }
@@ -1536,7 +1539,7 @@ Rules:
       .filter(([,m]) => m?.occurrence != null && m?.scientificName && m.occurrence.count < 1000000)
       .map(([name, m]) => {
         const c = m.occurrence.count;
-        const level = c < 5 ? `only ${c} GBIF record${c===1?"":"s"} near location — likely unsuitable`
+        const level = c === 0 ? "no GBIF records near location — likely unsuitable"
           : c < 10  ? `${c} GBIF records near location — rarely recorded`
           : c < 50  ? `${c} GBIF records near location — occasionally recorded`
           : c < 200 ? `${c} GBIF records near location — well established`
@@ -1778,9 +1781,9 @@ Rules:
                 {plants[cat.key].map(plantName => {
                   const m = plantMeta[plantName];
                   if (!m?.occurrence) return null;
-                  if (m.occurrence.count < 5 && m?.scientificName && (m?.confidence ?? 100) >= 90) return (
+                  if (m.occurrence.count === 0 && m.occurrence.matchType === 'EXACT' && m?.scientificName) return (
                     <div key={`occ-${plantName}`} className="occ-warning">
-                      ⚠ <strong>{plantName}</strong> — only {m.occurrence.count} GBIF record{m.occurrence.count === 1 ? '' : 's'} within 300km · likely unsuitable for this location
+                      ⚠ <strong>{plantName}</strong> — no GBIF records within 300km · likely unsuitable for this location
                       {m.scientificName && <span className="gbif-badge"> · {m.scientificName}</span>}
                       <span className="gbif-badge"> · GBIF</span>
                     </div>
@@ -1836,13 +1839,13 @@ Rules:
 
             {/* Occurrence warnings — only shown when plant was GBIF-validated (has scientificName)
                  AND returned count=0. Unvalidated plants or proxy failures are silently skipped. */}
-            {Object.entries(plantMeta).filter(([,m]) => m?.occurrence?.count != null && m.occurrence.count < 5 && m?.scientificName && (m?.confidence ?? 100) >= 90).length > 0 && (
+            {Object.entries(plantMeta).filter(([,m]) => m?.occurrence?.count === 0 && m?.occurrence?.matchType === 'EXACT' && m?.scientificName).length > 0 && (
               <div style={{maxWidth:"860px",margin:"0 auto .75rem",padding:"0 1rem"}}>
                 {Object.entries(plantMeta)
-                  .filter(([,m]) => m?.occurrence?.count != null && m.occurrence.count < 5 && m.occurrence.count >= 0 && m?.scientificName && (m?.confidence ?? 100) >= 90)
+                  .filter(([,m]) => m?.occurrence?.count === 0 && m?.occurrence?.matchType === 'EXACT' && m?.scientificName)
                   .map(([plantName, m]) => (
                     <div key={plantName} className="occ-warning">
-                      ⚠ <strong>{plantName}</strong> — only {m.occurrence.count} GBIF record{m.occurrence.count === 1 ? '' : 's'} within 300km · likely unsuitable for {city}
+                      ⚠ <strong>{plantName}</strong> — no GBIF records within 300km · likely unsuitable for {city}
                       {m.scientificName && <span className="gbif-badge"> · {m.scientificName}</span>}
                       <span className="gbif-badge"> · GBIF</span>
                     </div>
