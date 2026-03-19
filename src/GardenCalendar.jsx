@@ -1706,32 +1706,34 @@ Rules:
     setInterstitial({text:"", done:false});
     setStage("interstitial");
 
-    // Fetch quote or climate sentence in parallel with starting calendar generation
+    // Fetch quote or climate sentence in parallel with calendar generation
+    // NOTE: callClaude() already returns a parsed JS object — do NOT JSON.parse again
     const quotePromise = (async () => {
       try {
-        const climateDesc = meta?.climate ? `The climate is ${meta.climate}` : "";
-        const zoneDesc = meta?.zone ? `, hardiness zone ${meta.zone}` : "";
-        const result = await callClaude(
-          `You are a literary garden writer. For a garden near ${city}${climateDesc}${zoneDesc}.
+        const climateDesc = meta?.climate ? ` The climate is ${meta.climate}` : "";
+        const zoneDesc    = meta?.zone    ? `, hardiness zone ${meta.zone}` : "";
+        console.log("[interstitial] fetching quote for", city);
+        const parsed = await callClaude(
+          `You are a literary garden writer. For a garden near ${city}.${climateDesc}${zoneDesc}.
 First, try to find a real, well-known published quote about gardens, nature, or the seasons in or associated with this region — from a local author, poet, naturalist, or gardener. If a strong regional quote exists, use it and attribute it precisely (Author, work, year if known).
 If no strong regional quote exists, write one short evocative sentence (max 25 words) describing the character of gardening in this climate — vivid, specific, not generic.
 Respond with ONLY a JSON object: {"quote":"...", "attribution":"..."} — attribution is empty string if you wrote the sentence yourself.
 No preamble, no markdown.`,
-          150, abort.signal, apiKey
+          200, abort.signal, apiKey
         );
+        console.log("[interstitial] quote result:", parsed);
         if (rid !== submitIdRef.current) return;
-        const clean = result.replace(/```json|```/g,"").trim();
-        const parsed = JSON.parse(clean);
-        const text = parsed.attribution
+        const text = parsed?.attribution
           ? `"${parsed.quote}" — ${parsed.attribution}`
-          : parsed.quote;
-        setInterstitial({text, done:true});
-      } catch {
-        // Fallback: show climate description
+          : (parsed?.quote || "");
+        if (text) setInterstitial({text, done:true});
+        else throw new Error("empty quote response");
+      } catch(e) {
+        console.warn("[interstitial] quote failed, using fallback:", e?.message);
         const fallback = meta?.climate
           ? `${city} — ${meta.climate}${meta.zone ? `, zone ${meta.zone}` : ""}`
           : city;
-        setInterstitial({text: fallback, done:true});
+        if (rid === submitIdRef.current) setInterstitial({text: fallback, done:true});
       }
     })();
 
@@ -1750,24 +1752,14 @@ No preamble, no markdown.`,
     const init = {};
     MONTH_NAMES.forEach(n=>{ init[n]=emptyMonth(n); });
     setMonths(init);
-    setS1Done(false); setActiveMonth(null);
-    unlockedPages.current = new Set();
-    userNavigatedRef.current = false;
-    setInspos({}); setInsights({state:"idle", items:[]});
-    setShowArrow(true);
-    // Clear stale occurrence data from previous run — keeps species/clarification data intact
-    setPlantMeta(prev => {
-      const next = {};
-      Object.entries(prev).forEach(([k, v]) => { next[k] = { ...v, occurrence: undefined }; });
-      return next;
-    });
-    // Transition to calendar after interstitial has shown for at least 2.5s
-    // (quote fetch usually takes ~1-2s, so this gives it time to appear)
-    const calendarTransition = Promise.all([
+
+    // Transition to calendar after interstitial shown for at least 2.5s
+    Promise.all([
       quotePromise,
       new Promise(r => setTimeout(r, 2500)),
     ]).then(() => {
       if (rid === submitIdRef.current) {
+        console.log("[interstitial] transitioning to calendar");
         setStage("calendar");
         setShowArrow(true);
         setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
