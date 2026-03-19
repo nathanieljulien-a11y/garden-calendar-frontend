@@ -1310,14 +1310,15 @@ function Shimmer({lines=3}) {
   return <div className="shimmer-block">{Array.from({length:lines}).map((_,i)=><div key={i} className={`shimmer-line ${w[i%w.length]}`} style={{animationDelay:`${i*.15}s`}}/>)}</div>;
 }
 
-// References panel — open by default, shows pending state while fetching
-function RefsPanel({refs, pending}) {
-  const [open,setOpen] = useState(true);
+// References panel — collapsible, starts closed in location step, open in calendar
+function RefsPanel({refs, pending, title, startOpen=false}) {
+  const [open,setOpen] = useState(startOpen);
   const catIcon = { Climate:"🌦", "Plant care":"🌿", Phenology:"🗓", Wildlife:"🐦", Gardens:"🌳", Broadcasters:"📺" };
+  const label = title || "📚 Further reading";
   return (
     <div className="refs-panel">
       <div className="refs-toggle" onClick={()=>setOpen(o=>!o)}>
-        <span className="refs-title">📚 Sources & References</span>
+        <span className="refs-title">{label}</span>
         <span className={`refs-chevron${open?" open":""}`}>▼</span>
       </div>
       {open && (
@@ -1329,7 +1330,9 @@ function RefsPanel({refs, pending}) {
             </div>
           ) : (
             <div className="refs-list">
-              {(refs||[]).map((r,i)=>(
+              {(refs||[])
+                .filter(r => r.category !== "Climate") // hide Climate source — we use Open-Meteo directly
+                .map((r,i)=>(
                 <div key={i} className="ref-item">
                   <span className="ref-dot">◆</span>
                   <span>
@@ -1338,6 +1341,9 @@ function RefsPanel({refs, pending}) {
                   </span>
                 </div>
               ))}
+              <div style={{fontSize:".72rem",color:"var(--muted)",marginTop:".5rem",fontStyle:"italic",opacity:.7}}>
+                Plant suggestions powered by iNaturalist local observations · Climate data via Open-Meteo / ERA5
+              </div>
             </div>
           )}
         </div>
@@ -1564,6 +1570,8 @@ export default function GardenCalendar() {
   }, []);
   const [prefetchState,setPfState]   = useState("idle");
   const [stage,setStage]             = useState("form");
+  const [formStep,setFormStep]       = useState("location"); // "location" | "plants"
+  const [interstitial,setInterstitial] = useState({text:"",done:false});
   const [months,setMonths]           = useState({});
   const [stream1Done,setS1Done]      = useState(false);
   const [activeMonth,setActiveMonth] = useState(null);
@@ -1685,17 +1693,63 @@ Rules:
   const handleSubmit = async () => {
     if (!city||!orientation) { setError("Please fill in city and orientation."); return; }
     setRateLimitMsg("");
-    // Abort previous stream and yield a tick so the abort settles before we start fresh
+    // Abort previous stream
     if (abortRef.current) { abortRef.current.abort(); }
     if (parserRef.current) { parserRef.current.cancel(); parserRef.current = null; }
     if (uiIntervalRef.current) { clearInterval(uiIntervalRef.current); uiIntervalRef.current = null; }
-    // Yield long enough for the aborted fetch to settle and any pending timers to clear
     await new Promise(r => setTimeout(r, 50));
     const abort = new AbortController();
     abortRef.current = abort;
     const rid = ++submitIdRef.current;
 
-    setError(""); setStage("calendar");
+    // ── Interstitial stage ────────────────────────────────────────────────────
+    setInterstitial({text:"", done:false});
+    setStage("interstitial");
+
+    // Fetch quote or climate sentence in parallel with starting calendar generation
+    const quotePromise = (async () => {
+      try {
+        const climateDesc = meta?.climate ? `The climate is ${meta.climate}` : "";
+        const zoneDesc = meta?.zone ? `, hardiness zone ${meta.zone}` : "";
+        const result = await callClaude(
+          `You are a literary garden writer. For a garden near ${city}${climateDesc}${zoneDesc}.
+First, try to find a real, well-known published quote about gardens, nature, or the seasons in or associated with this region — from a local author, poet, naturalist, or gardener. If a strong regional quote exists, use it and attribute it precisely (Author, work, year if known).
+If no strong regional quote exists, write one short evocative sentence (max 25 words) describing the character of gardening in this climate — vivid, specific, not generic.
+Respond with ONLY a JSON object: {"quote":"...", "attribution":"..."} — attribution is empty string if you wrote the sentence yourself.
+No preamble, no markdown.`,
+          150, abort.signal, apiKey
+        );
+        if (rid !== submitIdRef.current) return;
+        const clean = result.replace(/```json|```/g,"").trim();
+        const parsed = JSON.parse(clean);
+        const text = parsed.attribution
+          ? `"${parsed.quote}" — ${parsed.attribution}`
+          : parsed.quote;
+        setInterstitial({text, done:true});
+      } catch {
+        // Fallback: show climate description
+        const fallback = meta?.climate
+          ? `${city} — ${meta.climate}${meta.zone ? `, zone ${meta.zone}` : ""}`
+          : city;
+        setInterstitial({text: fallback, done:true});
+      }
+    })();
+
+    // ── Start calendar generation immediately in background ───────────────────
+    setError("");
+    setS1Done(false); setActiveMonth(null);
+    unlockedPages.current = new Set();
+    userNavigatedRef.current = false;
+    setInspos({}); setInsights({state:"idle", items:[]});
+    setShowArrow(false);
+    setPlantMeta(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([k, v]) => { next[k] = { ...v, occurrence: undefined }; });
+      return next;
+    });
+    const init = {};
+    MONTH_NAMES.forEach(n=>{ init[n]=emptyMonth(n); });
+    setMonths(init);
     setS1Done(false); setActiveMonth(null);
     unlockedPages.current = new Set();
     userNavigatedRef.current = false;
@@ -1707,14 +1761,19 @@ Rules:
       Object.entries(prev).forEach(([k, v]) => { next[k] = { ...v, occurrence: undefined }; });
       return next;
     });
-    // Scroll to top of page after a tick so the calendar view has mounted
-    setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
-    // Initialise all months as pending
-    const init = {};
-    MONTH_NAMES.forEach(n=>{ init[n]=emptyMonth(n); });
-    setMonths(init);
+    // Transition to calendar after interstitial has shown for at least 2.5s
+    // (quote fetch usually takes ~1-2s, so this gives it time to appear)
+    const calendarTransition = Promise.all([
+      quotePromise,
+      new Promise(r => setTimeout(r, 2500)),
+    ]).then(() => {
+      if (rid === submitIdRef.current) {
+        setStage("calendar");
+        setShowArrow(true);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
+      }
+    });
 
-    // offset 0 shows [prev, current, next] — current month is the middle panel
     setPageIdx(0);
 
     const featuresCtx = features.length ? ` Garden features: ${features.join(", ")}.` : "";
@@ -1981,7 +2040,7 @@ Other rules:
     if (uiIntervalRef.current) { clearInterval(uiIntervalRef.current); uiIntervalRef.current = null; }
     ++prefetchIdRef.current; ++submitIdRef.current;
     unlockedPages.current = new Set();
-    setStage("form"); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
+    setStage("form"); setFormStep("location"); setInterstitial({text:"",done:false}); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
   };
 
@@ -2168,7 +2227,7 @@ Rules:
           <p className="subtitle">A personalised year of growing, tending & harvesting</p>
         </header>
 
-        {isArtifact() && stage !== "calendar" && (
+        {isArtifact() && stage === "form" && (
           <div className="api-banner">
             <label>🔑 Anthropic API Key</label>
             <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-…"/>
@@ -2178,11 +2237,11 @@ Rules:
         {error && <div className="error-box">⚠ {error}</div>}
         {rateLimitMsg && <div className="rate-limit-box">🌿 {rateLimitMsg}</div>}
 
-        {/* ── FORM ── */}
-        {stage==="form" && (
+        {/* ── FORM: LOCATION STEP ── */}
+        {stage==="form" && formStep==="location" && (
           <div className="form-card">
             <div className="form-title">Tell us about your garden</div>
-            <p className="form-hint">Fill in location and orientation — climate data fetches in the background while you add your plants</p>
+            <p className="form-hint">Enter your location and orientation — we'll fetch live climate data to personalise your calendar.</p>
             <div className="field-row">
               <div className="field">
                 <label>📍 City & Country</label>
@@ -2194,9 +2253,79 @@ Rules:
                   <option value="">Select…</option>
                   {ORIENTATIONS.map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
-                {pfLabel}
               </div>
             </div>
+
+            {/* Climate status + pills — appear as prefetch runs */}
+            <div style={{minHeight:"2.5rem",margin:".75rem 0 0"}}>
+              {prefetchState==="fetching" && (
+                <div style={{display:"flex",alignItems:"center",gap:".5rem",fontSize:".82rem",color:"var(--muted)",fontStyle:"italic"}}>
+                  <span className="spin-sm">◌</span> Fetching climate data for {city}…
+                </div>
+              )}
+              {prefetchState==="ready" && meta && (
+                <div>
+                  <div style={{fontSize:".78rem",color:"var(--muted)",marginBottom:".4rem",fontStyle:"italic"}}>
+                    Climate data loaded · <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer" style={{color:"var(--muted)"}}>Open-Meteo / ERA5</a>
+                  </div>
+                  <div className="meta-pills" style={{justifyContent:"flex-start",margin:0}}>
+                    <div className="pill">🌡 Zone <b>{meta.zone}</b></div>
+                    <div className="pill">🌸 Last frost <b>{meta.lastFrost}</b></div>
+                    <div className="pill">🍂 First frost <b>{meta.firstFrost}</b></div>
+                    <div className="pill">🌤 {meta.climate}</div>
+                  </div>
+                </div>
+              )}
+              {prefetchState==="error" && (
+                <div style={{fontSize:".8rem",color:"var(--rust)"}}>⚠ Climate data unavailable — will retry when generating</div>
+              )}
+            </div>
+
+            {/* Further reading — collapsible */}
+            {meta?.references && (
+              <RefsPanel refs={meta.references} pending={false} title="📚 Further reading for your region" />
+            )}
+
+            <div style={{marginTop:"1.25rem"}}>
+              <button
+                className="btn-generate"
+                disabled={!city || !orientation}
+                onClick={() => setFormStep("plants")}
+                type="button">
+                {prefetchState==="ready" ? "Continue to plant selection →" : "Continue →"}
+              </button>
+              {prefetchState!=="ready" && city && orientation && (
+                <p style={{textAlign:"center",fontSize:".75rem",color:"var(--muted)",margin:".4rem 0 0",fontStyle:"italic"}}>
+                  Climate data is still loading — you can continue and it'll be ready by the time you generate
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── FORM: PLANTS STEP ── */}
+        {stage==="form" && formStep==="plants" && (
+          <div className="form-card">
+            <div style={{display:"flex",alignItems:"center",gap:".75rem",marginBottom:"1rem"}}>
+              <button onClick={()=>setFormStep("location")} type="button"
+                style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:".85rem",padding:"0",textDecoration:"underline"}}>
+                ← {city}
+              </button>
+              {meta && (
+                <div className="meta-pills" style={{justifyContent:"flex-start",margin:0,flex:1}}>
+                  <div className="pill">🌡 {meta.zone}</div>
+                  <div className="pill">🌤 {meta.climate}</div>
+                </div>
+              )}
+            </div>
+            <div className="form-title">Add your plants</div>
+            <p className="form-hint">
+              Suggestions below are ranked by local observation data near {city} — tap any to add it, or type your own.
+              {Object.values(suggestionState).some(s=>s==="loading") && (
+                <span style={{fontStyle:"italic",color:"var(--muted)"}}> Loading local suggestions…</span>
+              )}
+            </p>
+
             <div className="divider"/>
             <p className="section-label">🏡 Garden Features <em>— optional</em></p>
             <div className="category-row">
@@ -2247,7 +2376,7 @@ Rules:
                     </div>
                   );
                 })}
-                {/* Spelling suggestions — shown when GBIF resolved a likely correction */}
+                {/* Spelling suggestions */}
                 {plants[cat.key].map(plantName => {
                   const m = plantMeta[plantName];
                   if (!m?.spellSuggestion) return null;
@@ -2256,7 +2385,6 @@ Rules:
                       <span>Did you mean</span>
                       <button className="spell-btn" type="button"
                         onClick={() => {
-                          // Replace the misspelled entry with the suggestion
                           const corrected = m.spellSuggestion;
                           setPlants(prev => ({
                             ...prev,
@@ -2272,16 +2400,31 @@ Rules:
                         }}>
                         {m.spellSuggestion}
                       </button>
-                      <span style={{opacity:.5}}>· {m.scientificName}</span>
+                      <span style={{fontSize:".75rem",color:"var(--muted)"}}>· GBIF name match</span>
                     </div>
                   );
                 })}
-
-                {/* Regional suitability warnings — shown once occurrence data loads */}
+                {/* Occurrence warnings */}
                 {plants[cat.key].map(plantName => {
                   const m = plantMeta[plantName];
-                  if (!m?.occurrence) return null;
-                  if (m.occurrence.count === 0 && m.occurrence.matchType === 'EXACT' && m?.scientificName) return (
+                  if (m?.isRateLimit) return (
+                    <div key={`rl-${plantName}`} className="occ-warning" style={{color:"var(--amber)"}}>
+                      ⏳ <strong>{plantName}</strong> — validation paused · rate limit · will retry
+                    </div>
+                  );
+                  if (m?.status==="error") return (
+                    <div key={`err-${plantName}`} className="occ-warning" style={{opacity:.6}}>
+                      ⚠ <strong>{plantName}</strong> — couldn't validate · will include anyway
+                    </div>
+                  );
+                  if (m?.spellSuggestion) return null;
+                  if (m?.status==="loading") return (
+                    <div key={`ld-${plantName}`} style={{fontSize:".75rem",color:"var(--muted)",padding:".2rem 0",fontStyle:"italic"}}>
+                      <span className="spin-sm">◌</span> Checking {plantName}…
+                    </div>
+                  );
+                  if (m?.status==="valid" && m?.clarificationRule && !m?.clarificationAnswer) return null;
+                  if (m?.occurrence?.count === 0 && m?.occurrence?.matchType === 'EXACT' && m?.scientificName) return (
                     <div key={`occ-${plantName}`} className="occ-warning">
                       ⚠ <strong>{plantName}</strong> — no GBIF records within 300km · likely unsuitable for this location
                       {m.scientificName && <span className="gbif-badge"> · {m.scientificName}</span>}
@@ -2341,6 +2484,34 @@ Rules:
           </div>
         )}
 
+        {/* ── INTERSTITIAL ── */}
+        {stage==="interstitial" && (
+          <div className="form-card" style={{textAlign:"center",padding:"3rem 2rem",minHeight:"280px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"1.5rem"}}>
+            <div className="deco" style={{fontSize:"1.4rem",opacity:.7}}>✦ ✿ ✦</div>
+            {!interstitial.text ? (
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".75rem"}}>
+                <span className="spin-sm" style={{fontSize:"1.5rem",opacity:.5}}>◌</span>
+                <p style={{fontSize:".9rem",color:"var(--muted)",fontStyle:"italic",margin:0}}>Preparing your calendar…</p>
+              </div>
+            ) : (
+              <div style={{maxWidth:"520px"}}>
+                <p style={{
+                  fontFamily:"'Playfair Display',serif",
+                  fontSize:"1.15rem",
+                  lineHeight:"1.7",
+                  color:"var(--ink)",
+                  fontStyle:"italic",
+                  margin:"0 0 .75rem"
+                }}>
+                  {interstitial.text}
+                </p>
+                <p style={{fontSize:".78rem",color:"var(--muted)",margin:0}}>
+                  <span className="spin-sm">◌</span> Building your calendar…
+                </p>
+              </div>
+            )}
+          </div>
+        )}
         {/* ── CALENDAR ── */}
         {stage==="calendar" && (
           <div className="cal-wrap">
@@ -2380,7 +2551,7 @@ Rules:
             )}
 
             {/* References panel — open with pending message until meta arrives */}
-            <RefsPanel refs={meta?.references} pending={!meta}/>
+            <RefsPanel refs={meta?.references} pending={!meta} title="📚 Further reading for your region" startOpen={true}/>
 
             {/* Insights panel — between references and the calendar months */}
             <InsightsPanel
