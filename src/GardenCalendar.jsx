@@ -1753,11 +1753,10 @@ No preamble, no markdown.`,
     MONTH_NAMES.forEach(n=>{ init[n]=emptyMonth(n); });
     setMonths(init);
 
-    // Transition to calendar after interstitial shown for at least 2.5s
-    Promise.all([
-      quotePromise,
-      new Promise(r => setTimeout(r, 2500)),
-    ]).then(() => {
+    // Transition to calendar: wait for quote, then show it for at least 3s
+    quotePromise.then(() => {
+      return new Promise(r => setTimeout(r, 3000));
+    }).then(() => {
       if (rid === submitIdRef.current) {
         console.log("[interstitial] transitioning to calendar");
         setStage("calendar");
