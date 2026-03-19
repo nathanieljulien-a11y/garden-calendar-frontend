@@ -1271,6 +1271,7 @@ export default function GardenCalendar() {
   const plantMetaRef = useRef({});
   // Keep ref in sync so async callbacks (occurrence checks) read current state
   useEffect(() => { plantMetaRef.current = plantMeta; }, [plantMeta]);
+  useEffect(() => { metaRef.current = meta; }, [meta]);
 
   const onPlantAdded = useCallback(async (name) => {
     // Use ref-style check via functional updater to avoid stale closure
@@ -1292,6 +1293,7 @@ export default function GardenCalendar() {
   }, []);
 
   const [meta,setMeta]               = useState(null);
+  const metaRef = useRef(null);
   const [prefetchState,setPfState]   = useState("idle");
   const [stage,setStage]             = useState("form");
   const [months,setMonths]           = useState({});
@@ -1424,8 +1426,9 @@ Rules:
     let occurrenceByName = {}; // populated after GBIF checks, used to build allPlants
     try {
         // Reuse prefetched meta if it has real climate data (_cd), otherwise fetch fresh
-        if (meta?._cd && meta?.lat && meta?.lng) {
-          m = meta;
+        // Use metaRef (not meta) to avoid stale closure — prefetch may have set meta after last render
+        if (metaRef.current?._cd && metaRef.current?.lat && metaRef.current?.lng) {
+          m = metaRef.current;
         } else {
           // Fallback: geocode + fetch OpenMeteo
           const geoResult = await callClaude(`Location: ${city}.
