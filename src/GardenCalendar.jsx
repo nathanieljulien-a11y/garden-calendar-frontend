@@ -1571,7 +1571,7 @@ export default function GardenCalendar() {
   const [prefetchState,setPfState]   = useState("idle");
   const [stage,setStage]             = useState("form");
   const [formStep,setFormStep]       = useState("location"); // "location" | "plants"
-  const [interstitial,setInterstitial] = useState({text:"",done:false});
+  const [locationQuote,setLocationQuote] = useState({text:"",done:false});
   const [months,setMonths]           = useState({});
   const [stream1Done,setS1Done]      = useState(false);
   const [activeMonth,setActiveMonth] = useState(null);
@@ -1638,6 +1638,32 @@ Rules:
       });
       setPfState("ready");
 
+      // Step 2b: Fetch location quote in parallel (fire and forget — UI shows it when ready)
+      setLocationQuote({text:"", done:false});
+      (async () => {
+        try {
+          const parsed = await callClaude(
+            `You are a literary garden writer. For a garden near ${c}.
+The climate is ${derived.climateType}, hardiness zone ${derived.zone}.
+First, try to find a real, well-known published quote about gardens, nature, or the seasons in or associated with this region — from a local author, poet, naturalist, or gardener. If a strong regional quote exists, use it and attribute it precisely (Author, work, year if known).
+If no strong regional quote exists, write one short evocative sentence (max 25 words) describing the character of gardening in this climate — vivid, specific, not generic.
+Respond with ONLY a JSON object: {"quote":"...", "attribution":"..."} — attribution is empty string if you wrote the sentence yourself.
+No preamble, no markdown.`,
+            200, undefined, apiKey
+          );
+          if (rid !== prefetchIdRef.current) return;
+          const text = parsed?.attribution
+            ? `"${parsed.quote}" — ${parsed.attribution}`
+            : (parsed?.quote || "");
+          if (text) setLocationQuote({text, done:true});
+        } catch(e) {
+          console.warn("[quote] fetch failed:", e?.message);
+          if (rid === prefetchIdRef.current) {
+            setLocationQuote({text: `${c} — ${derived.climateType}`, done:true});
+          }
+        }
+      })();
+
       // Step 3: Load iNat localised suggestions lazily per category
       const climateZone = getClimateZone(cd);
       const catKeys = Object.keys(CAT_TO_SEED);
@@ -1702,48 +1728,14 @@ Rules:
     abortRef.current = abort;
     const rid = ++submitIdRef.current;
 
-    // ── Interstitial stage ────────────────────────────────────────────────────
-    setInterstitial({text:"", done:false});
-    setStage("interstitial");
-
-    // Fetch quote or climate sentence in parallel with calendar generation
-    // NOTE: callClaude() already returns a parsed JS object — do NOT JSON.parse again
-    const quotePromise = (async () => {
-      try {
-        const climateDesc = meta?.climate ? ` The climate is ${meta.climate}` : "";
-        const zoneDesc    = meta?.zone    ? `, hardiness zone ${meta.zone}` : "";
-        console.log("[interstitial] fetching quote for", city);
-        const parsed = await callClaude(
-          `You are a literary garden writer. For a garden near ${city}.${climateDesc}${zoneDesc}.
-First, try to find a real, well-known published quote about gardens, nature, or the seasons in or associated with this region — from a local author, poet, naturalist, or gardener. If a strong regional quote exists, use it and attribute it precisely (Author, work, year if known).
-If no strong regional quote exists, write one short evocative sentence (max 25 words) describing the character of gardening in this climate — vivid, specific, not generic.
-Respond with ONLY a JSON object: {"quote":"...", "attribution":"..."} — attribution is empty string if you wrote the sentence yourself.
-No preamble, no markdown.`,
-          200, abort.signal, apiKey
-        );
-        console.log("[interstitial] quote result:", parsed);
-        if (rid !== submitIdRef.current) return;
-        const text = parsed?.attribution
-          ? `"${parsed.quote}" — ${parsed.attribution}`
-          : (parsed?.quote || "");
-        if (text) setInterstitial({text, done:true});
-        else throw new Error("empty quote response");
-      } catch(e) {
-        console.warn("[interstitial] quote failed, using fallback:", e?.message);
-        const fallback = meta?.climate
-          ? `${city} — ${meta.climate}${meta.zone ? `, zone ${meta.zone}` : ""}`
-          : city;
-        if (rid === submitIdRef.current) setInterstitial({text: fallback, done:true});
-      }
-    })();
-
-    // ── Start calendar generation immediately in background ───────────────────
+    // ── Start calendar generation ────────────────────────────────────────────
+    setStage("calendar");
     setError("");
     setS1Done(false); setActiveMonth(null);
     unlockedPages.current = new Set();
     userNavigatedRef.current = false;
     setInspos({}); setInsights({state:"idle", items:[]});
-    setShowArrow(false);
+    setShowArrow(true);
     setPlantMeta(prev => {
       const next = {};
       Object.entries(prev).forEach(([k, v]) => { next[k] = { ...v, occurrence: undefined }; });
@@ -1752,18 +1744,6 @@ No preamble, no markdown.`,
     const init = {};
     MONTH_NAMES.forEach(n=>{ init[n]=emptyMonth(n); });
     setMonths(init);
-
-    // Transition to calendar: wait for quote, then show it for at least 3s
-    quotePromise.then(() => {
-      return new Promise(r => setTimeout(r, 3000));
-    }).then(() => {
-      if (rid === submitIdRef.current) {
-        console.log("[interstitial] transitioning to calendar");
-        setStage("calendar");
-        setShowArrow(true);
-        setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
-      }
-    });
 
     setPageIdx(0);
 
@@ -2031,7 +2011,7 @@ Other rules:
     if (uiIntervalRef.current) { clearInterval(uiIntervalRef.current); uiIntervalRef.current = null; }
     ++prefetchIdRef.current; ++submitIdRef.current;
     unlockedPages.current = new Set();
-    setStage("form"); setFormStep("location"); setInterstitial({text:"",done:false}); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
+    setStage("form"); setFormStep("location"); setLocationQuote({text:"",done:false}); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
   };
 
@@ -2278,6 +2258,29 @@ Rules:
               <div style={{fontSize:".8rem",color:"var(--rust)",margin:".5rem 0"}}>⚠ Climate data unavailable — check your city name and try again</div>
             )}
 
+            {/* Quote strip — appears as quote fetches, persists across all phases */}
+            {locationQuote.text && (
+              <div style={{
+                borderLeft:"2px solid var(--sage)",
+                paddingLeft:"1rem",
+                margin:"1rem 0 .5rem",
+                fontFamily:"'Playfair Display',serif",
+                fontSize:"1rem",
+                lineHeight:"1.65",
+                color:"var(--ink)",
+                fontStyle:"italic",
+                opacity: locationQuote.done ? 1 : 0.6,
+                transition:"opacity .4s",
+              }}>
+                {locationQuote.text}
+              </div>
+            )}
+            {prefetchState==="ready" && !locationQuote.text && (
+              <div style={{fontSize:".75rem",color:"var(--muted)",fontStyle:"italic",margin:".5rem 0",opacity:.5}}>
+                <span className="spin-sm">◌</span> Finding a local quote…
+              </div>
+            )}
+
             <div style={{marginTop:"1.25rem"}}>
               <button
                 className="btn-generate"
@@ -2307,6 +2310,22 @@ Rules:
                 </div>
               )}
             </div>
+            {locationQuote.text && (
+              <div style={{
+                borderLeft:"2px solid var(--sage)",
+                paddingLeft:".85rem",
+                margin:".25rem 0 .75rem",
+                fontFamily:"'Playfair Display',serif",
+                fontSize:".88rem",
+                lineHeight:"1.55",
+                color:"var(--ink)",
+                fontStyle:"italic",
+                opacity:.75,
+              }}>
+                {locationQuote.text}
+              </div>
+            )}
+
             <div className="form-title">Add your plants</div>
             <p className="form-hint">
               Suggestions below are ranked by local observation data near {city} — tap any to add it, or type your own.
@@ -2473,34 +2492,7 @@ Rules:
           </div>
         )}
 
-        {/* ── INTERSTITIAL ── */}
-        {stage==="interstitial" && (
-          <div className="form-card" style={{textAlign:"center",padding:"3rem 2rem",minHeight:"280px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"1.5rem"}}>
-            <div className="deco" style={{fontSize:"1.4rem",opacity:.7}}>✦ ✿ ✦</div>
-            {!interstitial.text ? (
-              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".75rem"}}>
-                <span className="spin-sm" style={{fontSize:"1.5rem",opacity:.5}}>◌</span>
-                <p style={{fontSize:".9rem",color:"var(--muted)",fontStyle:"italic",margin:0}}>Preparing your calendar…</p>
-              </div>
-            ) : (
-              <div style={{maxWidth:"520px"}}>
-                <p style={{
-                  fontFamily:"'Playfair Display',serif",
-                  fontSize:"1.15rem",
-                  lineHeight:"1.7",
-                  color:"var(--ink)",
-                  fontStyle:"italic",
-                  margin:"0 0 .75rem"
-                }}>
-                  {interstitial.text}
-                </p>
-                <p style={{fontSize:".78rem",color:"var(--muted)",margin:0}}>
-                  <span className="spin-sm">◌</span> Building your calendar…
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+
         {/* ── CALENDAR ── */}
         {stage==="calendar" && (
           <div className="cal-wrap">
@@ -2522,6 +2514,24 @@ Rules:
                 <div style={{maxWidth:340,margin:"1rem auto 0"}}><Shimmer lines={1}/></div>
               )}
             </div>
+
+            {locationQuote.text && (
+              <div style={{
+                maxWidth:"620px",
+                margin:".5rem auto 0",
+                borderLeft:"2px solid var(--sage)",
+                paddingLeft:"1rem",
+                fontFamily:"'Playfair Display',serif",
+                fontSize:".9rem",
+                lineHeight:"1.6",
+                color:"var(--ink)",
+                fontStyle:"italic",
+                opacity:.7,
+                textAlign:"left",
+              }}>
+                {locationQuote.text}
+              </div>
+            )}
 
             {/* Occurrence warnings — only shown when plant was GBIF-validated (has scientificName)
                  AND returned count=0. Unvalidated plants or proxy failures are silently skipped. */}
