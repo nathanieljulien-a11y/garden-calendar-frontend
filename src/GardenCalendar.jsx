@@ -2276,29 +2276,25 @@ Rules:
                   </div>
                 </div>
               )}
-              {prefetchState==="error" && (
-                <div style={{fontSize:".8rem",color:"var(--rust)"}}>⚠ Climate data unavailable — will retry when generating</div>
-              )}
             </div>
 
-            {/* Further reading — collapsible */}
+            {/* Further reading — collapsible, appears once references arrive */}
             {meta?.references && (
               <RefsPanel refs={meta.references} pending={false} title="📚 Further reading for your region" />
+            )}
+
+            {prefetchState==="error" && (
+              <div style={{fontSize:".8rem",color:"var(--rust)",margin:".5rem 0"}}>⚠ Climate data unavailable — check your city name and try again</div>
             )}
 
             <div style={{marginTop:"1.25rem"}}>
               <button
                 className="btn-generate"
-                disabled={!city || !orientation}
+                disabled={prefetchState !== "ready" || !city || !orientation}
                 onClick={() => setFormStep("plants")}
                 type="button">
-                {prefetchState==="ready" ? "Continue to plant selection →" : "Continue →"}
+                {prefetchState==="ready" ? "Continue to plant selection →" : prefetchState==="fetching" ? "Fetching climate data…" : "Enter a city to continue"}
               </button>
-              {prefetchState!=="ready" && city && orientation && (
-                <p style={{textAlign:"center",fontSize:".75rem",color:"var(--muted)",margin:".4rem 0 0",fontStyle:"italic"}}>
-                  Climate data is still loading — you can continue and it'll be ready by the time you generate
-                </p>
-              )}
             </div>
           </div>
         )}
@@ -2313,7 +2309,9 @@ Rules:
               </button>
               {meta && (
                 <div className="meta-pills" style={{justifyContent:"flex-start",margin:0,flex:1}}>
-                  <div className="pill">🌡 {meta.zone}</div>
+                  <div className="pill">🌡 Zone <b>{meta.zone}</b></div>
+                  <div className="pill">🌸 Last frost <b>{meta.lastFrost}</b></div>
+                  <div className="pill">🍂 First frost <b>{meta.firstFrost}</b></div>
                   <div className="pill">🌤 {meta.climate}</div>
                 </div>
               )}
