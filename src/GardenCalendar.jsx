@@ -323,6 +323,10 @@ const INAT_SEED = {
     {common:"Gooseberry",         sci:"Ribes uva-crispa"},
     {common:"Yuzu",               sci:"Citrus junos"},
     {common:"Sea buckthorn",      sci:"Hippophae rhamnoides"},
+    {common:"Peach",              sci:"Prunus persica"},
+    {common:"Apricot",            sci:"Prunus armeniaca"},
+    {common:"Quince",             sci:"Cydonia oblonga"},
+    {common:"Nectarine",          sci:"Prunus persica"},
   ],
   flowers: [
     {common:"Rose",               sci:"Rosa"},
@@ -401,39 +405,47 @@ const CLIMATE_FALLBACKS = {
   subtropical: {
     vegetables:["Tomato","Sweet pepper","Courgette","Aubergine","Sweet corn","Lettuce","Kale / cabbage","Cucumber","Onion","Sweet potato"],
     herbs:     ["Basil","Rosemary","Lemongrass","Coriander","Mint","Oregano","Thyme","Sage"],
-    fruit:     ["Lemon","Orange","Fig","Mango","Guava","Passionfruit","Strawberry","Grape"],
-    flowers:   ["Bougainvillea","Rose","Pelargonium","Strelitzia","Agapanthus","Hibiscus","Begonia","Cosmos","Lavender","Marigold"],
+    fruit:     ["Lemon","Orange","Fig","Peach","Apricot","Plum","Strawberry","Grape","Guava","Passionfruit"],
+    flowers:   ["Bougainvillea","Rose","Pelargonium","Bird of paradise","Agapanthus","Hibiscus","Begonia","Cosmos","Lavender","Marigold"],
     trees:     ["Jacaranda","Magnolia","Olive","Camellia","Callistemon","Eucalyptus","Wisteria","Flame tree"],
     shrubs:    ["Oleander","Rhododendron","Callistemon","Pittosporum","Duranta","Photinia","Hydrangea","Ixora"],
   },
   mediterranean:{
     vegetables:["Tomato","Sweet pepper","Courgette","Aubergine","Cucumber","Lettuce","Kale / cabbage","Onion","Garlic","Pea"],
-    herbs:     ["Rosemary","Thyme","Sage","Oregano","Basil","Fennel","Lavender","Coriander","Lemon verbena","Tarragon"],
-    fruit:     ["Fig","Grape","Lemon","Orange","Plum","Cherry","Apple","Pear","Persimmon","Loquat"],
+    herbs:     ["Rosemary","Thyme","Sage","Oregano","Basil","Fennel","Coriander","Lemon verbena","Tarragon","Dill"],
+    fruit:     ["Fig","Grape","Peach","Apricot","Lemon","Orange","Plum","Cherry","Quince","Persimmon"],
     flowers:   ["Rose","Lavender","Pelargonium","Bougainvillea","Oleander","Cosmos","Begonia","Nasturtium","Zinnia","Dahlia"],
     trees:     ["Olive","Magnolia","Wisteria","Camellia","Callistemon","Jacaranda","Frangipani","Eucalyptus"],
     shrubs:    ["Oleander","Pittosporum","Rhododendron","Hydrangea","Photinia","Callistemon","Privet","Bamboo"],
   },
   temperate:   {
     vegetables:["Tomato","Potato","Kale / cabbage","Courgette","Sweet pepper","Cucumber","French bean","Pea","Lettuce","Onion"],
-    herbs:     ["Rosemary","Sage","Chives","Oregano","Basil","Thyme","Mint","Parsley","Fennel","Dill"],
-    fruit:     ["Apple","Cherry","Pear","Plum","Strawberry","Fig","Blackcurrant","Raspberry","Blueberry","Gooseberry"],
+    herbs:     ["Rosemary","Sage","Chives","Thyme","Mint","Parsley","Fennel","Dill","Oregano","Basil"],
+    fruit:     ["Apple","Cherry","Pear","Plum","Peach","Strawberry","Fig","Blackcurrant","Raspberry","Gooseberry"],
     flowers:   ["Rose","Lavender","Pelargonium","Begonia","Sunflower","Nasturtium","Petunia","Fuchsia","Cosmos","Dahlia"],
     trees:     ["Magnolia","Japanese maple","Camellia","Wisteria","Hawthorn","Elder","Callistemon","Crab apple"],
     shrubs:    ["Rhododendron","Hydrangea","Pittosporum","Photinia","Holly","Privet","Bamboo","Lomandra"],
   },
   continental: {
     vegetables:["Tomato","Potato","Kale / cabbage","Courgette","Sweet pepper","Cucumber","Sweet corn","Pea","Lettuce","Onion"],
-    herbs:     ["Dill","Thyme","Sage","Chives","Basil","Mint","Parsley","Coriander","Oregano","Fennel"],
-    fruit:     ["Apple","Pear","Plum","Cherry","Strawberry","Blackcurrant","Raspberry","Blueberry","Gooseberry","Grape"],
+    herbs:     ["Dill","Thyme","Sage","Chives","Parsley","Mint","Coriander","Oregano","Fennel","Basil"],
+    fruit:     ["Apple","Pear","Plum","Cherry","Peach","Apricot","Strawberry","Blackcurrant","Raspberry","Blueberry"],
     flowers:   ["Cosmos","Pelargonium","Sunflower","Fuchsia","Impatiens","Lavender","Rose","Begonia","Dahlia","Petunia"],
     trees:     ["Japanese maple","Magnolia","Elder","Hawthorn","Weeping willow","Camellia","Wisteria","Crab apple"],
-    shrubs:    ["Rhododendron","Oleander","Hydrangea","Photinia","Privet","Holly","Bamboo","Pittosporum"],
+    shrubs:    ["Rhododendron","Hydrangea","Photinia","Privet","Holly","Bamboo","Pittosporum","Oleander"],
+  },
+  subarctic:   {
+    vegetables:["Tomato","Kale / cabbage","Courgette","Potato","Pea","French bean","Lettuce","Spinach","Radish / daikon","Onion"],
+    herbs:     ["Dill","Chives","Parsley","Thyme","Mint","Sage","Fennel","Coriander"],
+    fruit:     ["Apple","Pear","Plum","Cherry","Strawberry","Blackcurrant","Raspberry","Blueberry","Gooseberry","Sea buckthorn"],
+    flowers:   ["Cosmos","Pelargonium","Sunflower","Fuchsia","Begonia","Nasturtium","Petunia","Lavender","Dahlia","Impatiens"],
+    trees:     ["Japanese maple","Magnolia","Elder","Hawthorn","Crab apple","Wisteria","Camellia"],
+    shrubs:    ["Rhododendron","Hydrangea","Photinia","Privet","Holly","Bamboo","Pittosporum"],
   },
   arid:        {
     vegetables:["Tomato","Sweet corn","Sweet pepper","Kale / cabbage","Courgette","Aubergine","Onion","Garlic","Lettuce","Pumpkin"],
     herbs:     ["Rosemary","Thyme","Sage","Oregano","Dill","Lemongrass","Basil","Fennel","Tarragon","Coriander"],
-    fruit:     ["Fig","Plum","Strawberry","Lemon","Orange","Apple","Pear","Guava","Grape","Persimmon"],
+    fruit:     ["Fig","Peach","Apricot","Quince","Lemon","Orange","Plum","Grape","Pomegranate","Persimmon"],
     flowers:   ["Sunflower","Pelargonium","Cosmos","Impatiens","Lavender","Rose","Marigold","Zinnia","Hibiscus","Nasturtium"],
     trees:     ["Olive","Eucalyptus","Magnolia","Callistemon","Elder","Hawthorn","Weeping willow","Jacaranda"],
     shrubs:    ["Oleander","Rhododendron","Duranta","Callistemon","Photinia","Privet","Pittosporum","Hydrangea"],
@@ -449,16 +461,18 @@ function getClimateZone(cd) {
   const minTemp  = cd.monthly_mean_temp ? Math.min(...cd.monthly_mean_temp) : (cd.coldest_month_temp ?? 5);
   const annualPrecip = cd.annual_precipitation ?? 600;
 
-  if (meanTemp >= 20 && minTemp >= 18)    return "tropical";
-  if (meanTemp >= 16 && minTemp >= 5)     return "subtropical";
+  if (meanTemp >= 20 && minTemp >= 18)      return "tropical";
+  if (meanTemp >= 16 && minTemp >= 5)       return "subtropical";
   if (meanTemp >= 12 && annualPrecip < 400) return "arid";
-  if (meanTemp >= 10 && minTemp >= 2)     return "mediterranean";
-  if (minTemp < -5)                       return "continental";
+  if (meanTemp >= 10 && minTemp >= 2)       return "mediterranean";
+  if (minTemp < -10)                        return "subarctic";
+  if (minTemp < -3)                         return "continental";
   return "temperate";
 }
 
 // ─── iNat local suggestions ───────────────────────────────────────────────────
 // Queries iNat captive=true for all plants in a category, returns top-N common names.
+// Routes through proxy when available to avoid CORS issues.
 async function fetchInatSuggestions(catKey, lat, lng, topN = 10) {
   const seedKey = CAT_TO_SEED[catKey];
   const plants  = INAT_SEED[seedKey] ?? [];
@@ -466,27 +480,38 @@ async function fetchInatSuggestions(catKey, lat, lng, topN = 10) {
 
   const results = [];
   const batchSize = 5;
+
   for (let i = 0; i < plants.length; i += batchSize) {
     const batch = plants.slice(i, i + batchSize);
     const counts = await Promise.all(batch.map(async p => {
       try {
-        const url = new URL("https://api.inaturalist.org/v1/observations");
-        url.searchParams.set("taxon_name", p.sci);
-        url.searchParams.set("lat",        lat);
-        url.searchParams.set("lng",        lng);
-        url.searchParams.set("radius",     "50");
-        url.searchParams.set("captive",    "true");
-        url.searchParams.set("per_page",   "1");
-        const res  = await fetch(url);
-        const data = await res.json();
-        return { common: p.common, count: data.total_results ?? 0 };
+        let count = 0;
+        if (PROXY_BASE) {
+          // Route through proxy to avoid CORS — add iNat endpoint to proxy
+          const url = `${PROXY_BASE}/api/inat?taxon=${encodeURIComponent(p.sci)}&lat=${lat}&lng=${lng}`;
+          const res  = await fetch(url);
+          const data = await res.json();
+          count = data.total_results ?? 0;
+        } else {
+          // Direct call (works from artifact/local dev, may hit CORS on prod)
+          const url = new URL("https://api.inaturalist.org/v1/observations");
+          url.searchParams.set("taxon_name", p.sci);
+          url.searchParams.set("lat",        lat);
+          url.searchParams.set("lng",        lng);
+          url.searchParams.set("radius",     "50");
+          url.searchParams.set("captive",    "true");
+          url.searchParams.set("per_page",   "1");
+          const res  = await fetch(url);
+          const data = await res.json();
+          count = data.total_results ?? 0;
+        }
+        return { common: p.common, count };
       } catch { return { common: p.common, count: 0 }; }
     }));
     results.push(...counts);
     if (i + batchSize < plants.length) await new Promise(r => setTimeout(r, 1200));
   }
 
-  // Return top N with count > 0; if fewer than 3 meaningful results, signal fallback needed
   const ranked = results.filter(r => r.count > 0).sort((a,b) => b.count - a.count);
   return { ranked: ranked.slice(0, topN), sparse: ranked.length < 3 };
 }
