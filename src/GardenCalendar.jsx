@@ -1274,6 +1274,25 @@ export default function GardenCalendar() {
   // Keep refs in sync so async callbacks read current state
   useEffect(() => { plantMetaRef.current = plantMeta; }, [plantMeta]);
   useEffect(() => { metaRef.current = meta; }, [meta]);
+
+  const onPlantAdded = useCallback(async (name) => {
+    // Use ref-style check via functional updater to avoid stale closure
+    setPlantMeta(prev => {
+      if (prev[name]) return prev; // already validated or loading
+      // Kick off async validation outside the updater
+      validatePlantName(name).then(result =>
+        setPlantMeta(p => ({ ...p, [name]: result }))
+      );
+      return { ...prev, [name]: { status: "loading", name } };
+    });
+  }, []);
+
+  const onClarify = useCallback((name, answer) => {
+    setPlantMeta(prev => ({
+      ...prev,
+      [name]: { ...prev[name], clarificationAnswer: answer }
+    }));
+  }, []);
   const [prefetchState,setPfState]   = useState("idle");
   const [stage,setStage]             = useState("form");
   const [months,setMonths]           = useState({});
