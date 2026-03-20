@@ -305,14 +305,14 @@ const GARDEN_QUOTES = [
   {quote:"A true gardener must be brutal, and imaginative for the future.", attribution:"Vita Sackville-West"},
 ];
 
-// ─── iNat seed list ───────────────────────────────────────────────────────────
-// Validated across 15 cities, 5 continents. common name → scientific name.
-// Map PLANT_CATEGORIES keys to INAT_SEED keys
-// Climate-zone fallback presets (used when iNat returns <3 plants with count >0)
-// ─── Regional zone supplements ───────────────────────────────────────────────
-// Plants beloved in specific zones that iNat under-counts (low observation rate
-// despite genuine popularity). Merged into suggestions after iNat ranking.
-// Classify climate zone from OpenMeteo data (same classification the app already uses)
+const MONTH_NAMES   = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const SEASON_COLORS = { Winter:"#7AA6C2",Spring:"#8CBF72",Summer:"#D4A84B",Autumn:"#C47A45",Fall:"#C47A45" };
+const SEASON_EMOJIS = {
+  January:"❄️",February:"🌨️",March:"🌱",April:"🌸",May:"🌿",June:"☀️",
+  July:"🌻",August:"🍅",September:"🍂",October:"🎃",November:"🍁",December:"❄️",
+};
+
+// ─── Climate zone classification ─────────────────────────────────────────────
 function getClimateZone(cd) {
   if (!cd) return "temperate";
   const meanTemp = cd.monthly_mean_temp
