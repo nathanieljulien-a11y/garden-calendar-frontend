@@ -717,6 +717,49 @@ async function checkRegionalOccurrence(scientificName, lat, lng) {
     return null;
   }
 }
+// ─── OpenFarm crop data ───────────────────────────────────────────────────────
+// Fetches sowing/harvest timing for vegetables and herbs from OpenFarm (openfarm.cc).
+// Routed through the proxy to avoid CORS. Client-side localStorage cache (30-day TTL)
+// avoids repeat calls for the same plant — OpenFarm cultivation data is stable.
+// Source: OpenFarm · openfarm.cc · CC BY licence
+//
+// Returns: { found, name, sowing_method, sun, description } or null on failure.
+// NEVER throws — always returns null on any error so calendar generation is never blocked.
+const OPENFARM_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+async function fetchOpenFarm(plantName) {
+  const key = `gc_openfarm_${plantName.trim().toLowerCase()}`;
+
+  // Check localStorage cache first
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const { data, cachedAt } = JSON.parse(raw);
+      if (Date.now() - cachedAt < OPENFARM_CACHE_TTL) return data;
+    }
+  } catch {}
+
+  // Must go through proxy — OpenFarm blocks direct browser requests (CORS + 301)
+  if (!PROXY_BASE) return null;
+
+  try {
+    const res = await fetch(
+      `${PROXY_BASE}/api/openfarm?q=${encodeURIComponent(plantName)}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.error) return null;
+
+    // Cache result (including { found: false } — no point retrying for ornamentals)
+    try { localStorage.setItem(key, JSON.stringify({ data, cachedAt: Date.now() })); } catch {}
+
+    return data.found ? data : null;
+  } catch {
+    return null; // timeout, network error, etc. — always graceful
+  }
+}
+
 // Plants that are commonly grown ornamentally in cooler climates but cannot fruit/flower
 // as they would in their native climate. Key = scientific name fragment, value = note.
 const CLIMATE_MARGINAL = {
@@ -1598,6 +1641,7 @@ export default function GardenCalendar() {
   const abortRef      = useRef(null);
   const parserRef     = useRef(null);
   const uiIntervalRef = useRef(null);
+  const openFarmCtxRef = useRef(""); // stores OpenFarm context for reuse in loadMoreMonths
   const calTopRef     = useRef(null);
   const monthRefs     = useRef({});  // name -> DOM node
   const scrollArrowRef = useRef(null);
@@ -1889,6 +1933,58 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
       setError("Failed to fetch climate data."); return;
     }
 
+    // ── OpenFarm: batch-fetch sowing/harvest data for vegetables and herbs ──────
+    // Fire-and-forget with a 5s timeout — if any calls fail or take too long,
+    // openFarmData is just empty and Claude falls back to its own knowledge.
+    // Only vegetables and herbs are queried — OpenFarm has no useful data for
+    // ornamentals, trees, fruit trees, or roses.
+    let openFarmData = {}; // { lowerCasePlantName: attributes }
+    if (PROXY_BASE) {
+      const vegHerbPlants = [
+        ...(plants.vegetables || []),
+        ...(plants.herbs      || []),
+      ];
+      if (vegHerbPlants.length > 0) {
+        try {
+          const ofResults = await Promise.race([
+            Promise.all(
+              vegHerbPlants.map(async (name) => {
+                const attrs = await fetchOpenFarm(name);
+                return { name, attrs };
+              })
+            ),
+            new Promise(resolve => setTimeout(() => resolve(null), 5000)),
+          ]);
+          if (ofResults) {
+            ofResults.forEach(({ name, attrs }) => {
+              if (attrs && attrs.found !== false) {
+                openFarmData[name.toLowerCase()] = attrs;
+              }
+            });
+          }
+        } catch {
+          // Entire batch failed — proceed without OpenFarm data
+        }
+      }
+    }
+
+    // Build OpenFarm context block for the calendar prompt
+    // Only include plants that returned real data — skip silently if not found
+    const openFarmLines = Object.entries(openFarmData)
+      .map(([, attrs]) => {
+        const parts = [];
+        if (attrs.name)          parts.push(attrs.name);
+        if (attrs.sowing_method) parts.push(attrs.sowing_method.replace(/\n+/g, " ").trim());
+        else if (attrs.description) parts.push(attrs.description.replace(/\n+/g, " ").trim().slice(0, 200));
+        return parts.length >= 2 ? parts.join(": ") : null;
+      })
+      .filter(Boolean);
+
+    const openFarmCtx = openFarmLines.length > 0
+      ? `\nOPENFARM GROWING DATA (use for sowing and harvest task timing — CC BY openfarm.cc):\n${openFarmLines.join("\n")}`
+      : "";
+    openFarmCtxRef.current = openFarmCtx; // persist for loadMoreMonths batches
+
     // Build rich climate context from real OpenMeteo data
     const metaCtx = m?._cd && m?._derived
       ? `\nREAL CLIMATE DATA for ${city} (10-year averages, Open-Meteo/ERA5):\n${buildClimateContext(m._cd, m._derived)}`
@@ -1908,7 +2004,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
 
     // ── STREAM 1: line-format tasks + enjoy ──────────────────────────────────
     const s1prompt = `You are an expert horticulturist and naturalist.
-Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtx}
 
 Output EXACTLY ${firstBatch.length} blocks in this order: ${firstBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
@@ -2079,7 +2175,7 @@ Other rules:
       : null).filter(Boolean).join(" | ")||"general/unspecified mix";
 
     const batchPrompt = `You are an expert horticulturist and naturalist.
-Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtxRef.current}
 
 Output EXACTLY ${nextBatch.length} blocks in this order: ${nextBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
@@ -2824,6 +2920,25 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
                   onClick={()=>rdy&&setPageIdx(i)} title={rdy ? label : "Generating…"}/>;
               })}
             </div>
+
+            {/* Data attribution — shown once first batch is done */}
+            {stream1Done && (
+              <div style={{
+                textAlign:"center",
+                fontSize:".7rem",
+                color:"rgba(180,180,160,.45)",
+                margin:"-.75rem 0 1.5rem",
+                fontStyle:"italic",
+                lineHeight:"1.6",
+              }}>
+                Sowing windows for vegetables and herbs informed by{" "}
+                <a href="https://openfarm.cc" target="_blank" rel="noopener"
+                   style={{color:"inherit",textDecoration:"underline",opacity:.75}}>OpenFarm (CC BY)</a>
+                {" "}and your local frost dates from{" "}
+                <a href="https://open-meteo.com" target="_blank" rel="noopener"
+                   style={{color:"inherit",textDecoration:"underline",opacity:.75}}>Open-Meteo/ERA5</a>
+              </div>
+            )}
 
             <div className="cal-actions">
               <button className="btn-ghost" onClick={resetAll}>← Edit Garden</button>
