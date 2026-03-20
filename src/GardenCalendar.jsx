@@ -401,7 +401,8 @@ const INAT_SEED = {
     {common:"Dahlia",             sci:"Dahlia pinnata"},
     {common:"Cosmos",             sci:"Cosmos bipinnatus"},
     {common:"Agapanthus",         sci:"Agapanthus africanus"},
-  {common:"Nerine / Jersey Lily",sci:"Nerine bowdenii"},
+  {common:"Guernsey Lily",       sci:"Nerine bowdenii"},
+  {common:"Jersey Lily",          sci:"Amaryllis belladonna"},
   {common:"Crocosmia",           sci:"Crocosmia x crocosmiiflora"},
   {common:"Alstroemeria",        sci:"Alstroemeria aurea"},
     {common:"African violet",     sci:"Streptocarpus ionanthus"},
@@ -456,7 +457,7 @@ const CAT_TO_SEED = {
 const ZONE_SUPPLEMENTS = {
   // All zones — classic garden plants that rank poorly on iNat
   all: {
-    flowers: ["Nerine / Jersey Lily", "Crocosmia", "Alstroemeria", "Penstemon", "Echinacea"],
+    flowers: ["Guernsey Lily", "Crocosmia", "Alstroemeria", "Penstemon", "Echinacea"],
     shrubs:  ["Choisya", "Ceanothus", "Escallonia", "Griselinia", "Mexican orange blossom"],
     trees:   ["Amelanchier", "Cercis / Judas tree", "Cornus / dogwood"],
     fruit:   ["Blackcurrant", "Redcurrant", "Gooseberry", "Raspberry", "Quince"],
@@ -464,7 +465,7 @@ const ZONE_SUPPLEMENTS = {
     vegetables: [],
   },
   temperate: {
-    flowers: ["Nerine / Jersey Lily", "Crocosmia", "Agapanthus", "Echinops", "Verbena bonariensis"],
+    flowers: ["Guernsey Lily", "Crocosmia", "Agapanthus", "Echinops", "Verbena bonariensis"],
     shrubs:  ["Choisya", "Ceanothus", "Escallonia", "Griselinia"],
     fruit:   ["Blackcurrant", "Redcurrant", "Gooseberry", "Quince", "Damson"],
     herbs:   ["Lemon balm", "Lovage", "Chervil"],
@@ -472,12 +473,12 @@ const ZONE_SUPPLEMENTS = {
     trees:   ["Amelanchier", "Hazel", "Rowan"],
   },
   mediterranean: {
-    flowers: ["Nerine / Jersey Lily", "Agapanthus", "Cistus / rock rose", "Phlomis", "Salvia nemorosa"],
-    shrubs:  ["Ceanothus", "Choisya", "Rosemary (hedge)", "Cistus"],
-    fruit:   ["Pomegranate", "Quince", "Medlar", "Almond", "Kumquat"],
-    herbs:   ["Borage", "Lemon balm", "Summer savory"],
-    vegetables: ["Artichoke", "Broad bean", "Chard", "Fennel bulb"],
-    trees:   ["Cercis / Judas tree", "Mimosa / Acacia dealbata", "Strawberry tree"],
+    flowers: ["Guernsey Lily","Phlomis","Cistus / rock rose","Echinops","Verbena bonariensis","Erysimum","Osteospermum","Gaura","Salvia nemorosa","Kniphofia"],
+    shrubs:  ["Ceanothus","Choisya","Cistus","Teucrium","Santolina","Ballota","Euphorbia characias","Ruta / rue"],
+    fruit:   ["Medlar","Almond","Pomegranate","Jujube / Chinese date","Loquat","Feijoa","Arbutus berry","Carob"],
+    herbs:   ["Borage","Summer savory","Epazote","Hyssop","Lemon thyme","Za'atar oregano"],
+    vegetables: ["Artichoke","Fennel bulb","Cardoon","Cima di rapa","Flat-leaf parsley","Chicory"],
+    trees:   ["Mimosa / Acacia dealbata","Arbutus / strawberry tree","Judas tree","Hackberry","Stone pine","Aleppo pine"],
   },
   subtropical: {
     flowers: ["Bird of paradise", "Canna", "Ginger lily", "Protea", "Alstroemeria"],
@@ -518,6 +519,14 @@ const ZONE_SUPPLEMENTS = {
     herbs:   ["Epazote", "Mexican oregano", "Hyssop"],
     vegetables: ["Chard", "Okra", "Artichoke", "Tepary bean"],
     trees:   ["Palo verde", "Desert willow", "Mesquite", "Ironwood"],
+  },
+  maritime: {
+    flowers: ["Guernsey Lily","Jersey Lily","Agapanthus","Crocosmia","Alstroemeria","Gunnera","Cordyline","Eucomis / pineapple lily","Kniphofia / red hot poker","Watsonia"],
+    shrubs:  ["Choisya","Ceanothus","Escallonia","Pittosporum","Griselinia","Phormium","Olearia","Hebe","Cordyline","Luma apiculata"],
+    fruit:   ["Blackcurrant","Gooseberry","Raspberry","Quince","Damson","Sloe / blackthorn","Elderberry","Medlar","Worcester Pearmain apple","Conference pear"],
+    herbs:   ["Lemon verbena","Lovage","Chervil","Lemon balm","Vietnamese coriander"],
+    vegetables: ["Sprouting broccoli","Chard","Broad bean","Kale","Leek","Sea kale","Samphire","French bean"],
+    trees:   ["Magnolia","Camellia","Cider apple","Pittosporum tenuifolium","Arbutus / strawberry tree","Griselinia","Cordyline","Leptospermum"],
   },
 };
 
@@ -578,6 +587,15 @@ const CLIMATE_FALLBACKS = {
     trees:     ["Olive","Eucalyptus","Magnolia","Callistemon","Elder","Hawthorn","Weeping willow","Jacaranda"],
     shrubs:    ["Oleander","Rhododendron","Duranta","Callistemon","Photinia","Privet","Pittosporum","Hydrangea"],
   },
+  // Atlantic-facing mild wet climates: Jersey, Cornwall, Brittany, western Ireland, NW Spain
+  maritime: {
+    vegetables:["Tomato","Courgette","Runner bean","Broad bean","Lettuce","Chard","Kale / cabbage","Sprouting broccoli","Pea","French bean"],
+    herbs:     ["Rosemary","Thyme","Chives","Parsley","Mint","Lemon verbena","Fennel","Sage","Tarragon","Lovage"],
+    fruit:     ["Blackcurrant","Gooseberry","Raspberry","Quince","Damson","Apple","Pear","Fig","Elderberry","Sloe / blackthorn"],
+    flowers:   ["Agapanthus","Guernsey Lily","Jersey Lily","Crocosmia","Fuchsia","Pelargonium","Rose","Alstroemeria","Dahlia","Cosmos"],
+    trees:     ["Magnolia","Camellia","Fig","Bay laurel","Amelanchier","Pittosporum","Griselinia","Eucalyptus","Cordyline","Cercis / Judas tree"],
+    shrubs:    ["Choisya","Ceanothus","Escallonia","Griselinia","Pittosporum","Phormium","Olearia","Hebe","Fuchsia","Camellia"],
+  },
 };
 
 // Classify climate zone from OpenMeteo data (same classification the app already uses)
@@ -589,12 +607,15 @@ function getClimateZone(cd) {
   const minTemp  = cd.monthly_mean_temp ? Math.min(...cd.monthly_mean_temp) : (cd.coldest_month_temp ?? 5);
   const annualPrecip = cd.annual_precipitation ?? 600;
 
-  if (meanTemp >= 20 && minTemp >= 18)      return "tropical";
-  if (meanTemp >= 16 && minTemp >= 5)       return "subtropical";
-  if (meanTemp >= 12 && annualPrecip < 400) return "arid";
-  if (meanTemp >= 10 && minTemp >= 2)       return "mediterranean";
-  if (minTemp < -10)                        return "subarctic";
-  if (minTemp < -3)                         return "continental";
+  if (meanTemp >= 20 && minTemp >= 18)                    return "tropical";
+  if (meanTemp >= 16 && minTemp >= 5)                     return "subtropical";
+  if (meanTemp >= 12 && annualPrecip < 400)               return "arid";
+  // Mediterranean: warm mean, mild winter, DRY (< 700mm) — e.g. Provence, Malaga
+  if (meanTemp >= 12 && minTemp >= 4 && annualPrecip < 700) return "mediterranean";
+  // Maritime: mild mean, frost-free winters, WET Atlantic — e.g. Jersey, Cornwall, Brittany
+  if (meanTemp >= 10 && minTemp >= 3 && annualPrecip >= 600) return "maritime";
+  if (minTemp < -10)                                      return "subarctic";
+  if (minTemp < -3)                                       return "continental";
   return "temperate";
 }
 
@@ -1814,24 +1835,31 @@ export default function GardenCalendar() {
             const fallbackList  = (CLIMATE_FALLBACKS[climateZone] ?? CLIMATE_FALLBACKS.temperate)[catKey] ?? [];
             const supplementAll  = ZONE_SUPPLEMENTS.all?.[catKey] ?? [];
             const supplementZone = ZONE_SUPPLEMENTS[climateZone]?.[catKey] ?? [];
-            // Merge priority: iNat ranked → zone supplement → climate fallback → all supplement
             const inatNames = result?.ranked?.map(r => r.common) ?? [];
+
+            // dedup: filter list to items not already in existing (case-insensitive)
             const dedup = (list, existing) => list.filter(f =>
               !existing.some(n => n.toLowerCase() === f.toLowerCase())
             );
+
+            // Zone stars: first 2 supplement items that iNat didn't already surface
+            // These are guaranteed a spot to ensure regional favourites always appear
+            const zoneStars = dedup(supplementZone.slice(0, 4), inatNames).slice(0, 2);
+
             if (!result || result.sparse) {
-              const merged = [
-                ...inatNames,
-                ...dedup(supplementZone, inatNames),
-                ...dedup(fallbackList, [...inatNames, ...supplementZone]),
-                ...dedup(supplementAll, [...inatNames, ...supplementZone, ...fallbackList]),
+              // Sparse: zone stars first, then iNat, then fill from fallback + all-supplement
+              const base = [...zoneStars, ...dedup(inatNames, zoneStars)];
+              const filler = [
+                ...dedup(fallbackList, base),
+                ...dedup(supplementAll, [...base, ...fallbackList]),
               ];
-              newSuggestions[catKey] = merged.slice(0, 10);
+              newSuggestions[catKey] = [...base, ...filler].slice(0, 10);
               newStates[catKey] = inatNames.length > 0 ? "ready" : "fallback";
             } else {
-              // Even with good iNat results, append zone supplements that didn't rank
-              const extras = dedup([...supplementZone, ...supplementAll], inatNames);
-              newSuggestions[catKey] = [...inatNames, ...extras].slice(0, 10);
+              // Good iNat coverage: lead with zone stars, then ranked iNat, then extras
+              const ranked = dedup(inatNames, zoneStars);
+              const extras = dedup([...supplementZone, ...supplementAll], [...zoneStars, ...ranked]);
+              newSuggestions[catKey] = [...zoneStars, ...ranked, ...extras].slice(0, 10);
               newStates[catKey] = "ready";
             }
             // Update state progressively as each category finishes
