@@ -307,297 +307,11 @@ const GARDEN_QUOTES = [
 
 // ─── iNat seed list ───────────────────────────────────────────────────────────
 // Validated across 15 cities, 5 continents. common name → scientific name.
-const INAT_SEED = {
-  vegetables: [
-    {common:"Tomato",             sci:"Solanum lycopersicum"},
-    {common:"Potato",             sci:"Solanum tuberosum"},
-    {common:"Kale / cabbage",     sci:"Brassica oleracea"},
-    {common:"Courgette",          sci:"Cucurbita pepo"},
-    {common:"Sweet pepper",       sci:"Capsicum annuum"},
-    {common:"Aubergine",          sci:"Solanum melongena"},
-    {common:"Cucumber",           sci:"Cucumis sativus"},
-    {common:"Sweet corn",         sci:"Zea mays"},
-    {common:"French bean",        sci:"Phaseolus vulgaris"},
-    {common:"Pea",                sci:"Pisum sativum"},
-    {common:"Lettuce",            sci:"Lactuca sativa"},
-    {common:"Pak choi",           sci:"Brassica rapa"},
-    {common:"Sweet potato",       sci:"Ipomoea batatas"},
-    {common:"Pumpkin",            sci:"Cucurbita maxima"},
-    {common:"Onion",              sci:"Allium cepa"},
-    {common:"Garlic",             sci:"Allium sativum"},
-    {common:"Leek",               sci:"Allium ampeloprasum"},
-    {common:"Spinach",            sci:"Spinacia oleracea"},
-    {common:"Radish / daikon",    sci:"Raphanus sativus"},
-    {common:"Kangkong",           sci:"Ipomoea aquatica"},
-    {common:"Bitter melon",       sci:"Momordica charantia"},
-    {common:"Moringa",            sci:"Moringa oleifera"},
-    {common:"Long bean",          sci:"Vigna unguiculata"},
-    {common:"Edamame / soybean",  sci:"Glycine max"},
-  ],
-  herbs: [
-    {common:"Rosemary",           sci:"Salvia rosmarinus"},
-    {common:"Sage",               sci:"Salvia officinalis"},
-    {common:"Chives",             sci:"Allium schoenoprasum"},
-    {common:"Fennel",             sci:"Foeniculum vulgare"},
-    {common:"Oregano",            sci:"Origanum vulgare"},
-    {common:"Basil",              sci:"Ocimum basilicum"},
-    {common:"Thyme",              sci:"Thymus vulgaris"},
-    {common:"Mint",               sci:"Mentha spicata"},
-    {common:"Parsley",            sci:"Petroselinum crispum"},
-    {common:"Dill",               sci:"Anethum graveolens"},
-    {common:"Coriander",          sci:"Coriandrum sativum"},
-    {common:"Lemongrass",         sci:"Cymbopogon citratus"},
-    {common:"Pandan",             sci:"Pandanus amaryllifolius"},
-    {common:"Lemon verbena",      sci:"Aloysia citrodora"},
-    {common:"Tarragon",           sci:"Artemisia dracunculus"},
-    {common:"Vietnamese coriander",sci:"Persicaria odorata"},
-    {common:"Culantro",           sci:"Eryngium foetidum"},
-    {common:"Shiso / perilla",    sci:"Perilla frutescens"},
-  ],
-  fruit: [
-    {common:"Fig",                sci:"Ficus carica"},
-    {common:"Apple",              sci:"Malus domestica"},
-    {common:"Cherry",             sci:"Prunus avium"},
-    {common:"Pear",               sci:"Pyrus communis"},
-    {common:"Plum",               sci:"Prunus domestica"},
-    {common:"Strawberry",         sci:"Fragaria ananassa"},
-    {common:"Grape",              sci:"Vitis vinifera"},
-    {common:"Loquat",             sci:"Eriobotrya japonica"},
-    {common:"Lemon",              sci:"Citrus limon"},
-    {common:"Orange",             sci:"Citrus sinensis"},
-    {common:"Persimmon",          sci:"Diospyros kaki"},
-    {common:"Papaya",             sci:"Carica papaya"},
-    {common:"Banana",             sci:"Musa acuminata"},
-    {common:"Mango",              sci:"Mangifera indica"},
-    {common:"Passionfruit",       sci:"Passiflora edulis"},
-    {common:"Guava",              sci:"Psidium guajava"},
-    {common:"Blackcurrant",       sci:"Ribes nigrum"},
-    {common:"Raspberry",          sci:"Rubus idaeus"},
-    {common:"Blueberry",          sci:"Vaccinium corymbosum"},
-    {common:"Gooseberry",         sci:"Ribes uva-crispa"},
-    {common:"Yuzu",               sci:"Citrus junos"},
-    {common:"Sea buckthorn",      sci:"Hippophae rhamnoides"},
-    {common:"Peach",              sci:"Prunus persica"},
-    {common:"Apricot",            sci:"Prunus armeniaca"},
-    {common:"Quince",             sci:"Cydonia oblonga"},
-    {common:"Nectarine",          sci:"Prunus persica var. nucipersica"},
-  ],
-  flowers: [
-    {common:"Rose",               sci:"Rosa"},
-    {common:"Lavender",           sci:"Lavandula angustifolia"},
-    {common:"Pelargonium",        sci:"Pelargonium"},
-    {common:"Begonia",            sci:"Begonia"},
-    {common:"Bougainvillea",      sci:"Bougainvillea"},
-    {common:"Hibiscus",           sci:"Hibiscus rosa-sinensis"},
-    {common:"Heliconia",          sci:"Heliconia"},
-    {common:"Bird of paradise",   sci:"Strelitzia reginae"},
-    {common:"Sunflower",          sci:"Helianthus annuus"},
-    {common:"Nasturtium",         sci:"Tropaeolum majus"},
-    {common:"Petunia",            sci:"Petunia hybrida"},
-    {common:"Fuchsia",            sci:"Fuchsia"},
-    {common:"Impatiens",          sci:"Impatiens walleriana"},
-    {common:"Marigold",           sci:"Tagetes erecta"},
-    {common:"Zinnia",             sci:"Zinnia elegans"},
-    {common:"Dahlia",             sci:"Dahlia pinnata"},
-    {common:"Cosmos",             sci:"Cosmos bipinnatus"},
-    {common:"Agapanthus",         sci:"Agapanthus africanus"},
-  {common:"Guernsey Lily",       sci:"Nerine bowdenii"},
-  {common:"Jersey Lily",          sci:"Amaryllis belladonna"},
-  {common:"Crocosmia",           sci:"Crocosmia x crocosmiiflora"},
-  {common:"Alstroemeria",        sci:"Alstroemeria aurea"},
-    {common:"African violet",     sci:"Streptocarpus ionanthus"},
-    {common:"Waratah",            sci:"Telopea speciosissima"},
-  ],
-  trees: [
-    {common:"Magnolia",           sci:"Magnolia"},
-    {common:"Japanese maple",     sci:"Acer palmatum"},
-    {common:"Camellia",           sci:"Camellia japonica"},
-    {common:"Callistemon",        sci:"Callistemon"},
-    {common:"Wisteria",           sci:"Wisteria sinensis"},
-    {common:"Hawthorn",           sci:"Crataegus monogyna"},
-    {common:"Elder",              sci:"Sambucus nigra"},
-    {common:"Eucalyptus",         sci:"Eucalyptus"},
-    {common:"Flame tree",         sci:"Delonix regia"},
-    {common:"Coconut palm",       sci:"Cocos nucifera"},
-    {common:"Frangipani",         sci:"Plumeria"},
-    {common:"Weeping willow",     sci:"Salix babylonica"},
-    {common:"Crab apple",         sci:"Malus sylvestris"},
-    {common:"Olive",              sci:"Olea europaea"},
-    {common:"Bay laurel",         sci:"Laurus nobilis"},
-    {common:"Jacaranda",          sci:"Jacaranda mimosifolia"},
-  ],
-  shrubs: [
-    {common:"Rhododendron",       sci:"Rhododendron"},
-    {common:"Oleander",           sci:"Nerium oleander"},
-    {common:"Ixora",              sci:"Ixora coccinea"},
-    {common:"Pittosporum",        sci:"Pittosporum tenuifolium"},
-    {common:"Callistemon",        sci:"Callistemon"},
-    {common:"Duranta",            sci:"Duranta erecta"},
-    {common:"Croton",             sci:"Codiaeum variegatum"},
-    {common:"Acalypha",           sci:"Acalypha wilkesiana"},
-    {common:"Photinia",           sci:"Photinia fraseri"},
-    {common:"Hydrangea",          sci:"Hydrangea macrophylla"},
-    {common:"Privet",             sci:"Ligustrum ovalifolium"},
-    {common:"Bamboo",             sci:"Phyllostachys aurea"},
-    {common:"Lomandra",           sci:"Lomandra longifolia"},
-    {common:"Holly",              sci:"Ilex aquifolium"},
-  ],
-};
-
 // Map PLANT_CATEGORIES keys to INAT_SEED keys
-const CAT_TO_SEED = {
-  trees:"trees", shrubs:"shrubs", flowers:"flowers",
-  vegetables:"vegetables", fruit:"fruit", herbs:"herbs",
-};
-
 // Climate-zone fallback presets (used when iNat returns <3 plants with count >0)
 // ─── Regional zone supplements ───────────────────────────────────────────────
 // Plants beloved in specific zones that iNat under-counts (low observation rate
 // despite genuine popularity). Merged into suggestions after iNat ranking.
-const ZONE_SUPPLEMENTS = {
-  // All zones — classic garden plants that rank poorly on iNat
-  all: {
-    flowers: ["Guernsey Lily", "Crocosmia", "Alstroemeria", "Penstemon", "Echinacea"],
-    shrubs:  ["Choisya", "Ceanothus", "Escallonia", "Griselinia", "Mexican orange blossom"],
-    trees:   ["Amelanchier", "Cercis / Judas tree", "Cornus / dogwood"],
-    fruit:   ["Blackcurrant", "Redcurrant", "Gooseberry", "Raspberry", "Quince"],
-    herbs:   ["Chives", "Lemon balm", "Lovage", "Sweet cicely"],
-    vegetables: [],
-  },
-  temperate: {
-    flowers: ["Guernsey Lily", "Crocosmia", "Agapanthus", "Echinops", "Verbena bonariensis"],
-    shrubs:  ["Choisya", "Ceanothus", "Escallonia", "Griselinia"],
-    fruit:   ["Apple","Pear","Blackcurrant","Gooseberry","Quince","Damson","Redcurrant","Raspberry","Elderberry","Medlar"],
-    herbs:   ["Lemon balm", "Lovage", "Chervil"],
-    vegetables: ["Chard", "Sprouting broccoli", "Broad bean"],
-    trees:   ["Amelanchier", "Hazel", "Rowan"],
-  },
-  mediterranean: {
-    flowers: ["Guernsey Lily","Phlomis","Cistus / rock rose","Echinops","Verbena bonariensis","Erysimum","Osteospermum","Gaura","Salvia nemorosa","Kniphofia"],
-    shrubs:  ["Ceanothus","Choisya","Cistus","Teucrium","Santolina","Ballota","Euphorbia characias","Ruta / rue"],
-    fruit:   ["Medlar","Almond","Pomegranate","Jujube / Chinese date","Loquat","Feijoa","Arbutus berry","Carob"],
-    herbs:   ["Borage","Summer savory","Epazote","Hyssop","Lemon thyme","Za'atar oregano"],
-    vegetables: ["Artichoke","Fennel bulb","Cardoon","Cima di rapa","Flat-leaf parsley","Chicory"],
-    trees:   ["Mimosa / Acacia dealbata","Arbutus / strawberry tree","Judas tree","Hackberry","Stone pine","Aleppo pine"],
-  },
-  subtropical: {
-    flowers: ["Bird of paradise", "Canna", "Ginger lily", "Protea", "Alstroemeria"],
-    shrubs:  ["Plumbago", "Tibouchina", "Streptosolen", "Abutilon"],
-    fruit:   ["Avocado", "Loquat", "Feijoa", "Pomegranate", "Kumquat"],
-    herbs:   ["Lemon myrtle", "Vietnamese mint", "Kaffir lime leaf"],
-    vegetables: ["Sweet potato", "Okra", "Chilli"],
-    trees:   ["Frangipani", "Golden shower tree", "Tibouchina"],
-  },
-  tropical: {
-    flowers: ["Torch ginger", "Heliconia", "Anthurium", "Bird of paradise", "Ixora"],
-    shrubs:  ["Ixora", "Plumbago", "Hamelia", "Acalypha"],
-    fruit:   ["Jackfruit", "Starfruit / carambola", "Longan", "Rambutan", "Durian"],
-    herbs:   ["Lemongrass", "Pandan", "Kaffir lime", "Galangal", "Turmeric"],
-    vegetables: ["Bitter melon", "Drumstick / Moringa", "Winged bean", "Taro"],
-    trees:   ["Breadfruit", "Ylang-ylang", "Rain tree", "Neem"],
-  },
-  continental: {
-    flowers: ["Echinacea", "Rudbeckia", "Monarda / bee balm", "Phlox", "Aster"],
-    shrubs:  ["Lilac", "Mock orange / Philadelphus", "Weigela", "Spirea"],
-    fruit:   ["Apple","Pear","Damson","Quince","Hazelnut","Elderberry","Blackcurrant","Gooseberry","Raspberry","Blackthorn / sloe"],
-    herbs:   ["Dill", "Lovage", "Horseradish", "Chervil"],
-    vegetables: ["Kohlrabi", "Celeriac", "Scorzonera", "Hamburg parsley"],
-    trees:   ["Crab apple", "Bird cherry", "Snowy mespilus"],
-  },
-  subarctic: {
-    flowers: ["Echinacea", "Monarda / bee balm", "Rudbeckia", "Bergenia", "Trollius"],
-    shrubs:  ["Berberis", "Arctostaphylos / bearberry", "Dwarf birch"],
-    fruit:   ["Lingonberry", "Arctic raspberry", "Cloudberry", "Aronia / chokeberry"],
-    herbs:   ["Angelica", "Lovage", "Dill", "Chives"],
-    vegetables: ["Kale", "Swede", "Turnip", "Parsnip", "Leek"],
-    trees:   ["Crab apple", "Bird cherry", "Mountain ash / Sorbus"],
-  },
-  arid: {
-    flowers: ["Lantana", "Bougainvillea", "Portulaca", "Vinca / periwinkle", "Gazania"],
-    shrubs:  ["Lantana", "Agave", "Aloe", "Yucca", "Penstemon"],
-    fruit:   ["Pomegranate", "Prickly pear / Opuntia", "Almond", "Pistachio", "Date palm"],
-    herbs:   ["Epazote", "Mexican oregano", "Hyssop"],
-    vegetables: ["Chard", "Okra", "Artichoke", "Tepary bean"],
-    trees:   ["Palo verde", "Desert willow", "Mesquite", "Ironwood"],
-  },
-  maritime: {
-    flowers: ["Guernsey Lily","Jersey Lily","Agapanthus","Crocosmia","Alstroemeria","Gunnera","Cordyline","Eucomis / pineapple lily","Kniphofia / red hot poker","Watsonia"],
-    shrubs:  ["Choisya","Ceanothus","Escallonia","Pittosporum","Griselinia","Phormium","Olearia","Hebe","Cordyline","Luma apiculata"],
-    fruit:   ["Apple","Blackcurrant","Gooseberry","Raspberry","Quince","Damson","Elderberry","Sloe / blackthorn","Pear","Plum"],
-    herbs:   ["Lemon verbena","Lovage","Chervil","Lemon balm","Vietnamese coriander"],
-    vegetables: ["Sprouting broccoli","Chard","Broad bean","Kale","Leek","Sea kale","Samphire","French bean"],
-    trees:   ["Magnolia","Camellia","Cider apple","Pittosporum tenuifolium","Arbutus / strawberry tree","Griselinia","Cordyline","Leptospermum"],
-  },
-};
-
-const CLIMATE_FALLBACKS = {
-  tropical:    {
-    vegetables:["Tomato","Sweet pepper","Aubergine","Kangkong","Bitter melon","Moringa","Long bean","Sweet corn","Sweet potato","Pumpkin"],
-    herbs:     ["Basil","Lemongrass","Pandan","Culantro","Vietnamese coriander","Coriander","Mint","Shiso / perilla"],
-    fruit:     ["Mango","Papaya","Banana","Guava","Passionfruit","Lemon","Orange","Fig"],
-    flowers:   ["Bougainvillea","Hibiscus","Heliconia","Bird of paradise","Rose","Begonia","Impatiens","Marigold","Zinnia","Cosmos"],
-    trees:     ["Coconut palm","Flame tree","Frangipani","Jacaranda","Camellia","Eucalyptus","Magnolia","Wisteria"],
-    shrubs:    ["Ixora","Duranta","Croton","Acalypha","Oleander","Rhododendron","Pittosporum","Hydrangea"],
-  },
-  subtropical: {
-    vegetables:["Tomato","Sweet pepper","Courgette","Aubergine","Sweet corn","Lettuce","Kale / cabbage","Cucumber","Onion","Sweet potato"],
-    herbs:     ["Basil","Rosemary","Lemongrass","Coriander","Mint","Oregano","Thyme","Sage"],
-    fruit:     ["Lemon","Orange","Fig","Peach","Apricot","Plum","Strawberry","Grape","Guava","Passionfruit"],
-    flowers:   ["Bougainvillea","Rose","Pelargonium","Bird of paradise","Agapanthus","Hibiscus","Begonia","Cosmos","Lavender","Marigold"],
-    trees:     ["Jacaranda","Magnolia","Olive","Camellia","Callistemon","Eucalyptus","Wisteria","Flame tree"],
-    shrubs:    ["Oleander","Rhododendron","Callistemon","Pittosporum","Duranta","Photinia","Hydrangea","Ixora"],
-  },
-  mediterranean:{
-    vegetables:["Tomato","Sweet pepper","Courgette","Aubergine","Cucumber","Lettuce","Kale / cabbage","Onion","Garlic","Pea"],
-    herbs:     ["Rosemary","Thyme","Sage","Oregano","Basil","Fennel","Coriander","Lemon verbena","Tarragon","Dill"],
-    fruit:     ["Fig","Grape","Peach","Apricot","Lemon","Orange","Plum","Cherry","Quince","Persimmon"],
-    flowers:   ["Rose","Lavender","Pelargonium","Bougainvillea","Oleander","Cosmos","Begonia","Nasturtium","Zinnia","Dahlia"],
-    trees:     ["Olive","Magnolia","Wisteria","Camellia","Callistemon","Jacaranda","Frangipani","Eucalyptus"],
-    shrubs:    ["Oleander","Pittosporum","Rhododendron","Hydrangea","Photinia","Callistemon","Privet","Bamboo"],
-  },
-  temperate:   {
-    vegetables:["Tomato","Potato","Kale / cabbage","Courgette","Sweet pepper","Cucumber","French bean","Pea","Lettuce","Onion"],
-    herbs:     ["Rosemary","Sage","Chives","Thyme","Mint","Parsley","Fennel","Dill","Oregano","Basil"],
-    fruit:     ["Apple","Cherry","Pear","Plum","Peach","Strawberry","Fig","Blackcurrant","Raspberry","Gooseberry"],
-    flowers:   ["Rose","Lavender","Pelargonium","Begonia","Sunflower","Nasturtium","Petunia","Fuchsia","Cosmos","Dahlia"],
-    trees:     ["Magnolia","Japanese maple","Camellia","Wisteria","Hawthorn","Elder","Callistemon","Crab apple"],
-    shrubs:    ["Rhododendron","Hydrangea","Pittosporum","Photinia","Holly","Privet","Bamboo","Lomandra"],
-  },
-  continental: {
-    vegetables:["Tomato","Potato","Kale / cabbage","Courgette","Sweet pepper","Cucumber","Sweet corn","Pea","Lettuce","Onion"],
-    herbs:     ["Dill","Thyme","Sage","Chives","Parsley","Mint","Coriander","Oregano","Fennel","Basil"],
-    fruit:     ["Apple","Pear","Plum","Cherry","Peach","Apricot","Strawberry","Blackcurrant","Raspberry","Blueberry"],
-    flowers:   ["Cosmos","Pelargonium","Sunflower","Fuchsia","Impatiens","Lavender","Rose","Begonia","Dahlia","Petunia"],
-    trees:     ["Japanese maple","Magnolia","Elder","Hawthorn","Weeping willow","Camellia","Wisteria","Crab apple"],
-    shrubs:    ["Rhododendron","Hydrangea","Photinia","Privet","Holly","Bamboo","Pittosporum","Oleander"],
-  },
-  subarctic:   {
-    vegetables:["Tomato","Kale / cabbage","Courgette","Potato","Pea","French bean","Lettuce","Spinach","Radish / daikon","Onion"],
-    herbs:     ["Dill","Chives","Parsley","Thyme","Mint","Sage","Fennel","Coriander"],
-    fruit:     ["Apple","Pear","Plum","Cherry","Strawberry","Blackcurrant","Raspberry","Blueberry","Gooseberry","Sea buckthorn"],
-    flowers:   ["Cosmos","Pelargonium","Sunflower","Fuchsia","Begonia","Nasturtium","Petunia","Lavender","Dahlia","Impatiens"],
-    trees:     ["Japanese maple","Magnolia","Elder","Hawthorn","Crab apple","Wisteria","Camellia"],
-    shrubs:    ["Rhododendron","Hydrangea","Photinia","Privet","Holly","Bamboo","Pittosporum"],
-  },
-  arid:        {
-    vegetables:["Tomato","Sweet corn","Sweet pepper","Kale / cabbage","Courgette","Aubergine","Onion","Garlic","Lettuce","Pumpkin"],
-    herbs:     ["Rosemary","Thyme","Sage","Oregano","Dill","Lemongrass","Basil","Fennel","Tarragon","Coriander"],
-    fruit:     ["Fig","Peach","Apricot","Quince","Lemon","Orange","Plum","Grape","Pomegranate","Persimmon"],
-    flowers:   ["Sunflower","Pelargonium","Cosmos","Impatiens","Lavender","Rose","Marigold","Zinnia","Hibiscus","Nasturtium"],
-    trees:     ["Olive","Eucalyptus","Magnolia","Callistemon","Elder","Hawthorn","Weeping willow","Jacaranda"],
-    shrubs:    ["Oleander","Rhododendron","Duranta","Callistemon","Photinia","Privet","Pittosporum","Hydrangea"],
-  },
-  // Atlantic-facing mild wet climates: Jersey, Cornwall, Brittany, western Ireland, NW Spain
-  maritime: {
-    vegetables:["Tomato","Courgette","Runner bean","Broad bean","Lettuce","Chard","Kale / cabbage","Sprouting broccoli","Pea","French bean"],
-    herbs:     ["Rosemary","Thyme","Chives","Parsley","Mint","Lemon verbena","Fennel","Sage","Tarragon","Lovage"],
-    fruit:     ["Blackcurrant","Gooseberry","Raspberry","Quince","Damson","Apple","Pear","Fig","Elderberry","Sloe / blackthorn"],
-    flowers:   ["Agapanthus","Guernsey Lily","Jersey Lily","Crocosmia","Fuchsia","Pelargonium","Rose","Alstroemeria","Dahlia","Cosmos"],
-    trees:     ["Magnolia","Camellia","Fig","Bay laurel","Amelanchier","Pittosporum","Griselinia","Eucalyptus","Cordyline","Cercis / Judas tree"],
-    shrubs:    ["Choisya","Ceanothus","Escallonia","Griselinia","Pittosporum","Phormium","Olearia","Hebe","Fuchsia","Camellia"],
-  },
-};
-
 // Classify climate zone from OpenMeteo data (same classification the app already uses)
 function getClimateZone(cd) {
   if (!cd) return "temperate";
@@ -627,61 +341,6 @@ function getClimateZone(cd) {
 // ─── iNat local suggestions ───────────────────────────────────────────────────
 // Queries iNat captive=true for all plants in a category, returns top-N common names.
 // Routes through proxy when available to avoid CORS issues.
-async function fetchInatSuggestions(catKey, lat, lng, topN = 10, climateZone = "temperate") {
-  const seedKey = CAT_TO_SEED[catKey];
-  const plants  = INAT_SEED[seedKey] ?? [];
-  if (!plants.length) return null;
-
-  const results = [];
-  const batchSize = 5;
-
-  for (let i = 0; i < plants.length; i += batchSize) {
-    const batch = plants.slice(i, i + batchSize);
-    const counts = await Promise.all(batch.map(async p => {
-      try {
-        let count = 0;
-        if (PROXY_BASE) {
-          // Route through proxy to avoid CORS — add iNat endpoint to proxy
-          const url = `${PROXY_BASE}/api/inat?taxon=${encodeURIComponent(p.sci)}&lat=${lat}&lng=${lng}`;
-          const res  = await fetch(url);
-          const data = await res.json();
-          count = data.total_results ?? 0;
-        } else {
-          // Direct call (works from artifact/local dev, may hit CORS on prod)
-          const url = new URL("https://api.inaturalist.org/v1/observations");
-          url.searchParams.set("taxon_name", p.sci);
-          url.searchParams.set("lat",        lat);
-          url.searchParams.set("lng",        lng);
-          url.searchParams.set("radius",     "50");
-          url.searchParams.set("captive",    "true");
-          url.searchParams.set("per_page",   "1");
-          const res  = await fetch(url);
-          const data = await res.json();
-          count = data.total_results ?? 0;
-        }
-        return { common: p.common, sci: p.sci, count };
-      } catch { return { common: p.common, sci: p.sci, count: 0 }; }
-    }));
-    results.push(...counts);
-    if (i + batchSize < plants.length) await new Promise(r => setTimeout(r, 1200));
-  }
-
-  // Filter out plants that are climate-marginal for this zone (iNat counts are misleading)
-  const climateFiltered = results.filter(r => {
-    if (r.count <= 0) return false;
-    const note = getClimateMarginalNote(r.sci, climateZone);
-    return !note; // exclude if marked marginal for this zone
-  });
-  const ranked = climateFiltered.sort((a,b) => b.count - a.count);
-  return { ranked: ranked.slice(0, topN), sparse: ranked.length < 5 };
-}
-const MONTH_NAMES   = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const SEASON_COLORS = { Winter:"#7AA6C2",Spring:"#8CBF72",Summer:"#D4A84B",Autumn:"#C47A45",Fall:"#C47A45" };
-const SEASON_EMOJIS = {
-  January:"❄️",February:"🌨️",March:"🌱",April:"🌸",May:"🌿",June:"☀️",
-  July:"🌻",August:"🍅",September:"🍂",October:"🎃",November:"🍁",December:"❄️",
-};
-
 // ─── Plant validation & clarification ────────────────────────────────────────
 
 // Principle-based clarification rules. Each rule fires when the resolved genus matches.
@@ -1641,7 +1300,17 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo}) {
                     {inspo.data.location}{inspo.data.distance ? ` · ${inspo.data.distance}` : ""}
                   </div>
                 )}
+                {inspo.data.known_for && (
+                  <div style={{fontSize:".78rem",color:"var(--inspo)",fontStyle:"italic",marginTop:".2rem",opacity:.85}}>
+                    Known for: {inspo.data.known_for}
+                  </div>
+                )}
                 {inspo.data.highlight && <div className="inspo-text">{inspo.data.highlight}</div>}
+                {inspo.data.confidence === "medium" && (
+                  <div style={{fontSize:".72rem",color:"var(--muted)",marginTop:".4rem",fontStyle:"italic",opacity:.7}}>
+                    ↗ Verify seasonal highlights on the garden's website before visiting
+                  </div>
+                )}
                 <button className="btn-inspo" style={{marginTop:".7rem"}} onClick={onFetchInspo}>↺ Try somewhere else</button>
               </div>
             ) : null}
@@ -1832,66 +1501,70 @@ export default function GardenCalendar() {
       const q = GARDEN_QUOTES[Math.floor(Math.random() * GARDEN_QUOTES.length)];
       setLocationQuote({text: q.attribution ? `"${q.quote}" — ${q.attribution}` : q.quote, done:true});
 
-      // Step 3: Load iNat localised suggestions lazily per category
-      const climateZone = getClimateZone(cd);
-      const catKeys = Object.keys(CAT_TO_SEED);
-      // Mark all categories as loading
-      setSuggestionState(Object.fromEntries(catKeys.map(k => [k, "loading"])));
+      // Step 3: Claude-generated suggestions using real climate data
+      // Fires after OpenMeteo data is available so real numbers ground the prompt
       setLocalSuggestions({});
-      // Load categories sequentially to avoid throttling
+      setSuggestionState({});
       (async () => {
-        const newSuggestions = {};
-        const newStates = {};
-        for (const catKey of catKeys) {
-          try {
-            const result = await fetchInatSuggestions(catKey, geoResult.lat, geoResult.lng, 10, climateZone);
-            const fallbackList  = (CLIMATE_FALLBACKS[climateZone] ?? CLIMATE_FALLBACKS.temperate)[catKey] ?? [];
-            const supplementAll  = ZONE_SUPPLEMENTS.all?.[catKey] ?? [];
-            const supplementZone = ZONE_SUPPLEMENTS[climateZone]?.[catKey] ?? [];
-            const inatNames = result?.ranked?.map(r => r.common) ?? [];
+        try {
+          const mm = cd.monthly_mean_temp || [];
+          const meanTemp    = mm.length ? (mm.reduce((a,b)=>a+b,0)/12).toFixed(1) : "unknown";
+          const minTemp     = mm.length ? Math.min(...mm).toFixed(1) : "unknown";
+          const maxTemp     = mm.length ? Math.max(...mm).toFixed(1) : "unknown";
+          const tempRange   = mm.length ? (Math.max(...mm)-Math.min(...mm)).toFixed(1) : "unknown";
+          const precip      = derived.annualPrecip ? Math.round(derived.annualPrecip) : "unknown";
 
-            // dedup: filter list to items not already in existing (case-insensitive)
-            const dedup = (list, existing) => list.filter(f =>
-              !existing.some(n => n.toLowerCase() === f.toLowerCase())
-            );
+          const suggestions = await callClaude(
+            `You are an expert horticulturist advising on domestic garden plants.
 
-            // Zone stars: guaranteed supplement items for specialist zones
-            // For broad zones (temperate/continental) iNat results are trusted more —
-            // supplements only fill gaps, not override ranked results
-            const specialistZone = ["maritime","mediterranean","subtropical","tropical","arid"].includes(climateZone);
-            const zoneStars = specialistZone
-              ? dedup(supplementZone.slice(0, 6), inatNames).slice(0, 3)
-              : []; // temperate/continental/subarctic: no forced override
+Location: ${c}
+Measured climate (OpenMeteo ERA5 10-year averages):
+  Mean annual temperature: ${meanTemp}°C
+  Coldest month mean: ${minTemp}°C
+  Warmest month mean: ${maxTemp}°C
+  Annual temperature range: ${tempRange}°C${Number(tempRange) <= 13 ? " (oceanic/maritime — mild year-round)" : Number(tempRange) >= 16 ? " (continental influence — hot summers, cold winters)" : ""}
+  Annual precipitation: ${precip}mm
+  Last spring frost: ${derived.lastFrost || "none"}
+  First autumn frost: ${derived.firstFrost || "none"}
+  Climate character: ${derived.climateType}
+  Hardiness: ${derived.zone}
 
-            if (!result || result.sparse) {
-              // Sparse: zone stars first, then iNat, then fill from fallback + all-supplement
-              const base = [...zoneStars, ...dedup(inatNames, zoneStars)];
-              const filler = [
-                ...dedup(fallbackList, base),
-                ...dedup(supplementAll, [...base, ...fallbackList]),
-              ];
-              newSuggestions[catKey] = [...base, ...filler].slice(0, 10);
-              newStates[catKey] = inatNames.length > 0 ? "ready" : "fallback";
-            } else {
-              // Good iNat coverage: lead with zone stars, then ranked iNat, then extras
-              const ranked = dedup(inatNames, zoneStars);
-              const extras = dedup([...supplementZone, ...supplementAll], [...zoneStars, ...ranked]);
-              newSuggestions[catKey] = [...zoneStars, ...ranked, ...extras].slice(0, 10);
-              newStates[catKey] = "ready";
+List the 8 most commonly grown and popular plants for each category below.
+Base your answer on what home gardeners in this specific region actually grow —
+plants widely sold in local nurseries, culturally familiar, climate-appropriate.
+Use the measured climate data above to reason about what will thrive, fruit and
+overwinter here. Include:
+- Workhorse kitchen garden staples genuinely popular in this region
+- Characteristic boundary and hedging plants for this area
+- Container and windowbox favourites where culturally relevant
+- Regional specialities that are genuinely iconic for this location
+Order each list most→least popular.
+
+Return ONLY valid JSON, no markdown:
+{"vegetables":["name1","name2","name3","name4","name5","name6","name7","name8"],"herbs":["name1","name2","name3","name4","name5","name6","name7","name8"],"fruit":["name1","name2","name3","name4","name5","name6","name7","name8"],"flowers":["name1","name2","name3","name4","name5","name6","name7","name8"],"trees":["name1","name2","name3","name4","name5","name6","name7","name8"],"shrubs":["name1","name2","name3","name4","name5","name6","name7","name8"]}
+Rules: 8 items per category, common names only, ordered most→least popular, no duplicates across categories.`,
+            500, undefined, apiKey
+          );
+          if (rid !== prefetchIdRef.current) return;
+          // Map category names to our internal keys
+          const keyMap = {vegetables:"vegetables",herbs:"herbs",fruit:"fruit",flowers:"flowers",trees:"trees",shrubs:"shrubs"};
+          const mapped = {};
+          const stateMap = {};
+          Object.entries(keyMap).forEach(([src, dst]) => {
+            if (suggestions[src]) {
+              mapped[dst]   = suggestions[src];
+              stateMap[dst] = "ready";
             }
-            // Update state progressively as each category finishes
-            setLocalSuggestions(prev => ({ ...prev, [catKey]: newSuggestions[catKey] }));
-            setSuggestionState(prev => ({ ...prev, [catKey]: newStates[catKey] }));
-          } catch {
-            // On error fall back to climate preset
-            const fallback = (CLIMATE_FALLBACKS[climateZone] ?? CLIMATE_FALLBACKS.temperate)[catKey] ?? [];
-            setLocalSuggestions(prev => ({ ...prev, [catKey]: fallback }));
-            setSuggestionState(prev => ({ ...prev, [catKey]: "fallback" }));
-          }
-          // Small gap between categories
-          await new Promise(r => setTimeout(r, 500));
+          });
+          setLocalSuggestions(mapped);
+          setSuggestionState(stateMap);
+        } catch(e) {
+          console.warn("[suggestions] Claude call failed:", e?.message);
+          // Leave suggestions empty — user can still type their own plants
+          setSuggestionState({});
         }
       })();
+
     } catch(e) {
       if (rid===prefetchIdRef.current) setPfState("error");
     }
@@ -2308,12 +1981,17 @@ LIFECYCLE: Apply correct pruning timing for each plant type.`;
     // Fetch all months in parallel (max 3)
     await Promise.all(names.map(async (monthName) => {
       try {
-        const result = await callClaude(`You are a public gardens expert near ${city}.
-Month: ${monthName}. Date: ${now}.
-Recommend ONE real public garden within 1-2 hours of ${city} worth visiting in ${monthName}.
+        const result = await callClaude(`You are a garden visiting expert. Recommend ONE public garden to visit near ${city} in ${monthName}.
+
+Critical rule: only recommend a garden you have confident, specific knowledge of — a well-documented garden whose collections, specialisms or seasonal highlights you know from horticultural literature, guidebooks or published garden writing. Prefer famous, well-documented gardens over obscure ones you are less certain about. A well-known garden described accurately is more useful than a lesser-known garden with uncertain details.
+
 Return ONLY valid JSON, no markdown:
-{"name":"<Real garden name>","organisation":"<operator>","location":"<Town, Region>","distance":"<travel time from ${city}>","highlight":"<Specific plant or feature in ${monthName}, 10-20 words>"}
-Rules: real garden only, varied operators (not always RHS/NT), highlight names the specific plant or feature (10-20 words)${exclusionClause}`,
+{"name":"<Garden name>","organisation":"<operator e.g. National Trust / RHS / local authority / independent>","location":"<Town, Region>","distance":"<approx travel time from ${city}>","highlight":"<What this garden is genuinely known for in ${monthName} — specific plant, collection or feature — 10-20 words>","known_for":"<The garden primary specialism or what it is most famous for — 8-15 words>","confidence":"high or medium"}
+
+confidence high = you have clear specific knowledge of this garden collections and seasonal highlights from published sources.
+confidence medium = you know the garden exists and broadly what it contains but are less certain of specific highlights.
+known_for: the garden defining characteristic regardless of season.
+${exclusionClause}`,
           300, undefined, apiKey);
         const wordCount = (result.highlight || "").trim().split(/\s+/).length;
         if (wordCount < 8) result.highlight = result.highlight + " — visit for the seasonal highlights";
