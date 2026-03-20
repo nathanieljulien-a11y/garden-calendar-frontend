@@ -352,6 +352,60 @@ async function fetchOpenMeteoArchive(lat, lng) {
   };
 }
 
+// ─── Internationalisation ────────────────────────────────────────────────────
+const LANGUAGES = {
+  en: { name:"English", flag:"🇬🇧" },
+};
+
+const UI_STRINGS = {
+  en: {
+    cityLabel:        "📍 City & Country",
+    cityPlaceholder:  "e.g. Edinburgh, UK",
+    orientationLabel: "🧭 Garden Orientation",
+    selectOrientation:"Select…",
+    continueBtn:      "Continue to plant selection →",
+    fetchingClimate:  "Fetching climate data…",
+    enterCity:        "Enter a city to continue",
+    climateLoaded:    "Climate data loaded",
+    furtherReading:   "📚 Further reading for your region",
+    addYourPlants:    "Add your plants",
+    plantsHint:       "Tap any suggestion to add it, or type your own.",
+    loadingLocal:     "Loading suggestions…",
+    gardenFeatures:   "🏡 Garden Features",
+    optional:         "— optional",
+    featuresPlaceholder:"Add features, press Enter…",
+    gardenInventory:  "🌱 Garden Inventory",
+    recommended:      "— optional but recommended",
+    generateBtn:      "✦ Generate My Garden Calendar",
+    generateReady:    "✦ Generate My Calendar — Ready!",
+    thingsToDo:       "Things to do",
+    whatToEnjoy:      "What to enjoy",
+    forInspiration:   "For inspiration",
+    whereToVisit:     "🌿 Where to visit in",
+    loadingMore:      "Loading…",
+    loadNextMonths:   "Load next 3 months ↓",
+    loadFinalMonths:  "Load final 3 months ↓",
+    monthsRemaining:  "months remaining",
+    findPlaces:       "🌿 Find places to visit —",
+    findingGardens:   "Finding gardens…",
+    popularNearYou:   "popular near you",
+    forYourClimate:   "suggestions for your climate",
+    yourCalendar:     "Your Garden Calendar",
+    startOver:        "Start over",
+    knownFor:         "Known for:",
+    verifyHighlight:  "↗ Verify seasonal highlights on the garden's website before visiting",
+    noGardensNearby:  "No notable public gardens found nearby — try searching further afield",
+  },
+};
+// Language name for use in prompts — resolved dynamically from Intl API
+function getLangName(code) {
+  try {
+    // Use Intl.DisplayNames to get the language name in English
+    const dn = new Intl.DisplayNames(["en"], { type: "language" });
+    return dn.of(code) || "English";
+  } catch { return "English"; }
+}
+
 // ─── Climate zone classification ─────────────────────────────────────────────
 function getClimateZone(cd) {
   if (!cd) return "temperate";
@@ -1289,7 +1343,7 @@ function StreamBar({months, stream1Done, activeMonth, chunkCount}) {
 function orientationShort(o) { return o?o.split(" (")[0]:""; }
 
 // ─── MonthPanel ───────────────────────────────────────────────────────────────
-function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo}) {
+function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t}) {
   if (!m || m._state==="pending") {
     return <div className="month-ghost"><Shimmer lines={2}/></div>;
   }
@@ -1343,7 +1397,7 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo}) {
             <div className="mp-section-label inspo-lbl">For inspiration</div>
             {!inspo || inspo.state === "idle" ? (
               <button className="btn-inspo" onClick={onFetchInspo}>
-                🌿 Where to visit in {m.month}
+                {t("whereToVisit")} {m.month}
               </button>
             ) : inspo.state === "loading" ? (
               <div className="inspo-loading">
@@ -1357,7 +1411,7 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo}) {
             ) : inspo.state === "none" ? (
               <div>
                 <div style={{fontSize:".82rem",color:"var(--muted)",fontStyle:"italic",padding:".3rem 0"}}>
-                  No notable public gardens found nearby — try searching further afield
+                  {t("noGardensNearby")}
                 </div>
                 <button className="btn-inspo" style={{marginTop:".4rem"}} onClick={onFetchInspo}>↺ Try again</button>
               </div>
@@ -1374,13 +1428,13 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo}) {
                 )}
                 {inspo.data.known_for && (
                   <div style={{fontSize:".78rem",color:"var(--inspo)",fontStyle:"italic",marginTop:".2rem",opacity:.85}}>
-                    Known for: {inspo.data.known_for}
+                    {t("knownFor")} {inspo.data.known_for}
                   </div>
                 )}
                 {inspo.data.highlight && <div className="inspo-text">{inspo.data.highlight}</div>}
                 {inspo.data.confidence === "medium" && (
                   <div style={{fontSize:".72rem",color:"var(--muted)",marginTop:".4rem",fontStyle:"italic",opacity:.7}}>
-                    ↗ Verify seasonal highlights on the garden's website before visiting
+                    {t("verifyHighlight")}
                   </div>
                 )}
                 <button className="btn-inspo" style={{marginTop:".7rem"}} onClick={onFetchInspo}>↺ Try somewhere else</button>
@@ -1502,6 +1556,19 @@ export default function GardenCalendar() {
   }, []);
   const [prefetchState,setPfState]   = useState("idle");
   const [stage,setStage]             = useState("form");
+  // Language: browser default, persisted to localStorage, user can override
+  const [lang, setLang] = useState(() => {
+    const stored = localStorage.getItem("gc_lang");
+    if (stored) return stored;
+    // Detect browser language — use it for Claude prompts even if UI stays English
+    return (navigator.language || "en").split("-")[0].toLowerCase();
+  });
+  // UI always uses English strings; browser language only affects Claude prompt language
+  const t = (key) => UI_STRINGS.en[key] || key;
+  const langName = () => getLangName(lang);
+  // Toggle between English and browser language
+  const browserLang = (navigator.language || "en").split("-")[0].toLowerCase();
+  const changeLang = (code) => { setLang(code); localStorage.setItem("gc_lang", code); };
   const [loadedBatches,setLoadedBatches] = useState(1); // how many 3-month batches generated
   const [loadingMore,setLoadingMore]     = useState(false);
   const [formStep,setFormStep]       = useState("location"); // "location" | "plants"
@@ -1629,7 +1696,8 @@ Order each list most→least popular.
 
 Return ONLY valid JSON, no markdown:
 {"vegetables":["name1","name2","name3","name4","name5","name6","name7","name8"],"herbs":["name1","name2","name3","name4","name5","name6","name7","name8"],"fruit":["name1","name2","name3","name4","name5","name6","name7","name8"],"flowers":["name1","name2","name3","name4","name5","name6","name7","name8"],"trees":["name1","name2","name3","name4","name5","name6","name7","name8"],"shrubs":["name1","name2","name3","name4","name5","name6","name7","name8"]}
-Rules: 8 items per category, common names only, ordered most→least popular.`,
+Rules: 8 items per category, common names only, ordered most→least popular.
+Respond entirely in ${langName()}. Use ${langName()} for all plant names and descriptions.`,
             500, undefined, apiKey
           );
           if (rid !== prefetchIdRef.current) return;
@@ -1909,7 +1977,8 @@ Other rules:
 - ENJOY: exactly 2 lines. At least one wildlife or seasonal visitor.
 - SEASON: Winter/Spring/Summer/Autumn only
 - End each block with ---
-- Output all 12 months in order. NO other text.`;
+- Output all 12 months in order. NO other text.
+- Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;
 
     const parser1 = makeLineParser((snapshot) => {
       if (rid!==submitIdRef.current) return;
@@ -2016,7 +2085,8 @@ ENJOY:Forsythia — tight yellow buds swelling on bare stems, days from opening
 CLIMATE-AWARE PLANT RULE: For any plant noted as "ornamental only" or "will not fruit in this climate", tasks must reflect what it actually does here — never suggest fruiting or warm-climate behaviour.
 ENJOY RULE: Each observation must capture something actively happening THIS specific month. Residential garden scale only.
 COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
-LIFECYCLE: Apply correct pruning timing for each plant type.`;
+LIFECYCLE: Apply correct pruning timing for each plant type.
+Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;
 
     // Init the new months as pending
     setMonths(prev => {
@@ -2091,9 +2161,9 @@ Return ONLY valid JSON, no markdown:
 confidence high = you have clear specific knowledge of this garden collections and seasonal highlights from published sources.
 confidence medium = you know the garden exists and broadly what it contains but are less certain of specific highlights.
 known_for: the garden defining characteristic regardless of season.
-${exclusionClause}`,
-          300, undefined, apiKey);
-        // Handle "none" response — no suitable garden found
+${exclusionClause}
+Respond entirely in ${langName()}.`
+          300, undefined, apiKey);       // Handle "none" response — no suitable garden found
         if (!result.name || result.name === "none") {
           setInspos(prev => ({ ...prev, [monthName]: { state:"none", data:null } }));
           return;
@@ -2152,7 +2222,8 @@ Rules:
 - Max 4 items. Only flag genuine concerns — skip anything broadly suitable.
 - If everything suits the location well, allLookingGood:true and empty items array.
 - Tone: curious and encouraging. "How is X doing?" not "X will fail."
-- context + suggestion together under 35 words per item.`, 700, undefined, apiKey);
+- context + suggestion together under 35 words per item.
+Respond entirely in ${langName()}.`, 700, undefined, apiKey);
       setInsights({state:"done", items:result.items||[], allLookingGood:result.allLookingGood, goodNewsLine:result.goodNewsLine});
     } catch(e) {
       setInsights({state:"error", items:[]});
@@ -2260,17 +2331,40 @@ Rules:
         {/* ── FORM: LOCATION STEP ── */}
         {stage==="form" && formStep==="location" && (
           <div className="form-card">
-            <div className="form-title">Tell us about your garden</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:".5rem",marginBottom:".25rem"}}>
+              <div className="form-title" style={{margin:0}}>Tell us about your garden</div>
+              {browserLang !== "en" && (
+                <div style={{display:"flex",alignItems:"center",gap:".35rem",flexShrink:0}}>
+                  <span style={{fontSize:".72rem",color:"var(--muted)"}}>Calendar language:</span>
+                  {["en", browserLang].map(code => (
+                    <button key={code} type="button"
+                      onClick={() => changeLang(code)}
+                      style={{
+                        background: lang===code ? "var(--fern)" : "none",
+                        border: lang===code ? "1px solid var(--moss)" : "1px solid var(--sage)",
+                        borderRadius:"3px",
+                        padding:"1px 7px",
+                        cursor:"pointer",
+                        fontSize:".75rem",
+                        color: lang===code ? "var(--cream)" : "var(--sage)",
+                        transition:"all .15s",
+                      }}>
+                      {code === "en" ? "EN" : getLangName(code).slice(0,2).toUpperCase() + getLangName(code).slice(2,5)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <p className="form-hint">Enter your location and orientation — we'll fetch live climate data to personalise your calendar.</p>
             <div className="field-row">
               <div className="field">
-                <label>📍 City & Country</label>
-                <input type="text" value={city} onChange={e=>setCity(e.target.value)} placeholder="e.g. Edinburgh, UK"/>
+                <label>{t("cityLabel")}</label>
+                <input type="text" value={city} onChange={e=>setCity(e.target.value)} placeholder={t("cityPlaceholder")}/>
               </div>
               <div className="field">
-                <label>🧭 Garden Orientation</label>
+                <label>{t("orientationLabel")}</label>
                 <select value={orientation} onChange={e=>setOri(e.target.value)}>
-                  <option value="">Select…</option>
+                  <option value="">{t("selectOrientation")}</option>
                   {ORIENTATIONS.map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
@@ -2286,7 +2380,7 @@ Rules:
               {prefetchState==="ready" && meta && (
                 <div>
                   <div style={{fontSize:".78rem",color:"var(--muted)",marginBottom:".4rem",fontStyle:"italic"}}>
-                    Climate data loaded · <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer" style={{color:"var(--muted)"}}>Open-Meteo / ERA5</a>
+                    {t("climateLoaded")} · <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer" style={{color:"var(--muted)"}}>Open-Meteo / ERA5</a>
                   </div>
                   <div className="meta-pills" style={{justifyContent:"flex-start",margin:0}}>
                     <div className="pill">🌡 Zone <b>{meta.zone}</b></div>
@@ -2300,7 +2394,7 @@ Rules:
 
             {/* Further reading — collapsible, appears once references arrive */}
             {meta?.references && (
-              <RefsPanel refs={meta.references} pending={false} title="📚 Further reading for your region" />
+              <RefsPanel refs={meta.references} pending={false} title={t("furtherReading")} />
             )}
 
             {prefetchState==="error" && (
@@ -2336,7 +2430,7 @@ Rules:
                 disabled={prefetchState !== "ready" || !city || !orientation}
                 onClick={() => setFormStep("plants")}
                 type="button">
-                {prefetchState==="ready" ? "Continue to plant selection →" : prefetchState==="fetching" ? "Fetching climate data…" : "Enter a city to continue"}
+                {prefetchState==="ready" ? t("continueBtn") : prefetchState==="fetching" ? t("fetchingClimate") : t("enterCity")}
               </button>
             </div>
           </div>
@@ -2375,19 +2469,19 @@ Rules:
               </div>
             )}
 
-            <div className="form-title">Add your plants</div>
+            <div className="form-title">{t("addYourPlants")}</div>
             <p className="form-hint">
               Suggestions below are ranked by local observation data near {city} — tap any to add it, or type your own.
               {Object.values(suggestionState).some(s=>s==="loading") && (
-                <span style={{fontStyle:"italic",color:"var(--muted)"}}> Loading local suggestions…</span>
+                <span style={{fontStyle:"italic",color:"var(--muted)"}}> {t("loadingLocal")}</span>
               )}
             </p>
 
             <div className="divider"/>
-            <p className="section-label">🏡 Garden Features <em>— optional</em></p>
+            <p className="section-label">{t("gardenFeatures")} <em>{t("optional")}</em></p>
             <div className="category-row">
               <div className="cat-label">🏡 Features</div>
-              <TagInput value={features} onChange={setFeatures} placeholder="Add features, press Enter…"/>
+              <TagInput value={features} onChange={setFeatures} placeholder={t("featuresPlaceholder")}/>
               <div className="suggestions">
                 {["Lawn","Paving","Pond","Gravel","Raised beds","Greenhouse","Compost"].map(f => {
                   const active = features.map(x=>x.toLowerCase()).includes(f.toLowerCase());
@@ -2402,7 +2496,7 @@ Rules:
               </div>
             </div>
             <div className="divider"/>
-            <p className="section-label">🌱 Garden Inventory <em>— optional but recommended</em></p>
+            <p className="section-label">{t("gardenInventory")} <em>{t("recommended")}</em></p>
             {PLANT_CATEGORIES.map(cat=>(
               <div key={cat.key} className="category-row">
                 <div className="cat-label">{cat.icon} {cat.label}</div>
@@ -2536,7 +2630,7 @@ Rules:
               </div>
             ))}
             <button className="btn-generate" onClick={handleSubmit} disabled={!city||!orientation||(isArtifact()&&!apiKey)}>
-              {prefetchState==="ready"?"✦ Generate My Calendar — Ready!":"✦ Generate My Garden Calendar"}
+              {prefetchState==="ready"?t("generateReady"):t("generateBtn")}
             </button>
           </div>
         )}
@@ -2549,7 +2643,7 @@ Rules:
 
             <div className="cal-header">
               <div className="deco" style={{fontSize:"1.3rem"}}>✦ ✿ ✦</div>
-              <h2>Your Garden Calendar</h2>
+              <h2>{t("yourCalendar")}</h2>
               <p>{city}{orientation?` · ${orientationShort(orientation)}`:""}</p>
               {meta ? (
                 <div className="meta-pills">
@@ -2599,7 +2693,7 @@ Rules:
             )}
 
             {/* References panel — open with pending message until meta arrives */}
-            <RefsPanel refs={meta?.references} pending={!meta} title="📚 Further reading for your region" startOpen={true}/>
+            <RefsPanel refs={meta?.references} pending={!meta} title={t("furtherReading")} startOpen={true}/>
 
             {/* Insights panel — between references and the calendar months */}
             <InsightsPanel
@@ -2663,7 +2757,7 @@ Rules:
                   }}
                 >
                   {loadingMore
-                    ? "Loading…"
+                    ? t("loadingMore")
                     : `Load ${loadedBatches === 3 ? "final" : "next"} 3 months ↓`}
                 </button>
                 <p style={{fontSize:".72rem",color:"var(--muted)",margin:".35rem 0 0",fontStyle:"italic"}}>
@@ -2701,6 +2795,7 @@ Rules:
                         showInspoButton={months[name]?._state==="done"}
                         inspo={inspos[name] || {state:"idle",data:null}}
                         onFetchInspo={()=>fetchInspo([name])}
+                        t={t}
                       />
                     </div>
                   );
