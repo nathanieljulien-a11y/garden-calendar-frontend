@@ -388,8 +388,8 @@ const UI_STRINGS = {
     monthsRemaining:  "months remaining",
     findPlaces:       "🌿 Find places to visit —",
     findingGardens:   "Finding gardens…",
-    popularNearYou:   "popular near you",
-    forYourClimate:   "suggestions for your climate",
+    popularNearYou:   "Based on regional horticultural knowledge",
+    forYourClimate:   "Based on regional horticultural knowledge",
     yourCalendar:     "Your Garden Calendar",
     startOver:        "Start over",
     knownFor:         "Known for:",
@@ -814,7 +814,29 @@ function enrichedPlantName(name, meta, climateZone) {
 }
 
 
-// ─── Empty month template ─────────────────────────────────────────────────────
+// ─── National horticultural societies ────────────────────────────────────────
+// Keyed by ISO 3166-1 alpha-2 country_code (lowercase) from Nominatim.
+// Used in the calendar footer to point users to a regional verification source.
+// If a country is absent, the footer falls back to generic text (no broken link).
+const HORT_SOCIETY = {
+  gb: { name:"RHS",                          url:"rhs.org.uk/advice" },
+  je: { name:"RHS",                          url:"rhs.org.uk/advice" },  // Jersey
+  gg: { name:"RHS",                          url:"rhs.org.uk/advice" },  // Guernsey
+  ie: { name:"Irish Garden Plant Society",   url:"igps.ie" },
+  us: { name:"Cooperative Extension",        url:"extension.org" },
+  ca: { name:"Master Gardeners",             url:"mgoi.ca" },
+  au: { name:"Gardening Australia",          url:"abc.net.au/gardening" },
+  nz: { name:"New Zealand Gardener",         url:"nzgardener.co.nz" },
+  fr: { name:"Jardins de France",            url:"jardins-de-france.com" },
+  de: { name:"DGG",                          url:"dgg.de" },
+  es: { name:"RJBA",                         url:"rjb.csic.es" },
+  it: { name:"Società Botanica Italiana",    url:"societabotanicaitaliana.it" },
+  nl: { name:"KAVB",                         url:"kavb.nl" },
+  be: { name:"Société Royale d'Agriculture", url:"sra.be" },
+  ch: { name:"Jardin Suisse",               url:"jardinsuisse.ch" },
+};
+
+
 const emptyMonth = (name) => ({
   month:name, season:null, sunHours:null,
   tasks:[], enjoy:[],
@@ -2769,12 +2791,12 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
                       <>
                         {state === "fallback" && (
                           <span style={{fontSize:".7rem",color:"var(--muted)",fontStyle:"italic",display:"block",marginBottom:".25rem",opacity:.6}}>
-                            suggestions for your climate
+                            Based on regional horticultural knowledge
                           </span>
                         )}
                         {state === "ready" && (
                           <span style={{fontSize:".7rem",color:"var(--muted)",fontStyle:"italic",display:"block",marginBottom:".25rem",opacity:.6}}>
-                            popular near you
+                            Based on regional horticultural knowledge
                           </span>
                         )}
                         {suggestions.map(s => {
@@ -2983,23 +3005,49 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
             </div>
 
             {/* Data attribution — visible once first batch is done */}
-            {stream1Done && (
-              <div style={{
-                textAlign:"center",
-                fontSize:".7rem",
-                color:"rgba(180,180,160,.45)",
-                margin:"-.75rem 0 1.5rem",
-                fontStyle:"italic",
-                lineHeight:"1.6",
-              }}>
-                Sowing windows for vegetables and herbs informed by{" "}
-                <a href="https://openfarm.cc" target="_blank" rel="noopener"
-                   style={{color:"inherit",textDecoration:"underline",opacity:.75}}>OpenFarm (CC BY)</a>
-                {" "}and your local frost dates from{" "}
-                <a href="https://open-meteo.com" target="_blank" rel="noopener"
-                   style={{color:"inherit",textDecoration:"underline",opacity:.75}}>Open-Meteo/ERA5</a>
-              </div>
-            )}
+            {stream1Done && (() => {
+              const society = meta?.country_code ? HORT_SOCIETY[meta.country_code] : null;
+              const hasOpenFarm = !!openFarmCtxRef.current;
+              return (
+                <div style={{
+                  textAlign:"center",
+                  fontSize:".7rem",
+                  color:"rgba(180,180,160,.4)",
+                  margin:"-.75rem 0 1.5rem",
+                  fontStyle:"italic",
+                  lineHeight:"2",
+                }}>
+                  {/* Line 1: LLM honesty */}
+                  Growing advice reflects general horticultural practice.{" "}
+                  {/* Line 2: regional verification */}
+                  {society ? (
+                    <>Verify timing with{" "}
+                      <a href={`https://${society.url}`} target="_blank" rel="noopener"
+                         style={{color:"inherit",textDecoration:"underline",opacity:.85}}>
+                        {society.name} →
+                      </a>
+                    </>
+                  ) : (
+                    <>Verify timing with your national horticultural society.</>
+                  )}
+                  <br/>
+                  {/* Line 3: data sources */}
+                  <span style={{opacity:.75}}>
+                    <a href="https://open-meteo.com" target="_blank" rel="noopener"
+                       style={{color:"inherit",textDecoration:"underline"}}>Climate data: Open-Meteo/ERA5</a>
+                    {" "}·{" "}
+                    <a href="https://www.gbif.org" target="_blank" rel="noopener"
+                       style={{color:"inherit",textDecoration:"underline"}}>Plant records: GBIF</a>
+                    {hasOpenFarm && (
+                      <>{" "}·{" "}
+                        <a href="https://openfarm.cc" target="_blank" rel="noopener"
+                           style={{color:"inherit",textDecoration:"underline"}}>Sowing data: OpenFarm</a>
+                      </>
+                    )}
+                  </span>
+                </div>
+              );
+            })()}
 
             <div className="cal-actions">
               <button className="btn-ghost" onClick={resetAll}>← Edit Garden</button>
