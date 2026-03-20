@@ -2162,8 +2162,9 @@ confidence high = you have clear specific knowledge of this garden collections a
 confidence medium = you know the garden exists and broadly what it contains but are less certain of specific highlights.
 known_for: the garden defining characteristic regardless of season.
 ${exclusionClause}
-Respond entirely in ${langName()}.`
-          300, undefined, apiKey);       // Handle "none" response — no suitable garden found
+Respond entirely in ${langName()}.`,
+          300, undefined, apiKey);
+        // Handle "none" response — no suitable garden found
         if (!result.name || result.name === "none") {
           setInspos(prev => ({ ...prev, [monthName]: { state:"none", data:null } }));
           return;
