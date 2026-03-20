@@ -1066,6 +1066,75 @@ async function callClaude(prompt, maxTokens, signal, apiKey) {
   return JSON.parse(data.content.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim());
 }
 
+// ─── Nominatim geocoding ──────────────────────────────────────────────────────
+// Resolves a city string to { lat, lng, country_code, display_name } via
+// OpenStreetMap Nominatim, proxied through /api/geocode so the server can set
+// the required User-Agent header.
+//
+// Results are cached in localStorage keyed by the normalised city string.
+// Nominatim enforces 1 req/sec — the cache means this almost never matters in
+// practice.
+//
+// Attribution: Location data © OpenStreetMap contributors, ODbL
+//   https://www.openstreetmap.org/copyright
+const GEO_CACHE_PREFIX = "gc_geo_v1_";
+
+async function fetchNominatim(cityString) {
+  const cacheKey = GEO_CACHE_PREFIX + cityString.trim().toLowerCase();
+
+  // 1. Check localStorage cache — city coordinates never change
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.lat && parsed.lng) {
+        console.log("[geocode] cache hit:", cityString, parsed);
+        return parsed;
+      }
+    }
+  } catch { /* localStorage unavailable — proceed to network */ }
+
+  // 2. Must have the proxy — Nominatim requires a User-Agent we can't set from the browser
+  if (!PROXY_BASE) {
+    throw new Error("Nominatim geocoding requires the proxy (VITE_PROXY_URL). In artifact mode this path should not be reached.");
+  }
+
+  const url = `${PROXY_BASE}/api/geocode?q=${encodeURIComponent(cityString.trim())}`;
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (e) {
+    throw new Error("Geocoding service unreachable — check your connection and try again.");
+  }
+
+  if (res.status === 404) {
+    throw new Error(`Location not found: "${cityString}". Try a more specific name, e.g. "York, England" or "Bordeaux, France".`);
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Geocoding failed (${res.status}) — check your city name and try again.`);
+  }
+
+  const data = await res.json();
+  if (!data.lat || !data.lng) {
+    throw new Error(`Location not found: "${cityString}".`);
+  }
+
+  const result = {
+    lat: data.lat,
+    lng: data.lng,
+    country_code: data.country_code || null,   // lowercase ISO 3166-1 alpha-2, e.g. "gb", "fr", "sg"
+    display_name: data.display_name || cityString,
+  };
+
+  console.log("[geocode] Nominatim result:", cityString, "→", result);
+
+  // 3. Store in cache
+  try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch { /* ignore */ }
+
+  return result;
+}
+
 // ─── Line-format stream parser ────────────────────────────────────────────────
 // KEY FIXES vs previous version:
 // 1. All mutable parser state lives in plain JS variables (never in React state),
@@ -1660,16 +1729,9 @@ export default function GardenCalendar() {
     const q = GARDEN_QUOTES[Math.floor(Math.random() * GARDEN_QUOTES.length)];
     setLocationQuote({text: q.attribution ? `"${q.quote}" — ${q.attribution}` : q.quote, done:true});
     try {
-      // Step 1: Get lat/lng from Claude (lightweight call — just geocoding + references)
-      const geoResult = await callClaude(`Location: ${c}. Return ONLY this JSON, no markdown:
-{"lat":<decimal>,"lng":<decimal>,"references":[
-{"category":"Plant care","sources":["<inst 1>","<inst 2>"]},
-{"category":"Gardens","sources":["<garden 1>","<garden 2>","<garden 3>"]},
-{"category":"Broadcasters","sources":["<presenter 1>","<presenter 2>"]}]}
-- Plant care: 2 leading horticultural institutions for this country
-- Gardens: 2-3 real public gardens within 2hrs of ${c} from varied operators
-- Broadcasters: 2 real TV/radio gardening presenters known in this region
-- No invented names`, 400, undefined, apiKey);
+      // Step 1: Geocode via Nominatim (OpenStreetMap) — deterministic, free, no tokens used.
+      // Results are cached in localStorage so repeat lookups for the same city skip the network.
+      const geoResult = await fetchNominatim(c);
       if (rid!==prefetchIdRef.current) return;
 
       // Step 2: Fetch real climate data from OpenMeteo
@@ -1694,7 +1756,7 @@ export default function GardenCalendar() {
         firstFrost: derived.firstFrost || "none",
         climate: derived.climateType,
         hemisphere,
-        references: geoResult.references,
+        country_code: geoResult.country_code,
         // Store full climate data for prompt building
         _cd: cd, _derived: derived,
       });
@@ -1719,7 +1781,7 @@ export default function GardenCalendar() {
             `You are an expert horticulturist advising on domestic garden plants.
 
 Location: ${c}
-Measured climate (OpenMeteo ERA5 10-year averages):
+${geoResult.country_code ? `Country: ${geoResult.country_code.toUpperCase()} — use plant names appropriate for this region (e.g. courgette not zucchini for UK, aubergine not eggplant for France, coriander not cilantro for UK/EU)\n` : ""}Measured climate (OpenMeteo ERA5 10-year averages):
   Mean annual temperature: ${meanTemp}°C
   Coldest month mean: ${minTemp}°C
   Warmest month mean: ${maxTemp}°C
@@ -1847,16 +1909,9 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
           }
           if (!m) { setError("Climate data timed out. Please try again."); return; }
         } else {
-          // Fallback: geocode + fetch OpenMeteo
-          const geoResult = await callClaude(`Location: ${city}. Return ONLY this JSON, no markdown:
-{"lat":<decimal>,"lng":<decimal>,"references":[
-{"category":"Plant care","sources":["<inst 1>","<inst 2>"]},
-{"category":"Gardens","sources":["<garden 1>","<garden 2>","<garden 3>"]},
-{"category":"Broadcasters","sources":["<presenter 1>","<presenter 2>"]}]}
-- Plant care: 2 leading horticultural institutions for this country
-- Gardens: 2-3 real public gardens within 2hrs of ${city} from varied operators
-- Broadcasters: 2 real TV/radio gardening presenters known in this region
-- No invented names`, 400, abort.signal, apiKey);
+          // Fallback: geocode via Nominatim + fetch OpenMeteo
+          // (Reaches here only if prefetch never fired — e.g. orientation was blank when city was typed)
+          const geoResult = await fetchNominatim(city);
           if (rid!==submitIdRef.current) return;
           const hemisphere = detectHemisphere(geoResult.lat);
           // Try climate normals API first (fast, ~15KB). Fall back to archive if unavailable.
@@ -1878,7 +1933,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
             firstFrost: derived.firstFrost || "none",
             climate: derived.climateType,
             hemisphere,
-            references: geoResult.references,
+            country_code: geoResult.country_code,
             _cd: cd, _derived: derived,
           };
         }
@@ -2492,6 +2547,7 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
                 <div>
                   <div style={{fontSize:".78rem",color:"var(--muted)",marginBottom:".4rem",fontStyle:"italic"}}>
                     {t("climateLoaded")} · <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer" style={{color:"var(--muted)"}}>Open-Meteo / ERA5</a>
+                    {" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" style={{color:"var(--muted)"}}>© OpenStreetMap contributors</a>
                   </div>
                   <div className="meta-pills" style={{justifyContent:"flex-start",margin:0}}>
                     <div className="pill">🌡 Zone <b>{meta.zone}</b></div>
@@ -2921,7 +2977,7 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
               })}
             </div>
 
-            {/* Data attribution — shown once first batch is done */}
+            {/* Data attribution — visible once first batch is done */}
             {stream1Done && (
               <div style={{
                 textAlign:"center",
