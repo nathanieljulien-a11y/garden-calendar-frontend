@@ -789,20 +789,28 @@ async function fetchOpenMeteoClimate(lat, lng) {
     "temperature_2m_mean","temperature_2m_min","temperature_2m_max",
     "precipitation_sum","sunshine_duration"
   ].join(",");
-  // Climate normals API — returns pre-aggregated 30-year monthly means, tiny payload
-  const url = `https://climate-api.open-meteo.com/v1/climate?latitude=${lat}&longitude=${lng}&monthly=${vars}&models=EC_Earth3P_HR`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000); // 15s timeout
-  let raw;
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`OpenMeteo HTTP ${res.status}`);
-    raw = await res.json();
-  } catch(e) {
-    clearTimeout(timer);
-    throw e;
+  // Try models in order — EC_Earth3P_HR is highest resolution but has coverage gaps;
+  // MRI_AGCM3_2_S and MPI_ESM1_2_XR are globally reliable fallbacks
+  const MODELS = ["EC_Earth3P_HR", "MRI_AGCM3_2_S", "MPI_ESM1_2_XR"];
+  let raw = null;
+  for (const model of MODELS) {
+    const url = `https://climate-api.open-meteo.com/v1/climate?latitude=${lat}&longitude=${lng}&monthly=${vars}&models=${model}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) { console.warn(`[climate] model ${model} returned ${res.status}, trying next`); continue; }
+      raw = await res.json();
+      if (raw.monthly?.temperature_2m_mean?.length) break; // valid data received
+      console.warn(`[climate] model ${model} returned empty data, trying next`);
+      raw = null;
+    } catch(e) {
+      clearTimeout(timer);
+      console.warn(`[climate] model ${model} failed: ${e.message}, trying next`);
+    }
   }
+  if (!raw) throw new Error("All climate models failed");
 
   // Monthly arrays: 360 values (30 years × 12 months) — average by month index
   const monthly = raw.monthly || {};
