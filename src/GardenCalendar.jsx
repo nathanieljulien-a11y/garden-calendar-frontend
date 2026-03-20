@@ -1612,6 +1612,9 @@ export default function GardenCalendar() {
     if (!c||!o) return;
     const rid = ++prefetchIdRef.current;
     setPfState("fetching"); setMeta(null);
+    // Quote fires immediately — visible during the climate data wait
+    const q = GARDEN_QUOTES[Math.floor(Math.random() * GARDEN_QUOTES.length)];
+    setLocationQuote({text: q.attribution ? `"${q.quote}" — ${q.attribution}` : q.quote, done:true});
     try {
       // Step 1: Get lat/lng from Claude (lightweight call — just geocoding + references)
       const geoResult = await callClaude(`Location: ${c}. Return ONLY this JSON, no markdown:
@@ -1653,9 +1656,7 @@ export default function GardenCalendar() {
       });
       setPfState("ready");
 
-      // Step 2b: Pick a random quote from the pre-loaded list (no API call needed)
-      const q = GARDEN_QUOTES[Math.floor(Math.random() * GARDEN_QUOTES.length)];
-      setLocationQuote({text: q.attribution ? `"${q.quote}" — ${q.attribution}` : q.quote, done:true});
+
 
       // Step 3: Claude-generated suggestions using real climate data
       // Fires after OpenMeteo data is available so real numbers ground the prompt
@@ -2088,10 +2089,12 @@ SEASON:Winter
 SUN:2.5
 TASK:Cut ALL autumn-fruiting raspberry canes to ground level, clearing old growth
 ENJOY:Forsythia — tight yellow buds swelling on bare stems, days from opening
+ENJOY:Blackbird — males singing territorial song from the apple tree at first light
 ---
 
 CLIMATE-AWARE PLANT RULE: For any plant noted as "ornamental only" or "will not fruit in this climate", tasks must reflect what it actually does here — never suggest fruiting or warm-climate behaviour.
 ENJOY RULE: Each observation must capture something actively happening THIS specific month. Residential garden scale only.
+ENJOY COUNT: Always write EXACTLY 2 ENJOY lines per month block — no more, no fewer.
 COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
 LIFECYCLE: Apply correct pruning timing for each plant type.
 Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;
@@ -2148,20 +2151,22 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     const alreadyChosen = Object.entries(inspos)
       .filter(([k, v]) => v?.data?.name && !names.includes(k))
       .map(([_, v]) => v.data.name);
-    const exclusionClause = alreadyChosen.length > 0
-      ? `\nDo NOT suggest: ${alreadyChosen.join(", ")}. Choose genuinely different gardens.`
-      : "";
 
-    // Fetch all months in parallel (max 3)
-    await Promise.all(names.map(async (monthName) => {
+    // Track gardens chosen within this batch to avoid duplicates across parallel calls
+    const chosenThisBatch = [];
+
+    // Fetch sequentially within a batch to allow proper deduplication
+    for (const monthName of names) {
       try {
         const result = await callClaude(`You are a garden visiting expert. Recommend ONE public garden to visit within a reasonable journey of ${city} in ${monthName}.
 
-Critical rules:
-1. Only recommend a garden you have confident, specific knowledge of — a well-documented garden whose collections, specialisms or seasonal highlights you know from horticultural literature, guidebooks or published garden writing.
-2. Prefer famous, well-documented gardens over obscure ones you are less certain about. A well-known garden described accurately is more useful than a lesser-known garden with fabricated details.
-3. If ${city} is on an island or in a remote area with few notable public gardens nearby, it is perfectly fine — and preferable — to recommend a well-known garden on the mainland or wider region that is worth a day trip or short journey, even if the travel time is 2-4 hours. Do NOT invent a local garden that may not exist. Extend the search radius as needed.
-4. If you genuinely cannot identify a suitable garden with confident knowledge, return {"name":"none"} rather than inventing one.
+Priority rules — apply in this order:
+1. First look for public gardens within 1 hour of ${city} that you know exist. A nearby garden you know with medium confidence is better than a distant garden you know very well. Do not go abroad or to another country when local options exist.
+2. For cities like Singapore, Kuala Lumpur, Tokyo, or other major Asian/global cities: there are always multiple botanical gardens, park gardens, and horticultural attractions within the city or region — look for these before ranging to other countries. Examples for Singapore: Jurong Lake Gardens, HortPark, Fort Canning Park, Chinese Garden, Sungei Buloh, Gardens by the Bay.
+3. Only extend the search radius significantly (2-4 hours, different country) if the location is genuinely remote or rural with very few public gardens nearby — e.g. a small island, a rural village, a remote coastal town.
+4. Never recommend a garden in a different continent. UK gardens are not appropriate suggestions for Singapore, Japan, or Australia.
+5. If you genuinely cannot find any suitable garden within the region, return {"name":"none"} rather than inventing one.
+6. Use medium confidence freely for nearby gardens — the UI will show a caveat. Medium confidence + nearby is always preferable to high confidence + far away.
 
 Return ONLY valid JSON, no markdown:
 {"name":"<Garden name or 'none'>","organisation":"<operator e.g. National Trust / RHS / local authority / independent>","location":"<Town, Region>","distance":"<approx journey time from ${city}, including ferry/flight if applicable>","highlight":"<What this garden is genuinely known for in ${monthName} — specific plant, collection or feature — 10-20 words>","known_for":"<The garden primary specialism or what it is most famous for — 8-15 words>","confidence":"high or medium"}
@@ -2169,7 +2174,7 @@ Return ONLY valid JSON, no markdown:
 confidence high = you have clear specific knowledge of this garden collections and seasonal highlights from published sources.
 confidence medium = you know the garden exists and broadly what it contains but are less certain of specific highlights.
 known_for: the garden defining characteristic regardless of season.
-${exclusionClause}
+${[...alreadyChosen, ...chosenThisBatch].length > 0 ? "\nDo NOT suggest any of these (already recommended): " + [...alreadyChosen, ...chosenThisBatch].join(", ") + ". Choose a genuinely different garden." : ""}
 Respond entirely in ${langName()}.`,
           300, undefined, apiKey);
         // Handle "none" response — no suitable garden found
@@ -2179,11 +2184,12 @@ Respond entirely in ${langName()}.`,
         }
         const wordCount = (result.highlight || "").trim().split(/\s+/).length;
         if (wordCount < 8) result.highlight = result.highlight + " — visit for the seasonal highlights";
+        if (result.name && result.name !== "none") chosenThisBatch.push(result.name);
         setInspos(prev => ({ ...prev, [monthName]: { state:"done", data:result } }));
       } catch(e) {
         setInspos(prev => ({ ...prev, [monthName]: { state:"error", data:null } }));
       }
-    }));
+    }
   };
   // ── Garden insights — climate suitability analysis ────────────────────────
   const fetchInsights = async () => {
@@ -2401,10 +2407,7 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
               )}
             </div>
 
-            {/* Further reading — collapsible, appears once references arrive */}
-            {meta?.references && (
-              <RefsPanel refs={meta.references} pending={false} title={t("furtherReading")} />
-            )}
+
 
             {prefetchState==="error" && (
               <div style={{fontSize:".8rem",color:"var(--rust)",margin:".5rem 0"}}>⚠ Climate data unavailable — check your city name and try again</div>
@@ -2702,7 +2705,7 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
             )}
 
             {/* References panel — open with pending message until meta arrives */}
-            <RefsPanel refs={meta?.references} pending={!meta} title={t("furtherReading")} startOpen={true}/>
+
 
             {/* Insights panel — between references and the calendar months */}
             <InsightsPanel
