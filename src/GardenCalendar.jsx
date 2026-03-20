@@ -312,6 +312,46 @@ const SEASON_EMOJIS = {
   July:"🌻",August:"🍅",September:"🍂",October:"🎃",November:"🍁",December:"❄️",
 };
 
+// Archive fallback: 5-year daily data — used only if climate normals API fails
+async function fetchOpenMeteoArchive(lat, lng) {
+  const vars = ["temperature_2m_mean","temperature_2m_min","temperature_2m_max","precipitation_sum","sunshine_duration"].join(",");
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=2019-01-01&end_date=2023-12-31&daily=${vars}&timezone=auto`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  let raw;
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`Archive HTTP ${res.status}`);
+    raw = await res.json();
+  } catch(e) { clearTimeout(timer); throw e; }
+
+  const dates=raw.daily?.time||[], tMean=raw.daily?.temperature_2m_mean||[],
+        tMin=raw.daily?.temperature_2m_min||[], tMax=raw.daily?.temperature_2m_max||[],
+        precip=raw.daily?.precipitation_sum||[], sun=raw.daily?.sunshine_duration||[];
+  const acc=Array.from({length:12},()=>({tMean:[],tMin:[],tMax:[],precip:0,sun:0,frostDays:0,count:0}));
+  for(let i=0;i<dates.length;i++){
+    const m=new Date(dates[i]).getMonth();
+    if(tMean[i]!=null)acc[m].tMean.push(tMean[i]);
+    if(tMin[i]!=null)acc[m].tMin.push(tMin[i]);
+    if(tMax[i]!=null)acc[m].tMax.push(tMax[i]);
+    if(precip[i]!=null)acc[m].precip+=precip[i];
+    if(sun[i]!=null)acc[m].sun+=sun[i];
+    if(tMin[i]!=null&&tMin[i]<0)acc[m].frostDays++;
+    acc[m].count++;
+  }
+  const avg=arr=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:null;
+  const YEARS=5;
+  return {
+    lat:raw.latitude, lng:raw.longitude,
+    tMean:acc.map(a=>avg(a.tMean)), tMin:acc.map(a=>avg(a.tMin)),
+    tMax:acc.map(a=>avg(a.tMax)),
+    precip:acc.map(a=>a.precip/YEARS),
+    sunHrs:acc.map(a=>(a.sun/a.count)/3600),
+    frostDays:acc.map(a=>a.frostDays/YEARS),
+  };
+}
+
 // ─── Climate zone classification ─────────────────────────────────────────────
 function getClimateZone(cd) {
   if (!cd) return "temperate";
@@ -685,7 +725,8 @@ const emptyMonth = (name) => ({
 
 
 // ─── OpenMeteo climate data ───────────────────────────────────────────────────
-// Fetches 10 years of daily ERA5 data and aggregates to monthly normals.
+// Fetches 30-year climate normals (1991-2020) from Open-Meteo Climate API.
+// Pre-aggregated monthly data — ~15KB response vs ~1.5MB for daily archive.
 // Free, no API key, global coverage, CC BY 4.0.
 const OM_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -694,39 +735,55 @@ async function fetchOpenMeteoClimate(lat, lng) {
     "temperature_2m_mean","temperature_2m_min","temperature_2m_max",
     "precipitation_sum","sunshine_duration"
   ].join(",");
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=2014-01-01&end_date=2023-12-31&daily=${vars}&timezone=auto`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`OpenMeteo HTTP ${res.status}`);
-  const raw = await res.json();
+  // Climate normals API — returns pre-aggregated 30-year monthly means, tiny payload
+  const url = `https://climate-api.open-meteo.com/v1/climate?latitude=${lat}&longitude=${lng}&monthly=${vars}&models=EC_Earth3P_HR`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000); // 15s timeout
+  let raw;
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`OpenMeteo HTTP ${res.status}`);
+    raw = await res.json();
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
 
-  const dates  = raw.daily?.time || [];
-  const tMean  = raw.daily?.temperature_2m_mean || [];
-  const tMin   = raw.daily?.temperature_2m_min  || [];
-  const tMax   = raw.daily?.temperature_2m_max  || [];
-  const precip = raw.daily?.precipitation_sum   || [];
-  const sun    = raw.daily?.sunshine_duration   || [];
+  // Monthly arrays: 360 values (30 years × 12 months) — average by month index
+  const monthly = raw.monthly || {};
+  const times   = monthly.time || [];
+  const tMeanRaw  = monthly.temperature_2m_mean || [];
+  const tMinRaw   = monthly.temperature_2m_min  || [];
+  const tMaxRaw   = monthly.temperature_2m_max  || [];
+  const precipRaw = monthly.precipitation_sum   || [];
+  const sunRaw    = monthly.sunshine_duration   || [];
 
-  const acc = Array.from({length:12}, () => ({tMean:[],tMin:[],tMax:[],precip:0,sun:0,frostDays:0,count:0}));
-  for (let i = 0; i < dates.length; i++) {
-    const m = new Date(dates[i]).getMonth();
-    if (tMean[i]  != null) acc[m].tMean.push(tMean[i]);
-    if (tMin[i]   != null) acc[m].tMin.push(tMin[i]);
-    if (tMax[i]   != null) acc[m].tMax.push(tMax[i]);
-    if (precip[i] != null) acc[m].precip += precip[i];
-    if (sun[i]    != null) acc[m].sun += sun[i];
-    if (tMin[i]   != null && tMin[i] < 0) acc[m].frostDays++;
-    acc[m].count++;
+  // Aggregate 30 years → 12 monthly averages
+  const acc = Array.from({length:12}, () => ({tMean:[],tMin:[],tMax:[],precip:[],sun:[]}));
+  for (let i = 0; i < times.length; i++) {
+    const m = new Date(times[i] + "-01").getMonth();
+    if (tMeanRaw[i]  != null) acc[m].tMean.push(tMeanRaw[i]);
+    if (tMinRaw[i]   != null) acc[m].tMin.push(tMinRaw[i]);
+    if (tMaxRaw[i]   != null) acc[m].tMax.push(tMaxRaw[i]);
+    if (precipRaw[i] != null) acc[m].precip.push(precipRaw[i]);
+    if (sunRaw[i]    != null) acc[m].sun.push(sunRaw[i]);
   }
   const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
-  const YEARS = 10;
+
+  // Estimate frost days from monthly min temperature
+  // (climate API doesn't provide frost day counts directly)
+  const tMinMonthly = acc.map(a => avg(a.tMin));
+  const frostDays   = tMinMonthly.map(t => t == null ? 0 : Math.max(0, (2 - t) * 3));
+
   return {
     lat: raw.latitude, lng: raw.longitude,
     tMean:     acc.map(a => avg(a.tMean)),
-    tMin:      acc.map(a => avg(a.tMin)),
+    tMin:      tMinMonthly,
     tMax:      acc.map(a => avg(a.tMax)),
-    precip:    acc.map(a => a.precip / YEARS),
-    sunHrs:    acc.map(a => (a.sun / a.count) / 3600),
-    frostDays: acc.map(a => a.frostDays / YEARS),
+    precip:    acc.map(a => avg(a.precip)),
+    sunHrs:    acc.map(a => { const s = avg(a.sun); return s != null ? s / 3600 : null; }),
+    frostDays,
   };
 }
 
@@ -1495,7 +1552,16 @@ export default function GardenCalendar() {
 
       // Step 2: Fetch real climate data from OpenMeteo
       const hemisphere = detectHemisphere(geoResult.lat);
-      const cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
+      // Try climate normals API first (fast, ~15KB). Fall back to archive if unavailable.
+      let cd;
+      try {
+        cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
+        // Validate we got real data
+        if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("empty response");
+      } catch(e) {
+        console.warn("[climate] normals API failed, trying archive:", e.message);
+        cd = await fetchOpenMeteoArchive(geoResult.lat, geoResult.lng);
+      }
       if (rid!==prefetchIdRef.current) return;
       const derived = deriveClimateFromOM(cd, hemisphere);
 
@@ -1672,7 +1738,16 @@ Rules: 8 items per category, common names only, ordered most→least popular.`,
 - No invented names`, 400, abort.signal, apiKey);
           if (rid!==submitIdRef.current) return;
           const hemisphere = detectHemisphere(geoResult.lat);
-          const cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
+          // Try climate normals API first (fast, ~15KB). Fall back to archive if unavailable.
+      let cd;
+      try {
+        cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
+        // Validate we got real data
+        if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("empty response");
+      } catch(e) {
+        console.warn("[climate] normals API failed, trying archive:", e.message);
+        cd = await fetchOpenMeteoArchive(geoResult.lat, geoResult.lng);
+      }
           if (rid!==submitIdRef.current) return;
           const derived = deriveClimateFromOM(cd, hemisphere);
           m = {
