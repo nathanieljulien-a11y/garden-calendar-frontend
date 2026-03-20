@@ -746,20 +746,28 @@ function deriveClimateFromOM(cd, hemisphere) {
     : coldestMin < 4.4  ? "Zone 10" : "Zone 11+";
 
   // Multi-axis climate classification
+  // Mediterranean check runs FIRST regardless of frost count — dry summers are the
+  // defining signal for Mediterranean climate even where Mistral causes occasional frost
+  const summerIdxs = hemisphere === "S" ? [11,0,1] : [5,6,7];
+  const winterIdxs = hemisphere === "S" ? [5,6,7] : [11,0,1];
+  const summerPrecip = summerIdxs.reduce((a,i)=>a+precip[i],0);
+  const winterPrecip = winterIdxs.reduce((a,i)=>a+precip[i],0);
+  const drySummer    = summerPrecip < 120 && dryMonthCount >= 2;
+
   let climateType;
   if (annualFrost === 0 && coldestMean > 18) {
     climateType = "equatorial";
   } else if (annualFrost === 0 && coldestMean > 15) {
     climateType = "tropical humid";
-  } else if (annualFrost < 5 && dryMonthCount >= 4) {
-    const summerIdxs = hemisphere === "S" ? [11,0,1] : [5,6,7];
-    const winterIdxs = hemisphere === "S" ? [5,6,7] : [11,0,1];
-    const wetSummer = summerIdxs.reduce((a,i)=>a+precip[i],0) > winterIdxs.reduce((a,i)=>a+precip[i],0) * 1.5;
-    climateType = hottestMax > 35 ? "hot semi-arid" : wetSummer ? "subtropical (wet/dry seasons)" : "mediterranean";
+  } else if (hottestMax >= 18 && drySummer && dryMonthCount >= 3) {
+    // Mediterranean: warm summers, dry summers — check before frost-based branches
+    // Catches Provence, Languedoc etc. that have occasional frost from Mistral
+    climateType = hottestMax > 35 ? "hot semi-arid" : "mediterranean";
+  } else if (annualFrost < 5 && dryMonthCount >= 3) {
+    const wetSummer = summerPrecip > winterPrecip * 1.5;
+    climateType = wetSummer ? "subtropical (wet/dry seasons)" : "mediterranean";
   } else if (annualFrost < 5 && annualPrecip > 800) {
     climateType = "subtropical oceanic";
-  } else if (annualFrost < 5 && dryMonthCount >= 3) {
-    climateType = "subtropical (wet/dry seasons)";
   } else if (annualFrost < 5) {
     climateType = "subtropical";
   } else if (coldestMean < 0 || annualFrost > 60) {
@@ -1289,6 +1297,13 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo}) {
                 <div style={{fontSize:".8rem",color:"var(--bloom)",fontStyle:"italic"}}>Couldn't find a suggestion — try again</div>
                 <button className="btn-inspo" onClick={onFetchInspo}>↺ Retry</button>
               </div>
+            ) : inspo.state === "none" ? (
+              <div>
+                <div style={{fontSize:".82rem",color:"var(--muted)",fontStyle:"italic",padding:".3rem 0"}}>
+                  No notable public gardens found nearby — try searching further afield
+                </div>
+                <button className="btn-inspo" style={{marginTop:".4rem"}} onClick={onFetchInspo}>↺ Try again</button
+              </div>
             ) : inspo.data ? (
               <div className="inspo-block">
                 <div className="inspo-name">{inspo.data.name}</div>
@@ -1533,16 +1548,22 @@ List the 8 most commonly grown and popular plants for each category below.
 Base your answer on what home gardeners in this specific region actually grow —
 plants widely sold in local nurseries, culturally familiar, climate-appropriate.
 Use the measured climate data above to reason about what will thrive, fruit and
-overwinter here. Include:
-- Workhorse kitchen garden staples genuinely popular in this region
-- Characteristic boundary and hedging plants for this area
-- Container and windowbox favourites where culturally relevant
-- Regional specialities that are genuinely iconic for this location
+overwinter here.
+
+Important guidance:
+- Vegetables: include regional kitchen garden staples, not just internationally common crops. E.g. Greek gardens grow okra, chilli, aubergine; French gardens grow haricot vert, courgette, potiron; British gardens grow runner bean, broad bean, potato.
+- Herbs: include regionally characteristic herbs. E.g. tarragon and chervil for France, oregano and basil for Mediterranean regions, mint and chives for UK.
+- Fruit: include common soft fruit and tree fruit actually grown in domestic gardens. Apple is almost always relevant for temperate/maritime climates.
+- Flowers: Rose is almost always one of the most popular flowers in European domestic gardens — include it unless the climate is genuinely tropical. Use the most specific useful common name: "Pelargonium" not "Geranium" (Pelargonium is the popular bedding/container plant; true Geranium is a hardy perennial — distinguish these).
+- Trees: include both ornamental and fruiting trees common in domestic gardens here.
+- Shrubs: include characteristic hedging and boundary shrubs for this region, not just ornamentals.
+- Regional specialities: if the location is known for specific plants (e.g. Agapanthus and Nerine in Channel Islands, lavender in Provence, bougainvillea on Greek islands), include them — these are genuinely iconic and commonly grown locally.
+- A plant may appear in ONE category only — place it in the most appropriate one.
 Order each list most→least popular.
 
 Return ONLY valid JSON, no markdown:
 {"vegetables":["name1","name2","name3","name4","name5","name6","name7","name8"],"herbs":["name1","name2","name3","name4","name5","name6","name7","name8"],"fruit":["name1","name2","name3","name4","name5","name6","name7","name8"],"flowers":["name1","name2","name3","name4","name5","name6","name7","name8"],"trees":["name1","name2","name3","name4","name5","name6","name7","name8"],"shrubs":["name1","name2","name3","name4","name5","name6","name7","name8"]}
-Rules: 8 items per category, common names only, ordered most→least popular, no duplicates across categories.`,
+Rules: 8 items per category, common names only, ordered most→least popular.`,
             500, undefined, apiKey
           );
           if (rid !== prefetchIdRef.current) return;
@@ -1981,18 +2002,27 @@ LIFECYCLE: Apply correct pruning timing for each plant type.`;
     // Fetch all months in parallel (max 3)
     await Promise.all(names.map(async (monthName) => {
       try {
-        const result = await callClaude(`You are a garden visiting expert. Recommend ONE public garden to visit near ${city} in ${monthName}.
+        const result = await callClaude(`You are a garden visiting expert. Recommend ONE public garden to visit within a reasonable journey of ${city} in ${monthName}.
 
-Critical rule: only recommend a garden you have confident, specific knowledge of — a well-documented garden whose collections, specialisms or seasonal highlights you know from horticultural literature, guidebooks or published garden writing. Prefer famous, well-documented gardens over obscure ones you are less certain about. A well-known garden described accurately is more useful than a lesser-known garden with uncertain details.
+Critical rules:
+1. Only recommend a garden you have confident, specific knowledge of — a well-documented garden whose collections, specialisms or seasonal highlights you know from horticultural literature, guidebooks or published garden writing.
+2. Prefer famous, well-documented gardens over obscure ones you are less certain about. A well-known garden described accurately is more useful than a lesser-known garden with fabricated details.
+3. If ${city} is on an island or in a remote area with few notable public gardens nearby, it is perfectly fine — and preferable — to recommend a well-known garden on the mainland or wider region that is worth a day trip or short journey, even if the travel time is 2-4 hours. Do NOT invent a local garden that may not exist. Extend the search radius as needed.
+4. If you genuinely cannot identify a suitable garden with confident knowledge, return {"name":"none"} rather than inventing one.
 
 Return ONLY valid JSON, no markdown:
-{"name":"<Garden name>","organisation":"<operator e.g. National Trust / RHS / local authority / independent>","location":"<Town, Region>","distance":"<approx travel time from ${city}>","highlight":"<What this garden is genuinely known for in ${monthName} — specific plant, collection or feature — 10-20 words>","known_for":"<The garden primary specialism or what it is most famous for — 8-15 words>","confidence":"high or medium"}
+{"name":"<Garden name or 'none'>","organisation":"<operator e.g. National Trust / RHS / local authority / independent>","location":"<Town, Region>","distance":"<approx journey time from ${city}, including ferry/flight if applicable>","highlight":"<What this garden is genuinely known for in ${monthName} — specific plant, collection or feature — 10-20 words>","known_for":"<The garden primary specialism or what it is most famous for — 8-15 words>","confidence":"high or medium"}
 
 confidence high = you have clear specific knowledge of this garden collections and seasonal highlights from published sources.
 confidence medium = you know the garden exists and broadly what it contains but are less certain of specific highlights.
 known_for: the garden defining characteristic regardless of season.
 ${exclusionClause}`,
           300, undefined, apiKey);
+        // Handle "none" response — no suitable garden found
+        if (!result.name || result.name === "none") {
+          setInspos(prev => ({ ...prev, [monthName]: { state:"none", data:null } }));
+          return;
+        }
         const wordCount = (result.highlight || "").trim().split(/\s+/).length;
         if (wordCount < 8) result.highlight = result.highlight + " — visit for the seasonal highlights";
         setInspos(prev => ({ ...prev, [monthName]: { state:"done", data:result } }));
