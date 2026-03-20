@@ -760,8 +760,51 @@ async function fetchOpenFarm(plantName) {
   }
 }
 
+// ─── Trefle plant hardiness & bloom period data ───────────────────────────────
+// Fetches minimum_temperature and bloom_months from Trefle.io via the proxy.
+// Used AFTER GBIF validation — we need the scientificName first.
+// NEVER called during prefetch — only at calendar generation time.
+// Source: Trefle.io · CC BY · trefle.io
+//
+// Returns: { found, scientific_name, min_temp_c, bloom_months, fruit_months }
+//          or null on any failure. NEVER throws.
+const TREFLE_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days — botanical data is stable
+
+async function fetchTrefle(scientificName) {
+  if (!PROXY_BASE || !scientificName) return null;
+
+  const cacheKey = `gc_trefle_${scientificName.trim().toLowerCase()}`;
+
+  // Check localStorage cache first — Trefle rate limit is 60 req/min, so caching matters
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) {
+      const { data, cachedAt } = JSON.parse(raw);
+      if (Date.now() - cachedAt < TREFLE_CACHE_TTL) return data;
+    }
+  } catch {}
+
+  try {
+    const res = await fetch(
+      `${PROXY_BASE}/api/trefle?q=${encodeURIComponent(scientificName)}`,
+      { signal: AbortSignal.timeout(6000) }
+    );
+    if (!res.ok) return null; // 503 = token not configured, 502 = Trefle down — both silent
+    const data = await res.json();
+    if (data.error) return null;
+
+    // Cache the result — { found: false } included, so we don't retry known-absent plants
+    try { localStorage.setItem(cacheKey, JSON.stringify({ data, cachedAt: Date.now() })); } catch {}
+
+    return data.found ? data : null;
+  } catch {
+    return null; // timeout, network error — always graceful
+  }
+}
+
 // Plants that are commonly grown ornamentally in cooler climates but cannot fruit/flower
 // as they would in their native climate. Key = scientific name fragment, value = note.
+// This hardcoded list is the FALLBACK — Trefle data augments it at runtime when available.
 const CLIMATE_MARGINAL = {
   "Musa":           { zones:["temperate","continental","subarctic"], note:"ornamental foliage only — will not fruit outdoors in this climate" },
   "Cocos nucifera": { zones:["temperate","continental","subarctic","mediterranean"], note:"ornamental only — will not fruit in this climate" },
@@ -778,8 +821,22 @@ const CLIMATE_MARGINAL = {
   "Mespilus":       { zones:["tropical","subtropical"], note:"temperate fruit — unusual in this climate" },
 };
 
-function getClimateMarginalNote(scientificName, climateZone) {
+// trefleData: optional { min_temp_c } from fetchTrefle — if present, we can derive a
+// data-grounded marginal note rather than relying solely on the hardcoded list.
+// coldestMonthTemp: the coldest monthly mean temp from OpenMeteo (°C) for this location.
+function getClimateMarginalNote(scientificName, climateZone, trefleData, coldestMonthTemp) {
   if (!scientificName || !climateZone) return null;
+
+  // ── Trefle-grounded check (takes precedence over hardcoded list) ──────────
+  if (trefleData?.min_temp_c != null && coldestMonthTemp != null) {
+    // If Trefle says the plant's minimum survival temperature is warmer than
+    // the coldest month here, it is climatically marginal.
+    if (trefleData.min_temp_c > coldestMonthTemp) {
+      return `climatically marginal here — Trefle minimum temperature ${trefleData.min_temp_c}°C, coldest local month ~${Math.round(coldestMonthTemp)}°C (Trefle.io)`;
+    }
+  }
+
+  // ── Hardcoded fallback ────────────────────────────────────────────────────
   for (const [key, val] of Object.entries(CLIMATE_MARGINAL)) {
     if (scientificName.toLowerCase().startsWith(key.toLowerCase())) {
       if (val.zones.includes(climateZone)) return val.note;
@@ -788,7 +845,7 @@ function getClimateMarginalNote(scientificName, climateZone) {
   return null;
 }
 
-function enrichedPlantName(name, meta, climateZone) {
+function enrichedPlantName(name, meta, climateZone, coldestMonthTemp) {
   let label = name;
   if (meta?.status === "valid") {
     if (meta.scientificName && meta.scientificName.toLowerCase() !== name.toLowerCase()) {
@@ -799,8 +856,8 @@ function enrichedPlantName(name, meta, climateZone) {
       if (hint) label += ` — ${hint}`;
     }
   }
-  // Climate-marginal flag: plant is real here but limited by climate
-  const marginalNote = getClimateMarginalNote(meta?.scientificName, climateZone);
+  // Climate-marginal flag: Trefle-grounded first, hardcoded fallback second
+  const marginalNote = getClimateMarginalNote(meta?.scientificName, climateZone, meta?.trefle ?? null, coldestMonthTemp ?? null);
   if (marginalNote) {
     label += ` — ${marginalNote}`;
   } else if (meta?.occurrence?.count === 0 && meta?.occurrence?.matchType === 'EXACT' && meta?.scientificName) {
@@ -1711,6 +1768,7 @@ export default function GardenCalendar() {
   const parserRef     = useRef(null);
   const uiIntervalRef = useRef(null);
   const openFarmCtxRef = useRef(""); // stores OpenFarm context for reuse in loadMoreMonths
+  const trefleCtxRef   = useRef(""); // stores Trefle bloom/hardiness context for reuse in loadMoreMonths
   const calTopRef     = useRef(null);
   const monthRefs     = useRef({});  // name -> DOM node
   const scrollArrowRef = useRef(null);
@@ -2040,26 +2098,96 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
       : "";
     openFarmCtxRef.current = openFarmCtx; // persist for loadMoreMonths batches
 
+    // ── Trefle: batch-fetch hardiness + bloom data for GBIF-validated plants ────
+    // Only runs when PROXY_BASE is available and plants have a resolved scientificName.
+    // Caps at 8 plants with a 7s total timeout — Trefle is best-effort, never a blocker.
+    // Results are stored in plantMeta[name].trefle and also in a local trefleByName map
+    // for immediate prompt use (before React re-renders).
+    let trefleByName = {}; // { plantName: { min_temp_c, bloom_months, fruit_months } }
+    if (PROXY_BASE) {
+      // Only query plants that GBIF already gave us a scientific name for — Trefle searches
+      // work best with scientific names. Common names often return wrong species.
+      const validatedPlants = Object.values(plants)
+        .flat()
+        .filter(name => {
+          const meta = plantMetaRef.current[name];
+          return meta?.scientificName && meta.status === "valid";
+        })
+        .slice(0, 8); // cap — Trefle rate limit is 60 req/min, we're polite
+
+      if (validatedPlants.length > 0) {
+        try {
+          const trefleResults = await Promise.race([
+            Promise.all(
+              validatedPlants.map(async (name) => {
+                const meta = plantMetaRef.current[name];
+                const data = await fetchTrefle(meta.scientificName);
+                return { name, data };
+              })
+            ),
+            new Promise(resolve => setTimeout(() => resolve(null), 7000)),
+          ]);
+          if (trefleResults) {
+            // Store in plantMeta for UI use (occurrence warnings panel etc)
+            const trefleUpdates = {};
+            trefleResults.forEach(({ name, data }) => {
+              if (data) {
+                trefleByName[name] = data;
+                trefleUpdates[name] = { ...(plantMetaRef.current[name] || {}), trefle: data };
+              }
+            });
+            if (Object.keys(trefleUpdates).length > 0) {
+              setPlantMeta(prev => ({ ...prev, ...trefleUpdates }));
+            }
+          }
+        } catch {
+          // Entire Trefle batch failed — proceed without it
+        }
+      }
+    }
+
+    // Build Trefle bloom context block for the calendar prompt
+    // Only include plants with bloom_months data — skip silently if not found
+    const trefleBloomLines = Object.entries(trefleByName)
+      .map(([plantName, td]) => {
+        const parts = [];
+        if (td.bloom_months?.length)  parts.push(`blooms: ${td.bloom_months.join(", ")}`);
+        if (td.fruit_months?.length)  parts.push(`fruits: ${td.fruit_months.join(", ")}`);
+        return parts.length ? `${plantName}: ${parts.join("; ")}` : null;
+      })
+      .filter(Boolean);
+
+    const trefleCtx = trefleBloomLines.length > 0
+      ? `\nTREFLE BLOOM DATA (use for precise ENJOY line timing — CC BY trefle.io):\n${trefleBloomLines.join("\n")}`
+      : "";
+    trefleCtxRef.current = trefleCtx; // persist for loadMoreMonths batches
+
+    // Derive coldest month temperature for Trefle-grounded marginal check
+    const coldestMonthTemp = m?._cd?.monthly_mean_temp
+      ? Math.min(...m._cd.monthly_mean_temp)
+      : null;
+
     // Build rich climate context from real OpenMeteo data
     const metaCtx = m?._cd && m?._derived
       ? `\nREAL CLIMATE DATA for ${city} (10-year averages, Open-Meteo/ERA5):\n${buildClimateContext(m._cd, m._derived)}`
       : m ? `Zone:${m.zone}. Last frost:${m.lastFrost}. First frost:${m.firstFrost}. Climate:${m.climate}.` : "";
 
-    // Build allPlants NOW — after occurrence data is available in occurrenceByName
+    // Build allPlants NOW — after occurrence and Trefle data are available locally
     // enrichedPlantName reads from plantMeta but React hasn't re-rendered yet,
-    // so we pass occurrence data directly via a local lookup
+    // so we pass trefle + occurrence data directly via local lookups
     const allPlants = Object.entries(plants).map(([k,v])=>v.length
       ? `${k}: ${v.map(p => {
           const meta = plantMetaRef.current[p] || {};
           const occ = occurrenceByName[p] ?? meta.occurrence ?? null;
-          const metaWithOcc = { ...meta, occurrence: occ };
-          return enrichedPlantName(p, metaWithOcc, getClimateZone(m?._cd));
+          const trefle = trefleByName[p] ?? meta.trefle ?? null;
+          const metaEnriched = { ...meta, occurrence: occ, trefle };
+          return enrichedPlantName(p, metaEnriched, getClimateZone(m?._cd), coldestMonthTemp);
         }).join(", ")}`
       : null).filter(Boolean).join(" | ")||"general/unspecified mix";
 
     // ── STREAM 1: line-format tasks + enjoy ──────────────────────────────────
     const s1prompt = `You are an expert horticulturist and naturalist.
-Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtx}
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtx}${trefleCtx}
 
 Output EXACTLY ${firstBatch.length} blocks in this order: ${firstBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
@@ -2225,12 +2353,13 @@ Other rules:
     const allPlants = Object.entries(plants).map(([k,v])=>v.length
       ? `${k}: ${v.map(p => {
           const pm = plantMetaRef.current[p] || {};
-          return enrichedPlantName(p, pm, getClimateZone(m?._cd));
+          const coldest = m?._cd?.monthly_mean_temp ? Math.min(...m._cd.monthly_mean_temp) : null;
+          return enrichedPlantName(p, pm, getClimateZone(m?._cd), coldest);
         }).join(", ")}`
       : null).filter(Boolean).join(" | ")||"general/unspecified mix";
 
     const batchPrompt = `You are an expert horticulturist and naturalist.
-Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtxRef.current}
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtxRef.current}${trefleCtxRef.current}
 
 Output EXACTLY ${nextBatch.length} blocks in this order: ${nextBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
@@ -2993,6 +3122,11 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
                 {" "}and your local frost dates from{" "}
                 <a href="https://open-meteo.com" target="_blank" rel="noopener"
                    style={{color:"inherit",textDecoration:"underline",opacity:.75}}>Open-Meteo/ERA5</a>
+                {trefleCtxRef.current && (
+                  <>{" "}· Plant hardiness and bloom periods from{" "}
+                  <a href="https://trefle.io" target="_blank" rel="noopener"
+                     style={{color:"inherit",textDecoration:"underline",opacity:.75}}>Trefle (CC BY)</a></>
+                )}
               </div>
             )}
 
