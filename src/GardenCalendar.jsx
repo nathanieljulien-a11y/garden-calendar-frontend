@@ -467,7 +467,7 @@ const ZONE_SUPPLEMENTS = {
   temperate: {
     flowers: ["Guernsey Lily", "Crocosmia", "Agapanthus", "Echinops", "Verbena bonariensis"],
     shrubs:  ["Choisya", "Ceanothus", "Escallonia", "Griselinia"],
-    fruit:   ["Blackcurrant", "Redcurrant", "Gooseberry", "Quince", "Damson"],
+    fruit:   ["Apple","Pear","Blackcurrant","Gooseberry","Quince","Damson","Redcurrant","Raspberry","Elderberry","Medlar"],
     herbs:   ["Lemon balm", "Lovage", "Chervil"],
     vegetables: ["Chard", "Sprouting broccoli", "Broad bean"],
     trees:   ["Amelanchier", "Hazel", "Rowan"],
@@ -499,7 +499,7 @@ const ZONE_SUPPLEMENTS = {
   continental: {
     flowers: ["Echinacea", "Rudbeckia", "Monarda / bee balm", "Phlox", "Aster"],
     shrubs:  ["Lilac", "Mock orange / Philadelphus", "Weigela", "Spirea"],
-    fruit:   ["Damson", "Quince", "Hazelnut", "Elderberry", "Blackthorn / sloe"],
+    fruit:   ["Apple","Pear","Damson","Quince","Hazelnut","Elderberry","Blackcurrant","Gooseberry","Raspberry","Blackthorn / sloe"],
     herbs:   ["Dill", "Lovage", "Horseradish", "Chervil"],
     vegetables: ["Kohlrabi", "Celeriac", "Scorzonera", "Hamburg parsley"],
     trees:   ["Crab apple", "Bird cherry", "Snowy mespilus"],
@@ -523,7 +523,7 @@ const ZONE_SUPPLEMENTS = {
   maritime: {
     flowers: ["Guernsey Lily","Jersey Lily","Agapanthus","Crocosmia","Alstroemeria","Gunnera","Cordyline","Eucomis / pineapple lily","Kniphofia / red hot poker","Watsonia"],
     shrubs:  ["Choisya","Ceanothus","Escallonia","Pittosporum","Griselinia","Phormium","Olearia","Hebe","Cordyline","Luma apiculata"],
-    fruit:   ["Blackcurrant","Gooseberry","Raspberry","Quince","Damson","Sloe / blackthorn","Elderberry","Medlar","Worcester Pearmain apple","Conference pear"],
+    fruit:   ["Apple","Blackcurrant","Gooseberry","Raspberry","Quince","Damson","Elderberry","Sloe / blackthorn","Pear","Plum"],
     herbs:   ["Lemon verbena","Lovage","Chervil","Lemon balm","Vietnamese coriander"],
     vegetables: ["Sprouting broccoli","Chard","Broad bean","Kale","Leek","Sea kale","Samphire","French bean"],
     trees:   ["Magnolia","Camellia","Cider apple","Pittosporum tenuifolium","Arbutus / strawberry tree","Griselinia","Cordyline","Leptospermum"],
@@ -607,22 +607,27 @@ function getClimateZone(cd) {
   const minTemp  = cd.monthly_mean_temp ? Math.min(...cd.monthly_mean_temp) : (cd.coldest_month_temp ?? 5);
   const annualPrecip = cd.annual_precipitation ?? 600;
 
-  if (meanTemp >= 20 && minTemp >= 18)                    return "tropical";
-  if (meanTemp >= 16 && minTemp >= 5)                     return "subtropical";
-  if (meanTemp >= 12 && annualPrecip < 400)               return "arid";
-  // Mediterranean: warm mean, mild winter, DRY (< 700mm) — e.g. Provence, Malaga
-  if (meanTemp >= 12 && minTemp >= 4 && annualPrecip < 700) return "mediterranean";
-  // Maritime: mild mean, frost-free winters, WET Atlantic — e.g. Jersey, Cornwall, Brittany
-  if (meanTemp >= 10 && minTemp >= 3 && annualPrecip >= 600) return "maritime";
-  if (minTemp < -10)                                      return "subarctic";
-  if (minTemp < -3)                                       return "continental";
+  const maxTemp    = cd.monthly_mean_temp ? Math.max(...cd.monthly_mean_temp) : (meanTemp + 6);
+  const tempRange  = maxTemp - minTemp; // low range = oceanic/maritime, high = continental
+
+  if (meanTemp >= 20 && minTemp >= 18)                           return "tropical";
+  if (meanTemp >= 16 && minTemp >= 5)                            return "subtropical";
+  if (meanTemp >= 12 && annualPrecip < 400)                      return "arid";
+  // Mediterranean: warm mean, mild winter, DRY — e.g. Provence, Malaga, Athens
+  if (meanTemp >= 12 && minTemp >= 4 && annualPrecip < 700)      return "mediterranean";
+  // Maritime: mild oceanic — small annual temp range (≤13°), wet, no hot summers
+  // e.g. Jersey, Guernsey, Cornwall, Brittany coast, Dublin, western Ireland
+  // Excludes Bordeaux (range 15.7°), Nantes (15.5°) which have real hot summers
+  if (meanTemp >= 10 && minTemp >= 3 && annualPrecip >= 600 && tempRange <= 13) return "maritime";
+  if (minTemp < -10)                                             return "subarctic";
+  if (minTemp < -3)                                              return "continental";
   return "temperate";
 }
 
 // ─── iNat local suggestions ───────────────────────────────────────────────────
 // Queries iNat captive=true for all plants in a category, returns top-N common names.
 // Routes through proxy when available to avoid CORS issues.
-async function fetchInatSuggestions(catKey, lat, lng, topN = 10) {
+async function fetchInatSuggestions(catKey, lat, lng, topN = 10, climateZone = "temperate") {
   const seedKey = CAT_TO_SEED[catKey];
   const plants  = INAT_SEED[seedKey] ?? [];
   if (!plants.length) return null;
@@ -654,15 +659,20 @@ async function fetchInatSuggestions(catKey, lat, lng, topN = 10) {
           const data = await res.json();
           count = data.total_results ?? 0;
         }
-        return { common: p.common, count };
-      } catch { return { common: p.common, count: 0 }; }
+        return { common: p.common, sci: p.sci, count };
+      } catch { return { common: p.common, sci: p.sci, count: 0 }; }
     }));
     results.push(...counts);
     if (i + batchSize < plants.length) await new Promise(r => setTimeout(r, 1200));
   }
 
-  const ranked = results.filter(r => r.count > 0).sort((a,b) => b.count - a.count);
-  // sparse = fewer than 5 real results — caller will merge with climate fallback
+  // Filter out plants that are climate-marginal for this zone (iNat counts are misleading)
+  const climateFiltered = results.filter(r => {
+    if (r.count <= 0) return false;
+    const note = getClimateMarginalNote(r.sci, climateZone);
+    return !note; // exclude if marked marginal for this zone
+  });
+  const ranked = climateFiltered.sort((a,b) => b.count - a.count);
   return { ranked: ranked.slice(0, topN), sparse: ranked.length < 5 };
 }
 const MONTH_NAMES   = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -964,9 +974,12 @@ const CLIMATE_MARGINAL = {
   "Strelitzia":     { zones:["temperate","continental","subarctic"], note:"ornamental — grown for foliage/flower in sheltered spots, rarely flowers outdoors" },
   "Bougainvillea":  { zones:["temperate","continental","subarctic"], note:"conservatory or very sheltered wall only — will not thrive outdoors here" },
   "Heliconia":      { zones:["temperate","continental","subarctic","mediterranean"], note:"ornamental conservatory plant in this climate" },
-  "Citrus":         { zones:["temperate","continental","subarctic"], note:"pot-grown and overwintered indoors — will not fruit reliably outdoors" },
+  "Citrus":         { zones:["temperate","continental","subarctic","maritime"], note:"pot-grown and overwintered indoors — will not fruit reliably outdoors in this climate" },
   "Olea europaea":  { zones:["continental","subarctic"], note:"ornamental only — unlikely to fruit in this climate" },
-  "Phoenix":        { zones:["temperate","continental","subarctic"], note:"ornamental palm — will not fruit outdoors in this climate" },
+  "Phoenix":        { zones:["temperate","continental","subarctic","maritime"], note:"ornamental palm — will not fruit outdoors in this climate" },
+  "Eriobotrya":     { zones:["temperate","continental","subarctic","maritime"], note:"grown as ornamental wall shrub — rarely fruits outdoors in this climate" },
+  "Diospyros kaki": { zones:["temperate","continental","subarctic","maritime"], note:"fruits only in warm summers — treat as ornamental in this climate" },
+  "Mespilus":       { zones:["tropical","subtropical"], note:"temperate fruit — unusual in this climate" },
 };
 
 function getClimateMarginalNote(scientificName, climateZone) {
@@ -1831,7 +1844,7 @@ export default function GardenCalendar() {
         const newStates = {};
         for (const catKey of catKeys) {
           try {
-            const result = await fetchInatSuggestions(catKey, geoResult.lat, geoResult.lng);
+            const result = await fetchInatSuggestions(catKey, geoResult.lat, geoResult.lng, 10, climateZone);
             const fallbackList  = (CLIMATE_FALLBACKS[climateZone] ?? CLIMATE_FALLBACKS.temperate)[catKey] ?? [];
             const supplementAll  = ZONE_SUPPLEMENTS.all?.[catKey] ?? [];
             const supplementZone = ZONE_SUPPLEMENTS[climateZone]?.[catKey] ?? [];
@@ -1842,9 +1855,13 @@ export default function GardenCalendar() {
               !existing.some(n => n.toLowerCase() === f.toLowerCase())
             );
 
-            // Zone stars: first 2 supplement items that iNat didn't already surface
-            // These are guaranteed a spot to ensure regional favourites always appear
-            const zoneStars = dedup(supplementZone.slice(0, 4), inatNames).slice(0, 2);
+            // Zone stars: guaranteed supplement items for specialist zones
+            // For broad zones (temperate/continental) iNat results are trusted more —
+            // supplements only fill gaps, not override ranked results
+            const specialistZone = ["maritime","mediterranean","subtropical","tropical","arid"].includes(climateZone);
+            const zoneStars = specialistZone
+              ? dedup(supplementZone.slice(0, 6), inatNames).slice(0, 3)
+              : []; // temperate/continental/subarctic: no forced override
 
             if (!result || result.sparse) {
               // Sparse: zone stars first, then iNat, then fill from fallback + all-supplement
