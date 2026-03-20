@@ -1302,7 +1302,7 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo}) {
                 <div style={{fontSize:".82rem",color:"var(--muted)",fontStyle:"italic",padding:".3rem 0"}}>
                   No notable public gardens found nearby — try searching further afield
                 </div>
-                <button className="btn-inspo" style={{marginTop:".4rem"}} onClick={onFetchInspo}>↺ Try again</button
+                <button className="btn-inspo" style={{marginTop:".4rem"}} onClick={onFetchInspo}>↺ Try again</button>
               </div>
             ) : inspo.data ? (
               <div className="inspo-block">
