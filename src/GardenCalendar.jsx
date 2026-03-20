@@ -251,6 +251,60 @@ const PLANT_CATEGORIES = [
   {key:"herbs",      label:"Herbs",                icon:"🌿", suggestions:[]},
 ];
 
+// ─── Pre-loaded garden quotes ────────────────────────────────────────────────
+const GARDEN_QUOTES = [
+  {quote:"To plant a garden is to believe in tomorrow.", attribution:"Audrey Hepburn"},
+  {quote:"The glory of gardening: hands in the dirt, head in the sun, heart with nature.", attribution:"Alfred Austin"},
+  {quote:"A garden is a grand teacher. It teaches patience and careful watchfulness.", attribution:"Gertrude Jekyll"},
+  {quote:"A garden requires patient labour and attention. Plants do not grow merely to satisfy ambitions or to fulfil good intentions.", attribution:"Liberty Hyde Bailey"},
+  {quote:"In every gardener there is a child who believes in The Seed Fairy.", attribution:"Robert Brault"},
+  {quote:"The love of gardening is a seed once sown that never dies.", attribution:"Gertrude Jekyll"},
+  {quote:"To forget how to dig the earth and to tend the soil is to forget ourselves.", attribution:"Mahatma Gandhi"},
+  {quote:"Gardening is the art that uses flowers and plants as paint, and the soil and sky as canvas.", attribution:"Elizabeth Murray"},
+  {quote:"There is no WiFi in the garden, but I promise you will find a better connection.", attribution:""},
+  {quote:"I grow plants for many reasons: to please my eye or to please my soul, to challenge the elements or to challenge my patience.", attribution:"Lewis Hill"},
+  {quote:"The garden is the poor man's apothecary.", attribution:"German proverb"},
+  {quote:"Gardens are not made by singing 'Oh, how beautiful!' and sitting in the shade.", attribution:"Rudyard Kipling"},
+  {quote:"A vegetable garden in the beginning looks so promising and then after all little by little it grows nothing but vegetables.", attribution:"Gertrude Stein"},
+  {quote:"A garden is always a series of losses set against a few triumphs, like life itself.", attribution:"May Sarton"},
+  {quote:"Gardening is a matter of your enthusiasm holding up until your back gets used to it.", attribution:""},
+  {quote:"God Almighty first planted a garden. And indeed it is the purest of human pleasures.", attribution:"Francis Bacon"},
+  {quote:"The garden suggests there might be a place where we can meet nature halfway.", attribution:"Michael Pollan"},
+  {quote:"Show me your garden and I shall tell you what you are.", attribution:"Alfred Austin"},
+  {quote:"Gardening is the work of a lifetime: you never finish.", attribution:"Oscar de la Renta"},
+  {quote:"A garden is a delight to the eye and a solace for the soul.", attribution:"Saadi"},
+  {quote:"Plant seeds of happiness, hope, success, and love; it will all come back to you in abundance.", attribution:"Steve Maraboli"},
+  {quote:"To nurture a garden is to feed not just the body, but the soul.", attribution:"Alfred Austin"},
+  {quote:"Gardens always mean something else, man absolutely uses one thing to say another.", attribution:"Robert Harbison"},
+  {quote:"Autumn is a second spring when every leaf is a flower.", attribution:"Albert Camus"},
+  {quote:"All gardening is landscape painting.", attribution:"William Kent"},
+  {quote:"The garden is the place I go for refuge and shelter, not the house.", attribution:"Vita Sackville-West"},
+  {quote:"He who plants a garden, plants happiness.", attribution:"Chinese proverb"},
+  {quote:"A person who has not done one half his day's work by ten o'clock runs a chance of leaving the other half undone.", attribution:"Emily Brontë"},
+  {quote:"Flowers always make people better, happier, and more helpful; they are sunshine, food and medicine for the soul.", attribution:"Luther Burbank"},
+  {quote:"A weed is but an unloved flower.", attribution:"Ella Wheeler Wilcox"},
+  {quote:"I have a garden of my own, shining with flowers of every hue.", attribution:"Thomas Moore"},
+  {quote:"The best place to seek God is in a garden. You can dig for him there.", attribution:"George Bernard Shaw"},
+  {quote:"It is a golden maxim to cultivate the garden for the nose, and the eyes will take care of themselves.", attribution:"Robert Louis Stevenson"},
+  {quote:"Every garden is unique with a multitude of choices of soils, plants and themes.", attribution:"Clare Leighton"},
+  {quote:"Just watching my plants and my birds — two of the greatest passions in my life.", attribution:"David Hockney"},
+  {quote:"What is a weed? A plant whose virtues have not yet been discovered.", attribution:"Ralph Waldo Emerson"},
+  {quote:"I cultivate my garden, and my garden cultivates me.", attribution:"Robert Brault"},
+  {quote:"The most noteworthy thing about gardeners is that they are always optimistic, always enterprising, and never satisfied.", attribution:"Vita Sackville-West"},
+  {quote:"Flowers are the music of the ground, from earth's lips spoken without sound.", attribution:"Edwin Curran"},
+  {quote:"There is something infinitely healing in the repeated refrains of nature.", attribution:"Rachel Carson"},
+  {quote:"To dwell is to garden.", attribution:"Martin Heidegger"},
+  {quote:"The earth laughs in flowers.", attribution:"Ralph Waldo Emerson"},
+  {quote:"A garden is a friend you can visit any time.", attribution:""},
+  {quote:"In the garden, growth has its seasons. First comes spring and summer, but then we have fall and winter. And then we get spring and summer again.", attribution:"Chauncey Gardiner, Being There"},
+  {quote:"The secret of improved plant breeding, apart from scientific knowledge, is love.", attribution:"Luther Burbank"},
+  {quote:"Dig, depend upon it, is good for both the plant and the gardener.", attribution:"Vita Sackville-West"},
+  {quote:"I like gardening — it's a place where I find myself when I need to lose myself.", attribution:"Alice Sebold"},
+  {quote:"No occupation is so delightful to me as the culture of the earth.", attribution:"Thomas Jefferson"},
+  {quote:"I think this is what hooks one to gardening: it is the closest one can come to being present at the Creation.", attribution:"Phyllis Theroux"},
+  {quote:"A true gardener must be brutal, and imaginative for the future.", attribution:"Vita Sackville-West"},
+];
+
 // ─── iNat seed list ───────────────────────────────────────────────────────────
 // Validated across 15 cities, 5 continents. common name → scientific name.
 const INAT_SEED = {
@@ -804,7 +858,32 @@ async function checkRegionalOccurrence(scientificName, lat, lng) {
     return null;
   }
 }
-function enrichedPlantName(name, meta) {
+// Plants that are commonly grown ornamentally in cooler climates but cannot fruit/flower
+// as they would in their native climate. Key = scientific name fragment, value = note.
+const CLIMATE_MARGINAL = {
+  "Musa":           { zones:["temperate","continental","subarctic"], note:"ornamental foliage only — will not fruit outdoors in this climate" },
+  "Cocos nucifera": { zones:["temperate","continental","subarctic","mediterranean"], note:"ornamental only — will not fruit in this climate" },
+  "Mangifera":      { zones:["temperate","continental","subarctic","mediterranean"], note:"ornamental or conservatory only — will not fruit outdoors here" },
+  "Carica papaya":  { zones:["temperate","continental","subarctic","mediterranean"], note:"ornamental or conservatory only — will not fruit outdoors here" },
+  "Strelitzia":     { zones:["temperate","continental","subarctic"], note:"ornamental — grown for foliage/flower in sheltered spots, rarely flowers outdoors" },
+  "Bougainvillea":  { zones:["temperate","continental","subarctic"], note:"conservatory or very sheltered wall only — will not thrive outdoors here" },
+  "Heliconia":      { zones:["temperate","continental","subarctic","mediterranean"], note:"ornamental conservatory plant in this climate" },
+  "Citrus":         { zones:["temperate","continental","subarctic"], note:"pot-grown and overwintered indoors — will not fruit reliably outdoors" },
+  "Olea europaea":  { zones:["continental","subarctic"], note:"ornamental only — unlikely to fruit in this climate" },
+  "Phoenix":        { zones:["temperate","continental","subarctic"], note:"ornamental palm — will not fruit outdoors in this climate" },
+};
+
+function getClimateMarginalNote(scientificName, climateZone) {
+  if (!scientificName || !climateZone) return null;
+  for (const [key, val] of Object.entries(CLIMATE_MARGINAL)) {
+    if (scientificName.toLowerCase().startsWith(key.toLowerCase())) {
+      if (val.zones.includes(climateZone)) return val.note;
+    }
+  }
+  return null;
+}
+
+function enrichedPlantName(name, meta, climateZone) {
   let label = name;
   if (meta?.status === "valid") {
     if (meta.scientificName && meta.scientificName.toLowerCase() !== name.toLowerCase()) {
@@ -815,8 +894,11 @@ function enrichedPlantName(name, meta) {
       if (hint) label += ` — ${hint}`;
     }
   }
-  // Flag plants with zero local GBIF records — applies to all plants, validated or not
-  if (meta?.occurrence?.count === 0 && meta?.occurrence?.matchType === 'EXACT' && meta?.scientificName) {
+  // Climate-marginal flag: plant is real here but limited by climate
+  const marginalNote = getClimateMarginalNote(meta?.scientificName, climateZone);
+  if (marginalNote) {
+    label += ` — ${marginalNote}`;
+  } else if (meta?.occurrence?.count === 0 && meta?.occurrence?.matchType === 'EXACT' && meta?.scientificName) {
     label += ` — ⚠ 0 GBIF records near location, likely unsuitable for this climate`;
   } else if (meta?.occurrence?.count > 0) {
     label += ` — ${meta.occurrence.count} local GBIF records`;
@@ -1570,6 +1652,8 @@ export default function GardenCalendar() {
   }, []);
   const [prefetchState,setPfState]   = useState("idle");
   const [stage,setStage]             = useState("form");
+  const [loadedBatches,setLoadedBatches] = useState(1); // how many 3-month batches generated
+  const [loadingMore,setLoadingMore]     = useState(false);
   const [formStep,setFormStep]       = useState("location"); // "location" | "plants"
   const [locationQuote,setLocationQuote] = useState({text:"",done:false});
   const [months,setMonths]           = useState({});
@@ -1605,18 +1689,15 @@ export default function GardenCalendar() {
     setPfState("fetching"); setMeta(null);
     try {
       // Step 1: Get lat/lng from Claude (lightweight call — just geocoding + references)
-      const geoResult = await callClaude(`Location: ${c}.
-Return ONLY valid JSON — no markdown, no explanation:
-{"lat":<decimal latitude>,"lng":<decimal longitude>,"references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
-Rules:
-- Each category: 2-3 distinct real organisations or publications
-- Climate: national met service, major broadcaster weather, local services for this region
-- Plant care: leading horticultural institutions for this country (e.g. RHS and Kew for UK)
-- Phenology: citizen science and academic phenology networks for this region
-- Wildlife: leading wildlife charities or ornithological societies for this country
-- Gardens near ${c}: mix from national heritage trusts, royal/state parks, local botanic gardens — NOT always the same institution
-- Broadcasters: 2-3 gardening broadcasters, presenters, or writer-practitioners who are well known in the country or region of ${c}. Real people who present gardening on TV, radio, or major publications. For UK: e.g. Monty Don, Carol Klein, Sarah Raven. Choose equivalents for other regions.
-- No source repeated across categories`, 700, undefined, apiKey);
+      const geoResult = await callClaude(`Location: ${c}. Return ONLY this JSON, no markdown:
+{"lat":<decimal>,"lng":<decimal>,"references":[
+{"category":"Plant care","sources":["<inst 1>","<inst 2>"]},
+{"category":"Gardens","sources":["<garden 1>","<garden 2>","<garden 3>"]},
+{"category":"Broadcasters","sources":["<presenter 1>","<presenter 2>"]}]}
+- Plant care: 2 leading horticultural institutions for this country
+- Gardens: 2-3 real public gardens within 2hrs of ${c} from varied operators
+- Broadcasters: 2 real TV/radio gardening presenters known in this region
+- No invented names`, 400, undefined, apiKey);
       if (rid!==prefetchIdRef.current) return;
 
       // Step 2: Fetch real climate data from OpenMeteo
@@ -1638,31 +1719,9 @@ Rules:
       });
       setPfState("ready");
 
-      // Step 2b: Fetch location quote in parallel (fire and forget — UI shows it when ready)
-      setLocationQuote({text:"", done:false});
-      (async () => {
-        try {
-          const parsed = await callClaude(
-            `You are a literary garden writer. For a garden near ${c}.
-The climate is ${derived.climateType}, hardiness zone ${derived.zone}.
-First, try to find a real, well-known published quote about gardens, nature, or the seasons in or associated with this region — from a local author, poet, naturalist, or gardener. If a strong regional quote exists, use it and attribute it precisely (Author, work, year if known).
-If no strong regional quote exists, write one short evocative sentence (max 25 words) describing the character of gardening in this climate — vivid, specific, not generic.
-Respond with ONLY a JSON object: {"quote":"...", "attribution":"..."} — attribution is empty string if you wrote the sentence yourself.
-No preamble, no markdown.`,
-            200, undefined, apiKey
-          );
-          if (rid !== prefetchIdRef.current) return;
-          const text = parsed?.attribution
-            ? `"${parsed.quote}" — ${parsed.attribution}`
-            : (parsed?.quote || "");
-          if (text) setLocationQuote({text, done:true});
-        } catch(e) {
-          console.warn("[quote] fetch failed:", e?.message);
-          if (rid === prefetchIdRef.current) {
-            setLocationQuote({text: `${c} — ${derived.climateType}`, done:true});
-          }
-        }
-      })();
+      // Step 2b: Pick a random quote from the pre-loaded list (no API call needed)
+      const q = GARDEN_QUOTES[Math.floor(Math.random() * GARDEN_QUOTES.length)];
+      setLocationQuote({text: q.attribution ? `"${q.quote}" — ${q.attribution}` : q.quote, done:true});
 
       // Step 3: Load iNat localised suggestions lazily per category
       const climateZone = getClimateZone(cd);
@@ -1753,6 +1812,8 @@ No preamble, no markdown.`,
     // Build the 12-month sequence starting one month before current, wrapping around
     const startIdx = (nowIdx + 11) % 12;
     const orderedMonths = Array.from({length:12}, (_,i) => MONTH_NAMES[(startIdx + i) % 12]);
+    // First pass: only generate prev + current + next 3 months
+    const firstBatch = orderedMonths.slice(0, 3);
 
     // Ensure meta — wait for prefetch if in progress, reuse if ready, fetch fresh only if idle
     let m = null;
@@ -1771,18 +1832,15 @@ No preamble, no markdown.`,
           if (!m) { setError("Climate data timed out. Please try again."); return; }
         } else {
           // Fallback: geocode + fetch OpenMeteo
-          const geoResult = await callClaude(`Location: ${city}.
-Return ONLY valid JSON — no markdown, no explanation:
-{"lat":<decimal latitude>,"lng":<decimal longitude>,"references":[{"category":"Climate","sources":["<source 1>","<source 2>"]},{"category":"Plant care","sources":["<source 1>","<source 2>"]},{"category":"Phenology","sources":["<source 1>","<source 2>"]},{"category":"Wildlife","sources":["<source 1>","<source 2>"]},{"category":"Gardens","sources":["<source 1>","<source 2>","<source 3>"]},{"category":"Broadcasters","sources":["<name 1>","<name 2>","<name 3>"]}]}
-Rules:
-- Each category: 2-3 distinct real organisations or publications
-- Climate: national met service, major broadcaster weather, local services for this region
-- Plant care: leading horticultural institutions for this country (e.g. RHS and Kew for UK)
-- Phenology: citizen science and academic phenology networks for this region
-- Wildlife: leading wildlife charities or ornithological societies for this country
-- Gardens near ${city}: mix from national heritage trusts, royal/state parks, local botanic gardens
-- Broadcasters: 2-3 real gardening presenters well known in the country or region of ${city}
-- No source repeated across categories`, 700, abort.signal, apiKey);
+          const geoResult = await callClaude(`Location: ${city}. Return ONLY this JSON, no markdown:
+{"lat":<decimal>,"lng":<decimal>,"references":[
+{"category":"Plant care","sources":["<inst 1>","<inst 2>"]},
+{"category":"Gardens","sources":["<garden 1>","<garden 2>","<garden 3>"]},
+{"category":"Broadcasters","sources":["<presenter 1>","<presenter 2>"]}]}
+- Plant care: 2 leading horticultural institutions for this country
+- Gardens: 2-3 real public gardens within 2hrs of ${city} from varied operators
+- Broadcasters: 2 real TV/radio gardening presenters known in this region
+- No invented names`, 400, abort.signal, apiKey);
           if (rid!==submitIdRef.current) return;
           const hemisphere = detectHemisphere(geoResult.lat);
           const cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
@@ -1863,7 +1921,7 @@ Rules:
           const meta = plantMetaRef.current[p] || {};
           const occ = occurrenceByName[p] ?? meta.occurrence ?? null;
           const metaWithOcc = { ...meta, occurrence: occ };
-          return enrichedPlantName(p, metaWithOcc);
+          return enrichedPlantName(p, metaWithOcc, getClimateZone(m?._cd));
         }).join(", ")}`
       : null).filter(Boolean).join(" | ")||"general/unspecified mix";
 
@@ -1871,7 +1929,7 @@ Rules:
     const s1prompt = `You are an expert horticulturist and naturalist.
 Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
 
-Output EXACTLY 12 blocks in this order: ${orderedMonths.join(", ")}.
+Output EXACTLY ${firstBatch.length} blocks in this order: ${firstBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
 
 MONTH:February
@@ -1892,6 +1950,9 @@ TASK:Harvest courgettes when 15–20cm, checking every 2 days to prevent marrow 
 ENJOY:Swift — screaming low over the raised beds in tight formation, hawking insects
 ENJOY:Lavender — first purple spikes opening at the tips, bees working methodically upward
 ---
+
+CLIMATE-AWARE PLANT RULE — apply before writing any task or enjoy for a plant:
+Some plants in the inventory carry a note like "ornamental only", "will not fruit in this climate", or "conservatory". For these plants: tasks must reflect what the plant actually DOES in this climate (overwintering, foliage care, pot management) — never suggest fruiting, harvesting fruit, or flowering behaviour that requires a warmer climate. A banana in a temperate garden gets tasks about protecting the crown in winter and cutting back frost-damaged stems — not about fruiting. A bougainvillea on a sheltered wall gets watering and frost-fleece tasks — not about vigorous outdoor climbing.
 
 ENJOY RULE — apply before writing every ENJOY line:
 Each observation must capture something actively happening or transitioning THIS specific month — an emergence, arrival, behaviour, or sensory shift. Never a static description of appearance.
@@ -1979,7 +2040,7 @@ Other rules:
     }, 2000);
 
     try {
-      await streamClaude(s1prompt, 12000, (chunk) => {
+      await streamClaude(s1prompt, 3500, (chunk) => {
         chunkCountRef.current++;
         lastChunkAt = Date.now();
         parser1.onChunk(chunk);
@@ -2005,57 +2066,127 @@ Other rules:
     setShowArrow(false);
   };
 
+  const loadMoreMonths = async () => {
+    if (loadingMore || loadedBatches >= 4) return;
+    setLoadingMore(true);
+    const abort = new AbortController();
+    abortRef.current = abort;
+    const rid = submitIdRef.current; // reuse existing rid — same session
+
+    const startIdx = (nowIdx + 11) % 12;
+    const orderedMonths = Array.from({length:12}, (_,i) => MONTH_NAMES[(startIdx + i) % 12]);
+    const batchStart = loadedBatches * 3;
+    const nextBatch  = orderedMonths.slice(batchStart, batchStart + 3);
+    if (!nextBatch.length) { setLoadingMore(false); return; }
+
+    // Build same context as handleSubmit
+    const featuresCtx = features.length ? ` Garden features: ${features.join(", ")}.` : "";
+    const now = `${MONTH_NAMES[nowIdx]} ${new Date().getFullYear()}`;
+    const m = meta;
+    const metaCtx = m ? [
+      `Climate type: ${m.climate}`,
+      `Hardiness zone: ${m.zone}`,
+      `Last frost: ${m.lastFrost}`, `First frost: ${m.firstFrost}`,
+      `Hemisphere: ${m.hemisphere}`,
+    ].join(". ") : "";
+    const allPlants = Object.entries(plants).map(([k,v])=>v.length
+      ? `${k}: ${v.map(p => {
+          const pm = plantMetaRef.current[p] || {};
+          return enrichedPlantName(p, pm, getClimateZone(m?._cd));
+        }).join(", ")}`
+      : null).filter(Boolean).join(" | ")||"general/unspecified mix";
+
+    const batchPrompt = `You are an expert horticulturist and naturalist.
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
+
+Output EXACTLY ${nextBatch.length} blocks in this order: ${nextBatch.join(", ")}.
+Use ONLY this exact line format. No extra text, no markdown, no explanation.
+
+MONTH:February
+SEASON:Winter
+SUN:2.5
+TASK:Cut ALL autumn-fruiting raspberry canes to ground level, clearing old growth
+ENJOY:Forsythia — tight yellow buds swelling on bare stems, days from opening
+---
+
+CLIMATE-AWARE PLANT RULE: For any plant noted as "ornamental only" or "will not fruit in this climate", tasks must reflect what it actually does here — never suggest fruiting or warm-climate behaviour.
+ENJOY RULE: Each observation must capture something actively happening THIS specific month. Residential garden scale only.
+COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
+LIFECYCLE: Apply correct pruning timing for each plant type.`;
+
+    // Init the new months as pending
+    setMonths(prev => {
+      const next = {...prev};
+      nextBatch.forEach(n => { if (!next[n] || next[n]._state === "pending") next[n] = emptyMonth(n); });
+      return next;
+    });
+
+    const parser = makeLineParser((snapshot) => {
+      setMonths(prev => ({...prev, ...snapshot}));
+      setChunkCount(c => c+1);
+    });
+    parserRef.current = parser;
+
+    try {
+      await streamClaude(batchPrompt, 3500, (chunk) => {
+        chunkCountRef.current++;
+        parser.onChunk(chunk);
+      }, abort.signal, apiKey);
+      parser.flush();
+      setLoadedBatches(b => b + 1);
+    } catch(e) {
+      if (e.name !== "AbortError") console.warn("loadMore failed:", e.message);
+    }
+    setLoadingMore(false);
+  };
+
   const resetAll = () => {
     if (abortRef.current) abortRef.current.abort();
     if (parserRef.current) { parserRef.current.cancel(); parserRef.current = null; }
     if (uiIntervalRef.current) { clearInterval(uiIntervalRef.current); uiIntervalRef.current = null; }
     ++prefetchIdRef.current; ++submitIdRef.current;
     unlockedPages.current = new Set();
-    setStage("form"); setFormStep("location"); setLocationQuote({text:"",done:false}); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
+    setStage("form"); setFormStep("location"); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
   };
 
   // ── On-demand inspiration fetch for a single month ────────────────────────
-  const fetchInspo = async (monthName) => {
-    
-    setInspos(prev => ({ ...prev, [monthName]: { state:"loading", data:null } }));
+  // Fetch inspiration for 1 or 3 months (batch). monthNames = array of month name strings.
+  const fetchInspo = async (monthNames) => {
+    const names = Array.isArray(monthNames) ? monthNames : [monthNames];
     const now = `${MONTH_NAMES[nowIdx]} ${new Date().getFullYear()}`;
 
-    // Build exclusion list: all other chosen gardens + the current month's own suggestion if retrying
+    // Mark all as loading
+    setInspos(prev => {
+      const next = {...prev};
+      names.forEach(n => { next[n] = { state:"loading", data:null }; });
+      return next;
+    });
+
     const alreadyChosen = Object.entries(inspos)
-      .filter(([_, v]) => v?.data?.name)
+      .filter(([k, v]) => v?.data?.name && !names.includes(k))
       .map(([_, v]) => v.data.name);
     const exclusionClause = alreadyChosen.length > 0
-      ? `\nDo NOT suggest any of these gardens (already used for other months):\n${alreadyChosen.map(n=>`- ${n}`).join("\n")}\nChoose a genuinely different garden.`
+      ? `\nDo NOT suggest: ${alreadyChosen.join(", ")}. Choose genuinely different gardens.`
       : "";
 
-    try {
-      const result = await callClaude(`You are a public gardens expert near ${city}.
+    // Fetch all months in parallel (max 3)
+    await Promise.all(names.map(async (monthName) => {
+      try {
+        const result = await callClaude(`You are a public gardens expert near ${city}.
 Month: ${monthName}. Date: ${now}.
-
 Recommend ONE real public garden within 1-2 hours of ${city} worth visiting in ${monthName}.
 Return ONLY valid JSON, no markdown:
-{
-  "name": "<Real garden name>",
-  "organisation": "<e.g. National Trust / Royal Parks / local authority / independent>",
-  "location": "<Town, Region>",
-  "distance": "<travel time from ${city}>",
-  "highlight": "<Specific plant or feature in ${monthName} — name actual plant, 10-20 words>"
-}
-Rules:
-- Real, publicly accessible garden only
-- Draw from a WIDE range of operators: National Trust, Royal Parks, Historic England, Kew, local boroughs, independent — not always RHS
-- highlight must name the specific plant or seasonal feature (not vague phrases)
-- highlight must be 10-20 words${exclusionClause}`, 400, undefined, apiKey);
-
-      // Guard against vague highlights — require at least 8 words
-      const wordCount = (result.highlight || "").trim().split(/\s+/).length;
-      if (wordCount < 8) result.highlight = result.highlight + " — visit for the seasonal garden highlights";
-
-      setInspos(prev => ({ ...prev, [monthName]: { state:"done", data:result } }));
-    } catch(e) {
-      setInspos(prev => ({ ...prev, [monthName]: { state:"error", data:null } }));
-    }
+{"name":"<Real garden name>","organisation":"<operator>","location":"<Town, Region>","distance":"<travel time from ${city}>","highlight":"<Specific plant or feature in ${monthName}, 10-20 words>"}
+Rules: real garden only, varied operators (not always RHS/NT), highlight names the specific plant or feature (10-20 words)${exclusionClause}`,
+          300, undefined, apiKey);
+        const wordCount = (result.highlight || "").trim().split(/\s+/).length;
+        if (wordCount < 8) result.highlight = result.highlight + " — visit for the seasonal highlights";
+        setInspos(prev => ({ ...prev, [monthName]: { state:"done", data:result } }));
+      } catch(e) {
+        setInspos(prev => ({ ...prev, [monthName]: { state:"error", data:null } }));
+      }
+    }));
   };
   // ── Garden insights — climate suitability analysis ────────────────────────
   const fetchInsights = async () => {
@@ -2562,6 +2693,67 @@ Rules:
               totalPlantCount={totalPlants}
             />
 
+            {/* Batch inspiration button — fetch 3 at once */}
+            {stream1Done && (() => {
+              const startIdx2 = (nowIdx + 11) % 12;
+              const loaded = Array.from({length: loadedBatches * 3}, (_,i) => MONTH_NAMES[(startIdx2 + i) % 12]);
+              const needInspo = loaded.filter(n => !inspos[n] || inspos[n].state === "idle");
+              const loadingInspo = loaded.some(n => inspos[n]?.state === "loading");
+              if (needInspo.length === 0) return null;
+              const nextBatch = needInspo.slice(0, 3);
+              return (
+                <div style={{textAlign:"center",margin:"1.25rem 0 0"}}>
+                  <button
+                    onClick={() => fetchInspo(nextBatch)}
+                    disabled={loadingInspo}
+                    style={{
+                      background:"rgba(176,138,94,.15)",
+                      border:"1px solid rgba(176,138,94,.4)",
+                      color:"var(--inspo)",
+                      padding:".55rem 1.2rem",
+                      fontFamily:"'Crimson Pro',serif",
+                      fontSize:".88rem",
+                      borderRadius:"2px",
+                      cursor: loadingInspo ? "wait" : "pointer",
+                      opacity: loadingInspo ? .6 : 1,
+                    }}
+                  >
+                    {loadingInspo ? "Finding gardens…" : `🌿 Find places to visit — ${nextBatch.join(", ")}`}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* Load more months button */}
+            {stream1Done && loadedBatches < 4 && (
+              <div style={{textAlign:"center",margin:"1.5rem 0 .5rem"}}>
+                <button
+                  onClick={loadMoreMonths}
+                  disabled={loadingMore}
+                  style={{
+                    background:"none",
+                    border:"1px solid var(--sage)",
+                    color:"var(--sage)",
+                    padding:".6rem 1.4rem",
+                    fontFamily:"'Playfair Display',serif",
+                    fontSize:".9rem",
+                    fontStyle:"italic",
+                    borderRadius:"2px",
+                    cursor: loadingMore ? "wait" : "pointer",
+                    opacity: loadingMore ? .6 : 1,
+                    transition:"all .2s",
+                  }}
+                >
+                  {loadingMore
+                    ? "Loading…"
+                    : `Load ${loadedBatches === 3 ? "final" : "next"} 3 months ↓`}
+                </button>
+                <p style={{fontSize:".72rem",color:"var(--muted)",margin:".35rem 0 0",fontStyle:"italic"}}>
+                  {12 - loadedBatches * 3} months remaining
+                </p>
+              </div>
+            )}
+
             {/* Export buttons — shown once generation is complete */}
             {stream1Done && (
               <div style={{display:"flex",gap:".75rem",justifyContent:"center",margin:"1rem 0 .5rem",flexWrap:"wrap"}}>
@@ -2590,7 +2782,7 @@ Rules:
                         isCurrent={name===nowName}
                         showInspoButton={months[name]?._state==="done"}
                         inspo={inspos[name] || {state:"idle",data:null}}
-                        onFetchInspo={()=>fetchInspo(name)}
+                        onFetchInspo={()=>fetchInspo([name])}
                       />
                     </div>
                   );
