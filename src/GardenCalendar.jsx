@@ -805,6 +805,7 @@ async function fetchOpenMeteoClimate(lat, lng) {
       raw = await res.json();
       if (raw.monthly?.temperature_2m_mean?.length || raw.data?.temperature_2m_mean?.length) break; // valid data received
       console.warn(`[climate] model ${model} returned empty data, trying next`);
+      console.debug(`[climate] raw keys:`, Object.keys(raw), '| monthly keys:', Object.keys(raw.monthly||raw.data||{}));
       raw = null;
     } catch(e) {
       clearTimeout(timer);
