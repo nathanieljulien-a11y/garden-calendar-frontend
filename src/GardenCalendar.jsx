@@ -790,8 +790,9 @@ async function fetchOpenMeteoClimate(lat, lng) {
     "precipitation_sum","sunshine_duration"
   ].join(",");
   // Try models in order — EC_Earth3P_HR is highest resolution but has coverage gaps;
-  // MRI_AGCM3_2_S and MPI_ESM1_2_XR are globally reliable fallbacks
-  const MODELS = ["EC_Earth3P_HR", "MRI_AGCM3_2_S", "MPI_ESM1_2_XR"];
+  // CMCC_CM2_VHR4 has excellent Mediterranean/Southern Europe coverage;
+  // MRI_AGCM3_2_S, MPI_ESM1_2_XR and NICAM16_8S are globally reliable fallbacks
+  const MODELS = ["EC_Earth3P_HR", "CMCC_CM2_VHR4", "MRI_AGCM3_2_S", "MPI_ESM1_2_XR", "NICAM16_8S"];
   let raw = null;
   for (const model of MODELS) {
     const url = `https://climate-api.open-meteo.com/v1/climate?latitude=${lat}&longitude=${lng}&monthly=${vars}&models=${model}`;
@@ -1701,7 +1702,13 @@ export default function GardenCalendar() {
         if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("empty response");
       } catch(e) {
         console.warn("[climate] normals API failed, trying archive:", e.message);
-        cd = await fetchOpenMeteoArchive(geoResult.lat, geoResult.lng);
+        try {
+          cd = await fetchOpenMeteoArchive(geoResult.lat, geoResult.lng);
+          if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("archive empty response");
+        } catch(e2) {
+          console.error("[climate] archive also failed:", e2.message);
+          throw new Error("Climate data unavailable for this location — Open-Meteo returned no data. Try a nearby larger city.");
+        }
       }
       if (rid!==prefetchIdRef.current) return;
       const derived = deriveClimateFromOM(cd, hemisphere);
@@ -1886,7 +1893,13 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
         if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("empty response");
       } catch(e) {
         console.warn("[climate] normals API failed, trying archive:", e.message);
-        cd = await fetchOpenMeteoArchive(geoResult.lat, geoResult.lng);
+        try {
+          cd = await fetchOpenMeteoArchive(geoResult.lat, geoResult.lng);
+          if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("archive empty response");
+        } catch(e2) {
+          console.error("[climate] archive also failed:", e2.message);
+          throw new Error("Climate data unavailable for this location — try a nearby larger city.");
+        }
       }
           if (rid!==submitIdRef.current) return;
           const derived = deriveClimateFromOM(cd, hemisphere);
