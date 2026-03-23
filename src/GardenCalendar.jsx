@@ -748,6 +748,69 @@ async function checkRegionalOccurrence(scientificName, lat, lng) {
     return null;
   }
 }
+// ─── OpenFarm crop data ───────────────────────────────────────────────────────
+// Fetches sowing/harvest timing for vegetables and herbs from OpenFarm (openfarm.cc).
+// Routed through the proxy to avoid CORS. Client-side localStorage cache (30-day TTL)
+// avoids repeat calls for the same plant — OpenFarm cultivation data is stable.
+// Source: OpenFarm · openfarm.cc · CC BY licence
+const OPENFARM_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+async function fetchOpenFarm(plantName) {
+  const key = `gc_openfarm_${plantName.trim().toLowerCase()}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const { data, cachedAt } = JSON.parse(raw);
+      if (Date.now() - cachedAt < OPENFARM_CACHE_TTL) return data;
+    }
+  } catch {}
+  if (!PROXY_BASE) return null;
+  try {
+    const res = await fetch(
+      `${PROXY_BASE}/api/openfarm?q=${encodeURIComponent(plantName)}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.error) return null;
+    try { localStorage.setItem(key, JSON.stringify({ data, cachedAt: Date.now() })); } catch {}
+    return data.found ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Phase 4: Horticultural society lookup ────────────────────────────────────
+// Maps ISO 3166-1 alpha-2 country codes to the leading national horticultural
+// society for that country. Used in the calendar footer attribution line.
+// country_code comes from Nominatim/Photon geocoding and is stored on meta.
+const HORT_SOCIETY = {
+  gb: { name: "RHS",                          url: "rhs.org.uk" },
+  ie: { name: "An Taisce / IHT",              url: "irishplantsociety.org" },
+  us: { name: "Cooperative Extension",        url: "extension.org" },
+  ca: { name: "Master Gardeners of Canada",   url: "mgc.ca" },
+  au: { name: "Gardening Australia",          url: "abc.net.au/gardening" },
+  nz: { name: "New Zealand Horticulture",     url: "hortnz.co.nz" },
+  fr: { name: "Jardins de France",            url: "jardins-de-france.com" },
+  de: { name: "Deutsche Gartenbaugesellschaft", url: "dgg.de" },
+  at: { name: "Österreichische Gartenbaugesellschaft", url: "gartenbaugesellschaft.at" },
+  ch: { name: "JardinSuisse",                 url: "jardinsuisse.ch" },
+  be: { name: "Société Royale d'Horticulture", url: "srh.be" },
+  nl: { name: "Koninklijke Maatschappij Tuinbouw", url: "kmtp.nl" },
+  es: { name: "Real Sociedad de Horticultura", url: "rshorticultura.es" },
+  pt: { name: "Sociedade de Ciências Horti.",  url: "soch.pt" },
+  it: { name: "Società Orticola d'Italia",    url: "soih.it" },
+  se: { name: "Riksförbundet Svensk Trädgård", url: "tradgard.org" },
+  no: { name: "Norsk Hageselskap",            url: "hageselskapet.no" },
+  dk: { name: "Haveselskabet",                url: "haveselskabet.dk" },
+  fi: { name: "Puutarhaliitto",               url: "puutarhaliitto.fi" },
+  pl: { name: "Polski Związek Ogrodniczy",    url: "pzo.com.pl" },
+  za: { name: "Horticultural Society of SA",  url: "hssa.co.za" },
+  jp: { name: "Japan Horticultural Society",  url: "horticulture.or.jp" },
+  sg: { name: "NParks / National Gardens",    url: "nparks.gov.sg" },
+  in: { name: "Indian Society of Horticulture", url: "ishort.in" },
+};
+
 // Plants that are commonly grown ornamentally in cooler climates but cannot fruit/flower
 // as they would in their native climate. Key = scientific name fragment, value = note.
 const CLIMATE_MARGINAL = {
@@ -1661,6 +1724,11 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, to
               {" · "}{gbifCount} of {totalPlantCount} plants checked
             </div>
           )}
+          {insights.state === "done" && (
+            <div style={{fontSize:".68rem",color:"rgba(180,180,160,.35)",marginTop:".6rem",fontStyle:"italic",lineHeight:"1.5"}}>
+              Based on GBIF occurrence data and general horticultural knowledge. Verify suitability with your local nursery or national horticultural society.
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1757,6 +1825,7 @@ export default function GardenCalendar() {
   const abortRef      = useRef(null);
   const parserRef     = useRef(null);
   const uiIntervalRef = useRef(null);
+  const openFarmCtxRef = useRef(""); // stores OpenFarm context for reuse in loadMoreMonths
   const calTopRef     = useRef(null);
   const monthRefs     = useRef({});  // name -> DOM node
   const scrollArrowRef = useRef(null);
@@ -2053,6 +2122,41 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
       setError("Failed to fetch climate data."); return;
     }
 
+    // ── OpenFarm: batch-fetch sowing/harvest data for vegetables and herbs ──────
+    let openFarmData = {};
+    if (PROXY_BASE) {
+      const vegHerbPlants = [...(plants.vegetables || []), ...(plants.herbs || [])];
+      if (vegHerbPlants.length > 0) {
+        try {
+          const ofResults = await Promise.race([
+            Promise.all(vegHerbPlants.map(async (name) => {
+              const attrs = await fetchOpenFarm(name);
+              return { name, attrs };
+            })),
+            new Promise(resolve => setTimeout(() => resolve(null), 5000)),
+          ]);
+          if (ofResults) {
+            ofResults.forEach(({ name, attrs }) => {
+              if (attrs && attrs.found !== false) openFarmData[name.toLowerCase()] = attrs;
+            });
+          }
+        } catch {}
+      }
+    }
+    const openFarmLines = Object.entries(openFarmData)
+      .map(([, attrs]) => {
+        const parts = [];
+        if (attrs.name)          parts.push(attrs.name);
+        if (attrs.sowing_method) parts.push(attrs.sowing_method.replace(/\n+/g, " ").trim());
+        else if (attrs.description) parts.push(attrs.description.replace(/\n+/g, " ").trim().slice(0, 200));
+        return parts.length >= 2 ? parts.join(": ") : null;
+      })
+      .filter(Boolean);
+    const openFarmCtx = openFarmLines.length > 0
+      ? `\nOPENFARM GROWING DATA (use for sowing and harvest task timing — CC BY openfarm.cc):\n${openFarmLines.join("\n")}`
+      : "";
+    openFarmCtxRef.current = openFarmCtx;
+
     // Build rich climate context from real OpenMeteo data
     const metaCtx = m?._cd && m?._derived
       ? `\nREAL CLIMATE DATA for ${city} (10-year averages, Open-Meteo/ERA5):\n${buildClimateContext(m._cd, m._derived)}`
@@ -2072,7 +2176,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
 
     // ── STREAM 1: line-format tasks + enjoy ──────────────────────────────────
     const s1prompt = `You are an expert horticulturist and naturalist.
-Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtx}
 
 Output EXACTLY ${firstBatch.length} blocks in this order: ${firstBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
@@ -2243,7 +2347,7 @@ Other rules:
       : null).filter(Boolean).join(" | ")||"general/unspecified mix";
 
     const batchPrompt = `You are an expert horticulturist and naturalist.
-Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtxRef.current}
 
 Output EXACTLY ${nextBatch.length} blocks in this order: ${nextBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
@@ -3065,6 +3169,41 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
                   onClick={()=>rdy&&setPageIdx(i)} title={rdy ? label : "Generating…"}/>;
               })}
             </div>
+
+            {/* Calendar footer attribution — shown once first batch is done */}
+            {stream1Done && (() => {
+              const society = meta?.country_code ? HORT_SOCIETY[meta.country_code.toLowerCase()] : null;
+              return (
+                <div style={{
+                  textAlign:"center",
+                  fontSize:".7rem",
+                  color:"rgba(180,180,160,.4)",
+                  margin:"-.75rem 0 1.5rem",
+                  fontStyle:"italic",
+                  lineHeight:"1.8",
+                }}>
+                  <div>
+                    Sowing windows for vegetables and herbs informed by{" "}
+                    <a href="https://openfarm.cc" target="_blank" rel="noopener"
+                       style={{color:"inherit",textDecoration:"underline",opacity:.8}}>OpenFarm (CC BY)</a>
+                    {" "}and your local frost dates from{" "}
+                    <a href="https://open-meteo.com" target="_blank" rel="noopener"
+                       style={{color:"inherit",textDecoration:"underline",opacity:.8}}>Open-Meteo/ERA5</a>
+                  </div>
+                  <div>
+                    Growing advice reflects general horticultural practice.
+                    {society ? (
+                      <> Verify timing with the{" "}
+                        <a href={`https://${society.url}`} target="_blank" rel="noopener"
+                           style={{color:"inherit",textDecoration:"underline",opacity:.8}}>{society.name}</a>
+                        {" "}for your region.</>
+                    ) : (
+                      <> Verify timing with your national horticultural society.</>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="cal-actions">
               <button className="btn-ghost" onClick={resetAll}>← Edit Garden</button>
