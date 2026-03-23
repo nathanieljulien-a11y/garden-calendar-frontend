@@ -28,6 +28,24 @@ const styles = `
   .demo-name { color:var(--straw); font-weight:600; letter-spacing:.04em; font-family:'Playfair Display',serif; }
   .demo-sep { opacity:.35; }
   .demo-tag { font-style:italic; }
+  .demo-about-btn { background:none; border:1px solid rgba(122,140,106,.35); border-radius:2px; color:var(--sage); padding:.15rem .55rem; font-family:'Crimson Pro',serif; font-size:.75rem; cursor:pointer; transition:all .15s; }
+  .demo-about-btn:hover { border-color:var(--sage); color:var(--cream); }
+
+  /* ── About modal ── */
+  .about-overlay { position:fixed; inset:0; background:rgba(10,6,2,.82); z-index:2000; display:flex; align-items:center; justify-content:center; padding:1.5rem; animation:fadeIn .2s ease; }
+  .about-modal { background:#2A1A0A; border:1px solid rgba(200,169,110,.25); border-radius:2px; max-width:620px; width:100%; max-height:88vh; overflow-y:auto; padding:2rem 2.5rem 2.5rem; position:relative; animation:fadeUp .25s ease; }
+  .about-close { position:absolute; top:1rem; right:1.25rem; background:none; border:none; color:var(--sage); font-size:1.4rem; cursor:pointer; line-height:1; padding:.2rem; }
+  .about-close:hover { color:var(--cream); }
+  .about-modal h2 { font-family:'Playfair Display',serif; font-size:1.35rem; font-weight:400; color:var(--straw); margin-bottom:1.5rem; }
+  .about-modal h3 { font-family:'Playfair Display',serif; font-size:.95rem; font-weight:600; color:var(--cream); margin:1.4rem 0 .5rem; letter-spacing:.02em; }
+  .about-modal p { font-size:.9rem; color:var(--parchment); line-height:1.7; margin-bottom:.6rem; }
+  .about-modal a { color:var(--dew); text-decoration:none; }
+  .about-modal a:hover { text-decoration:underline; }
+  .about-sources { list-style:none; margin:.2rem 0 0; }
+  .about-sources li { font-size:.85rem; color:var(--parchment); padding:.3rem 0; border-bottom:1px solid rgba(200,169,110,.08); line-height:1.55; display:flex; gap:.5rem; }
+  .about-sources li:last-child { border-bottom:none; }
+  .about-sources .src-dot { color:var(--straw); flex-shrink:0; margin-top:.15rem; }
+  .about-note { font-size:.8rem; color:var(--sage); font-style:italic; margin-top:1.5rem; padding-top:1rem; border-top:1px solid rgba(200,169,110,.12); line-height:1.6; }
   .api-banner { background:rgba(44,26,14,.7); border:1px dashed rgba(200,169,110,.3); border-radius:2px; padding:1.1rem 1.5rem; margin-bottom:2rem; }
   .api-banner label { display:block; font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; color:var(--bloom); margin-bottom:.4rem; }
   .api-banner input { width:100%; background:rgba(30,18,8,.9); border:1px solid rgba(200,169,110,.25); border-radius:2px; color:var(--cream); padding:.65rem 1rem; font-family:'Crimson Pro',serif; font-size:1rem; outline:none; transition:border-color .2s; }
@@ -1656,6 +1674,7 @@ export default function GardenCalendar() {
   const [rateLimitMsg,setRateLimitMsg] = useState("");
   const [favourites, setFavourites]   = useState(() => loadFavourites());
   const [linkCopied, setLinkCopied]   = useState(false);
+  const [showAbout, setShowAbout]     = useState(false);
 
   // Restore garden state from URL hash on first load
   useEffect(() => {
@@ -2477,7 +2496,39 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
         <span className="demo-tag">AI-powered garden calendar</span>
         <span className="demo-sep">·</span>
         <span className="demo-tag">Powered by Claude</span>
+        <span className="demo-sep">·</span>
+        <button className="demo-about-btn" onClick={() => setShowAbout(true)}>About</button>
       </div>
+
+      {/* ── About modal ── */}
+      {showAbout && (
+        <div className="about-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAbout(false); }}>
+          <div className="about-modal">
+            <button className="about-close" onClick={() => setShowAbout(false)}>×</button>
+            <h2>🌿 About this Garden Calendar</h2>
+
+            <p>This is a personal learning project — a tool built to explore what's possible when AI works from real data rather than guesswork. It's shared informally with friends and family, not offered as a commercial service.</p>
+
+            <h3>How it works</h3>
+            <p>When you enter your location, the app fetches measured climate data for your exact coordinates — monthly temperatures, rainfall, frost dates, and sunshine hours — from Open-Meteo's ERA5 reanalysis archive. This grounds everything that follows: frost date advice, hardiness warnings, and sowing windows come from real measurements, not assumptions.</p>
+            <p>Your plant names are validated against the Global Biodiversity Information Facility (GBIF), which draws on the World Checklist of Vascular Plants maintained by the Royal Botanic Gardens, Kew. The app also checks how many times each plant has been recorded growing near your location, flagging anything that looks climatically marginal.</p>
+            <p>Claude (Anthropic's AI) then acts as a synthesiser — applying horticultural knowledge to that grounded data to write your calendar tasks, enjoyment observations, and garden visit suggestions. The growing advice reflects general horticultural practice; for timing specific to your region, the RHS, Cooperative Extension, or your national horticultural society will always be the better authority.</p>
+
+            <h3>Sources &amp; licences</h3>
+            <ul className="about-sources">
+              <li><span className="src-dot">◆</span><span><strong>Climate data:</strong> Open-Meteo / ERA5 (ECMWF) · CC BY 4.0 · <a href="https://open-meteo.com" target="_blank" rel="noopener">open-meteo.com</a></span></li>
+              <li><span className="src-dot">◆</span><span><strong>Plant names &amp; taxonomy:</strong> GBIF · CC BY 4.0 / CC0 · <a href="https://gbif.org" target="_blank" rel="noopener">gbif.org</a> · underpinned by WCVP (Royal Botanic Gardens, Kew) via <a href="https://powo.science.kew.org" target="_blank" rel="noopener">Plants of the World Online</a></span></li>
+              <li><span className="src-dot">◆</span><span><strong>Location data:</strong> OpenStreetMap contributors · ODbL · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">openstreetmap.org</a> · geocoding via Photon (komoot)</span></li>
+              <li><span className="src-dot">◆</span><span><strong>AI:</strong> Claude by Anthropic · <a href="https://anthropic.com" target="_blank" rel="noopener">anthropic.com</a></span></li>
+            </ul>
+
+            <h3>A note on accuracy</h3>
+            <p>Claude is knowledgeable but not infallible. Garden visit suggestions are based on training knowledge and should be verified on the garden's own website before you travel. Sowing windows are approximate — your microclimate, soil, and variety will always matter more than any generalisation. If something looks wrong, trust your experience and your local nursery.</p>
+
+            <p className="about-note">This project is not affiliated with any of the organisations listed above. All data sources are used in accordance with their respective open licences.</p>
+          </div>
+        </div>
+      )}
       {showArrow && (
         <button className="float-arrow" onClick={slowScroll} title="Scroll to calendar">
           <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
