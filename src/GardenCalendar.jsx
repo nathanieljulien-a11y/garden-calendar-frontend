@@ -312,7 +312,7 @@ const SEASON_EMOJIS = {
   July:"🌻",August:"🍅",September:"🍂",October:"🎃",November:"🍁",December:"❄️",
 };
 
-// Archive fallback: 5-year daily data — secondary safety net if the primary 10-year fetch fails
+// Archive fallback: 5-year daily data — used only if climate normals API fails
 async function fetchOpenMeteoArchive(lat, lng) {
   const vars = ["temperature_2m_mean","temperature_2m_min","temperature_2m_max","precipitation_sum","sunshine_duration"].join(",");
   const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=2019-01-01&end_date=2023-12-31&daily=${vars}&timezone=auto`;
@@ -388,8 +388,8 @@ const UI_STRINGS = {
     monthsRemaining:  "months remaining",
     findPlaces:       "🌿 Find places to visit —",
     findingGardens:   "Finding gardens…",
-    popularNearYou:   "Based on regional horticultural knowledge",
-    forYourClimate:   "Based on regional horticultural knowledge",
+    popularNearYou:   "popular near you",
+    forYourClimate:   "suggestions for your climate",
     yourCalendar:     "Your Garden Calendar",
     startOver:        "Start over",
     knownFor:         "Known for:",
@@ -717,49 +717,6 @@ async function checkRegionalOccurrence(scientificName, lat, lng) {
     return null;
   }
 }
-// ─── OpenFarm crop data ───────────────────────────────────────────────────────
-// Fetches sowing/harvest timing for vegetables and herbs from OpenFarm (openfarm.cc).
-// Routed through the proxy to avoid CORS. Client-side localStorage cache (30-day TTL)
-// avoids repeat calls for the same plant — OpenFarm cultivation data is stable.
-// Source: OpenFarm · openfarm.cc · CC BY licence
-//
-// Returns: { found, name, sowing_method, sun, description } or null on failure.
-// NEVER throws — always returns null on any error so calendar generation is never blocked.
-const OPENFARM_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-async function fetchOpenFarm(plantName) {
-  const key = `gc_openfarm_${plantName.trim().toLowerCase()}`;
-
-  // Check localStorage cache first
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      const { data, cachedAt } = JSON.parse(raw);
-      if (Date.now() - cachedAt < OPENFARM_CACHE_TTL) return data;
-    }
-  } catch {}
-
-  // Must go through proxy — OpenFarm blocks direct browser requests (CORS + 301)
-  if (!PROXY_BASE) return null;
-
-  try {
-    const res = await fetch(
-      `${PROXY_BASE}/api/openfarm?q=${encodeURIComponent(plantName)}`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.error) return null;
-
-    // Cache result (including { found: false } — no point retrying for ornamentals)
-    try { localStorage.setItem(key, JSON.stringify({ data, cachedAt: Date.now() })); } catch {}
-
-    return data.found ? data : null;
-  } catch {
-    return null; // timeout, network error, etc. — always graceful
-  }
-}
-
 // Plants that are commonly grown ornamentally in cooler climates but cannot fruit/flower
 // as they would in their native climate. Key = scientific name fragment, value = note.
 const CLIMATE_MARGINAL = {
@@ -780,8 +737,6 @@ const CLIMATE_MARGINAL = {
 
 function getClimateMarginalNote(scientificName, climateZone) {
   if (!scientificName || !climateZone) return null;
-
-  // ── Hardcoded list ────────────────────────────────────────────────────────
   for (const [key, val] of Object.entries(CLIMATE_MARGINAL)) {
     if (scientificName.toLowerCase().startsWith(key.toLowerCase())) {
       if (val.zones.includes(climateZone)) return val.note;
@@ -814,29 +769,7 @@ function enrichedPlantName(name, meta, climateZone) {
 }
 
 
-// ─── National horticultural societies ────────────────────────────────────────
-// Keyed by ISO 3166-1 alpha-2 country_code (lowercase) from Nominatim.
-// Used in the calendar footer to point users to a regional verification source.
-// If a country is absent, the footer falls back to generic text (no broken link).
-const HORT_SOCIETY = {
-  gb: { name:"RHS",                          url:"rhs.org.uk/advice" },
-  je: { name:"RHS",                          url:"rhs.org.uk/advice" },  // Jersey
-  gg: { name:"RHS",                          url:"rhs.org.uk/advice" },  // Guernsey
-  ie: { name:"Irish Garden Plant Society",   url:"igps.ie" },
-  us: { name:"Cooperative Extension",        url:"extension.org" },
-  ca: { name:"Master Gardeners",             url:"mgoi.ca" },
-  au: { name:"Gardening Australia",          url:"abc.net.au/gardening" },
-  nz: { name:"New Zealand Gardener",         url:"nzgardener.co.nz" },
-  fr: { name:"Jardins de France",            url:"jardins-de-france.com" },
-  de: { name:"DGG",                          url:"dgg.de" },
-  es: { name:"RJBA",                         url:"rjb.csic.es" },
-  it: { name:"Società Botanica Italiana",    url:"societabotanicaitaliana.it" },
-  nl: { name:"KAVB",                         url:"kavb.nl" },
-  be: { name:"Société Royale d'Agriculture", url:"sra.be" },
-  ch: { name:"Jardin Suisse",               url:"jardinsuisse.ch" },
-};
-
-
+// ─── Empty month template ─────────────────────────────────────────────────────
 const emptyMonth = (name) => ({
   month:name, season:null, sunHours:null,
   tasks:[], enjoy:[],
@@ -846,72 +779,75 @@ const emptyMonth = (name) => ({
 
 
 // ─── OpenMeteo climate data ───────────────────────────────────────────────────
-// Fetches 10-year daily climate data (2014-2023) from the Open-Meteo Historical
-// Weather Archive API and aggregates to monthly averages.
-//
-// Background: the Open-Meteo Climate API previously supported a `monthly` parameter
-// returning pre-aggregated 30-year normals. That endpoint now returns 400 for all
-// models — the API changed to require `daily` + explicit date range. We now use
-// the archive API directly, which is stable, globally reliable, and free (CC BY 4.0).
-// A 10-year window gives representative normals while keeping the response ~1MB.
-//
-// Output shape is identical to the old fetchOpenMeteoClimate so nothing downstream
-// needs to change: { lat, lng, tMean[12], tMin[12], tMax[12], precip[12],
-//                    sunHrs[12], frostDays[12] }
+// Fetches 30-year climate normals (1991-2020) from Open-Meteo Climate API.
+// Pre-aggregated monthly data — ~15KB response vs ~1.5MB for daily archive.
+// Free, no API key, global coverage, CC BY 4.0.
+const OM_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 async function fetchOpenMeteoClimate(lat, lng) {
   const vars = [
     "temperature_2m_mean","temperature_2m_min","temperature_2m_max",
-    "precipitation_sum","sunshine_duration",
+    "precipitation_sum","sunshine_duration"
   ].join(",");
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=2014-01-01&end_date=2023-12-31&daily=${vars}&timezone=auto`;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25000); // 10yr daily = ~1MB, allow time
-  let raw;
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`Archive HTTP ${res.status}`);
-    raw = await res.json();
-  } catch(e) { clearTimeout(timer); throw e; }
-
-  const dates  = raw.daily?.time               || [];
-  const tMeanD = raw.daily?.temperature_2m_mean || [];
-  const tMinD  = raw.daily?.temperature_2m_min  || [];
-  const tMaxD  = raw.daily?.temperature_2m_max  || [];
-  const precipD= raw.daily?.precipitation_sum   || [];
-  const sunD   = raw.daily?.sunshine_duration   || [];
-
-  // Accumulate daily values into 12 monthly buckets
-  const acc = Array.from({length:12}, () => ({
-    tMean:[], tMin:[], tMax:[], precip:0, sun:0, frostDays:0, count:0,
-  }));
-  for (let i = 0; i < dates.length; i++) {
-    const m = new Date(dates[i]).getMonth();
-    if (tMeanD[i] != null) acc[m].tMean.push(tMeanD[i]);
-    if (tMinD[i]  != null) { acc[m].tMin.push(tMinD[i]); if (tMinD[i] < 0) acc[m].frostDays++; }
-    if (tMaxD[i]  != null) acc[m].tMax.push(tMaxD[i]);
-    if (precipD[i]!= null) acc[m].precip += precipD[i];
-    if (sunD[i]   != null) acc[m].sun    += sunD[i];
-    acc[m].count++;
+  // Try models in order — EC_Earth3P_HR is highest resolution but has coverage gaps;
+  // MRI_AGCM3_2_S and MPI_ESM1_2_XR are globally reliable fallbacks
+  const MODELS = ["EC_Earth3P_HR", "MRI_AGCM3_2_S", "MPI_ESM1_2_XR"];
+  let raw = null;
+  for (const model of MODELS) {
+    const url = `https://climate-api.open-meteo.com/v1/climate?latitude=${lat}&longitude=${lng}&monthly=${vars}&models=${model}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) { console.warn(`[climate] model ${model} returned ${res.status}, trying next`); continue; }
+      raw = await res.json();
+      if (raw.monthly?.temperature_2m_mean?.length) break; // valid data received
+      console.warn(`[climate] model ${model} returned empty data, trying next`);
+      raw = null;
+    } catch(e) {
+      clearTimeout(timer);
+      console.warn(`[climate] model ${model} failed: ${e.message}, trying next`);
+    }
   }
+  if (!raw) throw new Error("All climate models failed");
 
-  const avg  = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
-  const YEARS = 10;
+  // Monthly arrays: 360 values (30 years × 12 months) — average by month index
+  const monthly = raw.monthly || {};
+  const times   = monthly.time || [];
+  const tMeanRaw  = monthly.temperature_2m_mean || [];
+  const tMinRaw   = monthly.temperature_2m_min  || [];
+  const tMaxRaw   = monthly.temperature_2m_max  || [];
+  const precipRaw = monthly.precipitation_sum   || [];
+  const sunRaw    = monthly.sunshine_duration   || [];
+
+  // Aggregate 30 years → 12 monthly averages
+  const acc = Array.from({length:12}, () => ({tMean:[],tMin:[],tMax:[],precip:[],sun:[]}));
+  for (let i = 0; i < times.length; i++) {
+    const m = new Date(times[i] + "-01").getMonth();
+    if (tMeanRaw[i]  != null) acc[m].tMean.push(tMeanRaw[i]);
+    if (tMinRaw[i]   != null) acc[m].tMin.push(tMinRaw[i]);
+    if (tMaxRaw[i]   != null) acc[m].tMax.push(tMaxRaw[i]);
+    if (precipRaw[i] != null) acc[m].precip.push(precipRaw[i]);
+    if (sunRaw[i]    != null) acc[m].sun.push(sunRaw[i]);
+  }
+  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+
+  // Estimate frost days from monthly min temperature
+  // (climate API doesn't provide frost day counts directly)
+  const tMinMonthly = acc.map(a => avg(a.tMin));
+  const frostDays   = tMinMonthly.map(t => t == null ? 0 : Math.max(0, (2 - t) * 3));
 
   return {
-    lat:      raw.latitude,
-    lng:      raw.longitude,
-    tMean:    acc.map(a => avg(a.tMean)),
-    tMin:     acc.map(a => avg(a.tMin)),
-    tMax:     acc.map(a => avg(a.tMax)),
-    precip:   acc.map(a => a.count ? a.precip / YEARS : null),
-    sunHrs:   acc.map(a => a.count ? (a.sun / a.count) / 3600 : null),
-    frostDays:acc.map(a => a.count ? a.frostDays / YEARS : 0),
+    lat: raw.latitude, lng: raw.longitude,
+    tMean:     acc.map(a => avg(a.tMean)),
+    tMin:      tMinMonthly,
+    tMax:      acc.map(a => avg(a.tMax)),
+    precip:    acc.map(a => avg(a.precip)),
+    sunHrs:    acc.map(a => { const s = avg(a.sun); return s != null ? s / 3600 : null; }),
+    frostDays,
   };
 }
-
 
 function deriveClimateFromOM(cd, hemisphere) {
   const { tMean, tMin, tMax, precip, frostDays } = cd;
@@ -1094,7 +1030,8 @@ async function callClaude(prompt, maxTokens, signal, apiKey) {
 //
 // Results are cached in localStorage keyed by the normalised city string.
 // Nominatim enforces 1 req/sec — the cache means this almost never matters in
-// practice.
+// practice, but if you do need to hit Nominatim directly, respect the rate limit
+// with a ≥1 second gap between requests.
 //
 // Attribution: Location data © OpenStreetMap contributors, ODbL
 //   https://www.openstreetmap.org/copyright
@@ -1731,7 +1668,6 @@ export default function GardenCalendar() {
   const abortRef      = useRef(null);
   const parserRef     = useRef(null);
   const uiIntervalRef = useRef(null);
-  const openFarmCtxRef = useRef(""); // stores OpenFarm context for reuse in loadMoreMonths
   const calTopRef     = useRef(null);
   const monthRefs     = useRef({});  // name -> DOM node
   const scrollArrowRef = useRef(null);
@@ -1757,7 +1693,7 @@ export default function GardenCalendar() {
 
       // Step 2: Fetch real climate data from OpenMeteo
       const hemisphere = detectHemisphere(geoResult.lat);
-      // Fetch 10-year climate archive (2014-2023). Falls back to 5-year window if unavailable.
+      // Try climate normals API first (fast, ~15KB). Fall back to archive if unavailable.
       let cd;
       try {
         cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
@@ -1869,8 +1805,15 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
   }, []);
 
   useEffect(()=>{
-    if (city&&orientation&&(!isArtifact()||apiKey)) prefetchMeta(city,orientation);
-    else { setPfState("idle"); setMeta(null); }
+    // Debounce: wait 600ms after the user stops typing before firing Nominatim.
+    // Without this, every keystroke triggers a geocode request and hits the 1 req/sec
+    // rate limit immediately (429) or fires on partial city strings (404).
+    if (city&&orientation&&(!isArtifact()||apiKey)) {
+      const timer = setTimeout(() => prefetchMeta(city,orientation), 600);
+      return () => clearTimeout(timer);
+    } else {
+      setPfState("idle"); setMeta(null);
+    }
   },[city,orientation,apiKey,prefetchMeta]);
 
   // ── Submit ─────────────────────────────────────────────────────────────────
@@ -1935,7 +1878,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
           const geoResult = await fetchNominatim(city);
           if (rid!==submitIdRef.current) return;
           const hemisphere = detectHemisphere(geoResult.lat);
-          // Fetch 10-year climate archive (2014-2023). Falls back to 5-year window if unavailable.
+          // Try climate normals API first (fast, ~15KB). Fall back to archive if unavailable.
       let cd;
       try {
         cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
@@ -2009,59 +1952,6 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
       setError("Failed to fetch climate data."); return;
     }
 
-    // ── OpenFarm: batch-fetch sowing/harvest data for vegetables and herbs ──────
-    // Fire-and-forget with a 5s timeout — if any calls fail or take too long,
-    // openFarmData is just empty and Claude falls back to its own knowledge.
-    // Only vegetables and herbs are queried — OpenFarm has no useful data for
-    // ornamentals, trees, fruit trees, or roses.
-    let openFarmData = {}; // { lowerCasePlantName: attributes }
-    if (PROXY_BASE) {
-      const vegHerbPlants = [
-        ...(plants.vegetables || []),
-        ...(plants.herbs      || []),
-      ];
-      if (vegHerbPlants.length > 0) {
-        try {
-          const ofResults = await Promise.race([
-            Promise.all(
-              vegHerbPlants.map(async (name) => {
-                const attrs = await fetchOpenFarm(name);
-                return { name, attrs };
-              })
-            ),
-            new Promise(resolve => setTimeout(() => resolve(null), 5000)),
-          ]);
-          if (ofResults) {
-            ofResults.forEach(({ name, attrs }) => {
-              if (attrs && attrs.found !== false) {
-                openFarmData[name.toLowerCase()] = attrs;
-              }
-            });
-          }
-        } catch {
-          // Entire batch failed — proceed without OpenFarm data
-        }
-      }
-    }
-
-    // Build OpenFarm context block for the calendar prompt
-    // Only include plants that returned real data — skip silently if not found
-    const openFarmLines = Object.entries(openFarmData)
-      .map(([, attrs]) => {
-        const parts = [];
-        if (attrs.name)          parts.push(attrs.name);
-        if (attrs.sowing_method) parts.push(attrs.sowing_method.replace(/\n+/g, " ").trim());
-        else if (attrs.description) parts.push(attrs.description.replace(/\n+/g, " ").trim().slice(0, 200));
-        return parts.length >= 2 ? parts.join(": ") : null;
-      })
-      .filter(Boolean);
-
-    const openFarmCtx = openFarmLines.length > 0
-      ? `\nOPENFARM GROWING DATA (use for sowing and harvest task timing — CC BY openfarm.cc):\n${openFarmLines.join("\n")}`
-      : "";
-    openFarmCtxRef.current = openFarmCtx; // persist for loadMoreMonths batches
-
-
     // Build rich climate context from real OpenMeteo data
     const metaCtx = m?._cd && m?._derived
       ? `\nREAL CLIMATE DATA for ${city} (10-year averages, Open-Meteo/ERA5):\n${buildClimateContext(m._cd, m._derived)}`
@@ -2079,10 +1969,9 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
         }).join(", ")}`
       : null).filter(Boolean).join(" | ")||"general/unspecified mix";
 
-    
     // ── STREAM 1: line-format tasks + enjoy ──────────────────────────────────
     const s1prompt = `You are an expert horticulturist and naturalist.
-Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtx}
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
 
 Output EXACTLY ${firstBatch.length} blocks in this order: ${firstBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
@@ -2248,13 +2137,12 @@ Other rules:
     const allPlants = Object.entries(plants).map(([k,v])=>v.length
       ? `${k}: ${v.map(p => {
           const pm = plantMetaRef.current[p] || {};
-          const coldest = m?._cd?.monthly_mean_temp ? Math.min(...m._cd.monthly_mean_temp) : null;
-          return enrichedPlantName(p, pm, getClimateZone(m?._cd), coldest);
+          return enrichedPlantName(p, pm, getClimateZone(m?._cd));
         }).join(", ")}`
       : null).filter(Boolean).join(" | ")||"general/unspecified mix";
 
     const batchPrompt = `You are an expert horticulturist and naturalist.
-Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtxRef.current}
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
 
 Output EXACTLY ${nextBatch.length} blocks in this order: ${nextBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
@@ -2569,9 +2457,9 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
               )}
               {prefetchState==="ready" && meta && (
                 <div>
-                  <div style={{fontSize:".78rem",color:"var(--muted)",marginBottom:".4rem",fontStyle:"italic"}}>
-                    {t("climateLoaded")} · <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer" style={{color:"var(--muted)"}}>Open-Meteo / ERA5</a>
-                    {" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" style={{color:"var(--muted)"}}>© OpenStreetMap contributors</a>
+                  <div style={{fontSize:".78rem",color:"var(--sage)",marginBottom:".4rem",fontStyle:"italic"}}>
+                    {t("climateLoaded")} · <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer" style={{color:"var(--sage)"}}>Open-Meteo / ERA5</a>
+                    {" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" style={{color:"var(--sage)"}}>© OpenStreetMap contributors</a>
                   </div>
                   <div className="meta-pills" style={{justifyContent:"flex-start",margin:0}}>
                     <div className="pill">🌡 Zone <b>{meta.zone}</b></div>
@@ -2788,12 +2676,12 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
                       <>
                         {state === "fallback" && (
                           <span style={{fontSize:".7rem",color:"var(--muted)",fontStyle:"italic",display:"block",marginBottom:".25rem",opacity:.6}}>
-                            Based on regional horticultural knowledge
+                            suggestions for your climate
                           </span>
                         )}
                         {state === "ready" && (
                           <span style={{fontSize:".7rem",color:"var(--muted)",fontStyle:"italic",display:"block",marginBottom:".25rem",opacity:.6}}>
-                            Based on regional horticultural knowledge
+                            popular near you
                           </span>
                         )}
                         {suggestions.map(s => {
@@ -3000,51 +2888,6 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
                   onClick={()=>rdy&&setPageIdx(i)} title={rdy ? label : "Generating…"}/>;
               })}
             </div>
-
-            {/* Data attribution — visible once first batch is done */}
-            {stream1Done && (() => {
-              const society = meta?.country_code ? HORT_SOCIETY[meta.country_code] : null;
-              const hasOpenFarm = !!openFarmCtxRef.current;
-              return (
-                <div style={{
-                  textAlign:"center",
-                  fontSize:".7rem",
-                  color:"rgba(180,180,160,.4)",
-                  margin:"-.75rem 0 1.5rem",
-                  fontStyle:"italic",
-                  lineHeight:"2",
-                }}>
-                  {/* Line 1: LLM honesty */}
-                  Growing advice reflects general horticultural practice.{" "}
-                  {/* Line 2: regional verification */}
-                  {society ? (
-                    <>Verify timing with{" "}
-                      <a href={`https://${society.url}`} target="_blank" rel="noopener"
-                         style={{color:"inherit",textDecoration:"underline",opacity:.85}}>
-                        {society.name} →
-                      </a>
-                    </>
-                  ) : (
-                    <>Verify timing with your national horticultural society.</>
-                  )}
-                  <br/>
-                  {/* Line 3: data sources */}
-                  <span style={{opacity:.75}}>
-                    <a href="https://open-meteo.com" target="_blank" rel="noopener"
-                       style={{color:"inherit",textDecoration:"underline"}}>Climate data: Open-Meteo/ERA5</a>
-                    {" "}·{" "}
-                    <a href="https://www.gbif.org" target="_blank" rel="noopener"
-                       style={{color:"inherit",textDecoration:"underline"}}>Plant records: GBIF</a>
-                    {hasOpenFarm && (
-                      <>{" "}·{" "}
-                        <a href="https://openfarm.cc" target="_blank" rel="noopener"
-                           style={{color:"inherit",textDecoration:"underline"}}>Sowing data: OpenFarm</a>
-                      </>
-                    )}
-                  </span>
-                </div>
-              );
-            })()}
 
             <div className="cal-actions">
               <button className="btn-ghost" onClick={resetAll}>← Edit Garden</button>
