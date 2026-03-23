@@ -1278,6 +1278,8 @@ function removeFavourite(city) {
   saveFavourites(updated);
   return updated;
 }
+
+function triggerDownload(content, filename, mime) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
