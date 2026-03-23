@@ -789,13 +789,14 @@ async function fetchOpenMeteoClimate(lat, lng) {
     "temperature_2m_mean","temperature_2m_min","temperature_2m_max",
     "precipitation_sum","sunshine_duration"
   ].join(",");
-  // Try models in order — EC_Earth3P_HR is highest resolution but has coverage gaps;
-  // CMCC_CM2_VHR4 has excellent Mediterranean/Southern Europe coverage;
-  // MRI_AGCM3_2_S, MPI_ESM1_2_XR and NICAM16_8S are globally reliable fallbacks
-  const MODELS = ["EC_Earth3P_HR", "CMCC_CM2_VHR4", "MRI_AGCM3_2_S", "MPI_ESM1_2_XR", "NICAM16_8S"];
+  // Try models in order. EC_Earth3P_HR first (highest resolution);
+  // CMCC_CM2_VHR4 for Mediterranean; MRI_AGCM3_2_S / MPI_ESM1_2_XR globally reliable.
+  // If the first model returns a 200 but with no data keys, the location isn't covered
+  // by the normals API at all — bail immediately rather than trying all models.
+  const MODELS = ["EC_Earth3P_HR", "CMCC_CM2_VHR4", "MRI_AGCM3_2_S", "MPI_ESM1_2_XR"];
   let raw = null;
   for (const model of MODELS) {
-    const url = `https://climate-api.open-meteo.com/v1/climate?latitude=${lat}&longitude=${lng}&variables=${vars}&models=${model}`;
+    const url = `https://climate-api.open-meteo.com/v1/climate?latitude=${lat}&longitude=${lng}&monthly=${vars}&models=${model}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 12000);
     try {
@@ -803,19 +804,27 @@ async function fetchOpenMeteoClimate(lat, lng) {
       clearTimeout(timer);
       if (!res.ok) { console.warn(`[climate] model ${model} returned ${res.status}, trying next`); continue; }
       raw = await res.json();
-      if (raw.monthly?.temperature_2m_mean?.length || raw.data?.temperature_2m_mean?.length) break; // valid data received
+      // Check if response contains any data at all — if the envelope has no monthly/data
+      // key the location simply isn't covered by the normals API; stop trying immediately
+      const dataBlock = raw.monthly || raw.data || null;
+      const hasData = dataBlock?.temperature_2m_mean?.length > 0;
+      if (hasData) break; // valid data received
+      if (!dataBlock) {
+        // No data key at all — normals API has no coverage for this location, bail fast
+        console.warn(`[climate] normals API has no coverage for lat=${lat} lng=${lng}, using archive`);
+        throw new Error("No normals coverage for this location");
+      }
       console.warn(`[climate] model ${model} returned empty data, trying next`);
-      console.debug(`[climate] raw keys:`, Object.keys(raw), '| monthly keys:', Object.keys(raw.monthly||raw.data||{}));
       raw = null;
     } catch(e) {
       clearTimeout(timer);
+      if (e.message === "No normals coverage for this location") throw e; // re-throw to skip remaining models
       console.warn(`[climate] model ${model} failed: ${e.message}, trying next`);
     }
   }
   if (!raw) throw new Error("All climate models failed");
 
   // Monthly arrays: 360 values (30 years × 12 months) — average by month index
-  // API may return data under raw.monthly (old) or raw.data (new) — handle both
   const monthly = raw.monthly || raw.data || {};
   const times   = monthly.time || [];
   const tMeanRaw  = monthly.temperature_2m_mean || [];
