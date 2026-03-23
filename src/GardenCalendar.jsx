@@ -235,6 +235,19 @@ const styles = `
   .btn-solid { background:var(--fern); border:1px solid var(--moss); color:var(--cream); padding:.7rem 1.6rem; font-family:'Crimson Pro',serif; font-size:.95rem; border-radius:2px; cursor:pointer; transition:all .2s; }
   .btn-solid:hover:not(:disabled) { background:var(--moss); }
   .btn-solid:disabled { opacity:.45; cursor:not-allowed; }
+
+  /* ── Favourites panel ── */
+  .favs-panel { background:rgba(44,26,14,.6); border:1px solid rgba(200,169,110,.18); border-radius:2px; padding:1rem 1.5rem 1.1rem; margin-bottom:1.5rem; animation:fadeUp .35s ease; }
+  .favs-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.1em; color:var(--sage); margin-bottom:.75rem; }
+  .favs-list { display:flex; flex-wrap:wrap; gap:.45rem; }
+  .fav-chip { display:flex; align-items:center; gap:0; background:rgba(58,34,16,.7); border:1px solid rgba(200,169,110,.22); border-radius:2px; overflow:hidden; animation:popIn .18s ease; }
+  .fav-chip-btn { background:none; border:none; color:var(--parchment); padding:.32rem .75rem; font-family:'Crimson Pro',serif; font-size:.88rem; cursor:pointer; transition:background .15s; }
+  .fav-chip-btn:hover { background:rgba(200,169,110,.12); color:var(--cream); }
+  .fav-chip-del { background:none; border:none; border-left:1px solid rgba(200,169,110,.15); color:var(--sage); padding:.32rem .5rem; cursor:pointer; font-size:.8rem; transition:all .15s; line-height:1; }
+  .fav-chip-del:hover { background:rgba(196,102,74,.2); color:var(--bloom); }
+  .btn-save-link { background:rgba(200,169,110,.12); border:1px solid rgba(200,169,110,.3); color:var(--straw); padding:.55rem 1.1rem; font-family:'Crimson Pro',serif; font-size:.85rem; border-radius:2px; cursor:pointer; transition:all .2s; display:flex; align-items:center; gap:.4rem; }
+  .btn-save-link:hover { background:rgba(200,169,110,.22); border-color:var(--straw); }
+  .btn-save-link.copied { background:rgba(92,122,74,.25); border-color:var(--fern); color:var(--fern); }
 `;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1216,7 +1229,55 @@ function makeLineParser(onFlush) {
 
 // ─── Export helpers ───────────────────────────────────────────────────────────
 
-function triggerDownload(content, filename, mime) {
+// ─── Garden link & favourites ─────────────────────────────────────────────────
+// Encodes garden state (city, orientation, features, plants) into a base64 URL
+// fragment. The fragment is never sent to the server and supports non-ASCII
+// characters (Greek, French accents, etc.) via the encodeURIComponent wrapper.
+
+const FAVS_KEY   = "gc_favourites_v1";
+const MAX_FAVS   = 10;
+
+function encodeGardenState(city, orientation, features, plants) {
+  const payload = JSON.stringify({ city, orientation, features, plants });
+  // encodeURIComponent handles non-ASCII; btoa handles the resulting ASCII string
+  return btoa(unescape(encodeURIComponent(payload)));
+}
+
+function decodeGardenState(hash) {
+  try {
+    return JSON.parse(decodeURIComponent(escape(atob(hash))));
+  } catch { return null; }
+}
+
+function buildGardenUrl(city, orientation, features, plants) {
+  const encoded = encodeGardenState(city, orientation, features, plants);
+  const base = window.location.href.split("#")[0];
+  return `${base}#${encoded}`;
+}
+
+function loadFavourites() {
+  try { return JSON.parse(localStorage.getItem(FAVS_KEY)) || []; } catch { return []; }
+}
+
+function saveFavourites(favs) {
+  try { localStorage.setItem(FAVS_KEY, JSON.stringify(favs)); } catch {}
+}
+
+function addFavourite(city, orientation, features, plants) {
+  const favs = loadFavourites();
+  const encoded = encodeGardenState(city, orientation, features, plants);
+  // Replace existing entry for same city, or prepend new one
+  const filtered = favs.filter(f => f.city !== city);
+  const updated = [{ city, encoded, savedAt: Date.now() }, ...filtered].slice(0, MAX_FAVS);
+  saveFavourites(updated);
+  return updated;
+}
+
+function removeFavourite(city) {
+  const updated = loadFavourites().filter(f => f.city !== city);
+  saveFavourites(updated);
+  return updated;
+}
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1228,7 +1289,7 @@ function triggerDownload(content, filename, mime) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function exportICS(months, city) {
+function exportICS(months, city, gardenUrl) {
   const now = new Date();
   const year = now.getFullYear();
   const thisMonth = now.getMonth();
@@ -1248,7 +1309,8 @@ function exportICS(months, city) {
     const dateStr = `${mYear}${String(mIdx + 1).padStart(2,"0")}01`;
     const stamp = now.toISOString().replace(/[-:]/g,"").slice(0,15)+"Z";
     const uid = `garden-${mName}-${mYear}@gardenCalendar`;
-    const description = m.tasks.map(t => `• ${t}`).join("\\n");
+    const description = m.tasks.map(t => `• ${t}`).join("\\n")
+      + (gardenUrl ? `\\n\\nReturn to your garden:\\n${gardenUrl}` : "");
     lines.push(
       "BEGIN:VEVENT",
       `UID:${uid}`,
@@ -1258,6 +1320,7 @@ function exportICS(months, city) {
       `SUMMARY:🌿 Garden tasks — ${mName}`,
       `DESCRIPTION:${description}`,
       `LOCATION:${city}`,
+      ...(gardenUrl ? [`URL:${gardenUrl}`] : []),
       "END:VEVENT"
     );
   }
@@ -1265,7 +1328,7 @@ function exportICS(months, city) {
   triggerDownload(lines.join("\r\n"), "garden-calendar.ics", "text/calendar");
 }
 
-function exportPDF(months, city, meta) {
+function exportPDF(months, city, meta, gardenUrl) {
   const year = new Date().getFullYear();
   const thisMonth = new Date().getMonth();
   const ordered = Array.from({length:12}, (_,i) => MONTH_NAMES[(thisMonth + 1 + i) % 12]);
@@ -1303,11 +1366,14 @@ function exportPDF(months, city, meta) {
     .section-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #9a7a50; margin: .5rem 0 .2rem; }
     ul { margin: 0; padding-left: 1.2rem; }
     li { margin-bottom: .25rem; font-size: .9rem; line-height: 1.5; }
+    .return-link { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #e0d4b8; font-size: .8rem; color: #9a7a50; }
+    .return-link a { color: #5c7a4a; word-break: break-all; }
     @media print { body { padding: 1rem; } }
   </style></head><body>
   <h1>🌿 Garden Calendar</h1>
   <div class="subtitle">${city}${meta?.zone ? ` · ${meta.zone}` : ""}${meta?.climate ? ` · ${meta.climate}` : ""}</div>
   ${monthHTML}
+  ${gardenUrl ? `<div class="return-link">Return to your garden: <a href="${gardenUrl}">${gardenUrl}</a></div>` : ""}
   </body></html>`;
 
   triggerDownload(html, "garden-calendar.html", "text/html");
@@ -1586,6 +1652,20 @@ export default function GardenCalendar() {
   const [apiKey,setApiKey]   = useState("");
   const [city,setCity]       = useState("");
   const [rateLimitMsg,setRateLimitMsg] = useState("");
+  const [favourites, setFavourites]   = useState(() => loadFavourites());
+  const [linkCopied, setLinkCopied]   = useState(false);
+
+  // Restore garden state from URL hash on first load
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const state = decodeGardenState(hash);
+    if (!state) return;
+    if (state.city)        setCity(state.city);
+    if (state.orientation) setOri(state.orientation);
+    if (state.features)    setFeatures(state.features);
+    if (state.plants)      setPlants(state.plants);
+  }, []);
   // iNat localised suggestions: { trees: ["Rose","Lavender",...], ... }
   const [localSuggestions, setLocalSuggestions] = useState({});
   // Per-category loading state: { trees: "loading"|"ready"|"fallback"|null }
@@ -2198,6 +2278,18 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
   };
 
+  // Save garden link to clipboard + add to favourites
+  const handleSaveLink = () => {
+    const url = buildGardenUrl(city, orientation, features, plants);
+    // Update the browser URL bar so the current page IS the saved link
+    window.history.replaceState(null, "", url);
+    navigator.clipboard.writeText(url).catch(() => {});
+    const updated = addFavourite(city, orientation, features, plants);
+    setFavourites(updated);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2500);
+  };
+
   // ── On-demand inspiration fetch for a single month ────────────────────────
   // Fetch inspiration for 1 or 3 months (batch). monthNames = array of month name strings.
   const fetchInspo = async (monthNames) => {
@@ -2405,6 +2497,33 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
         )}
         {error && <div className="error-box">⚠ {error}</div>}
         {rateLimitMsg && <div className="rate-limit-box">🌿 {rateLimitMsg}</div>}
+
+        {/* ── SAVED GARDENS (favourites) — shown above form when any exist ── */}
+        {stage === "form" && favourites.length > 0 && (
+          <div className="favs-panel">
+            <div className="favs-title">⭐ Your saved gardens</div>
+            <div className="favs-list">
+              {favourites.map(fav => (
+                <div key={fav.city} className="fav-chip">
+                  <button className="fav-chip-btn" onClick={() => {
+                    const state = decodeGardenState(fav.encoded);
+                    if (!state) return;
+                    if (state.city)        setCity(state.city);
+                    if (state.orientation) setOri(state.orientation);
+                    if (state.features)    setFeatures(state.features);
+                    if (state.plants)      setPlants(state.plants);
+                    setFormStep("location");
+                  }}>
+                    {fav.city}
+                  </button>
+                  <button className="fav-chip-del" title="Remove" onClick={() => {
+                    setFavourites(removeFavourite(fav.city));
+                  }}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── FORM: LOCATION STEP ── */}
         {stage==="form" && formStep==="location" && (
@@ -2846,14 +2965,19 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
             {stream1Done && (
               <div style={{display:"flex",gap:".75rem",justifyContent:"center",margin:"1rem 0 .5rem",flexWrap:"wrap"}}>
                 <button
-                  onClick={() => exportPDF(months, city, meta)}
+                  onClick={() => exportPDF(months, city, meta, buildGardenUrl(city, orientation, features, plants))}
                   style={{background:"#2C1A0A",color:"#F5EDD8",border:"none",borderRadius:"6px",padding:".55rem 1.2rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
                   📄 Export for Print (HTML)
                 </button>
                 <button
-                  onClick={() => exportICS(months, city)}
+                  onClick={() => exportICS(months, city, buildGardenUrl(city, orientation, features, plants))}
                   style={{background:"#4a7c59",color:"#fff",border:"none",borderRadius:"6px",padding:".55rem 1.2rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
                   📅 Export to Calendar (.ics)
+                </button>
+                <button
+                  className={`btn-save-link${linkCopied?" copied":""}`}
+                  onClick={handleSaveLink}>
+                  {linkCopied ? "✓ Saved & copied!" : "⭐ Save garden link"}
                 </button>
               </div>
             )}
