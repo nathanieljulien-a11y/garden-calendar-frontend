@@ -2366,7 +2366,7 @@ ENJOY RULE: Each observation must capture something actively happening THIS spec
 ENJOY COUNT: Always write EXACTLY 2 ENJOY lines per month block — no more, no fewer.
 COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
 LIFECYCLE: Apply correct pruning timing for each plant type.
-Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;`;
+Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;
 
     // Init the new months as pending
     setMonths(prev => {
