@@ -329,7 +329,6 @@ const GARDEN_QUOTES = [
   {quote:"A garden is a friend you can visit any time.", attribution:""},
   {quote:"In the garden, growth has its seasons. First comes spring and summer, but then we have fall and winter. And then we get spring and summer again.", attribution:"Chauncey Gardiner, Being There"},
   {quote:"The secret of improved plant breeding, apart from scientific knowledge, is love.", attribution:"Luther Burbank"},
-  {quote:"Dig, depend upon it, is good for both the plant and the gardener.", attribution:"Vita Sackville-West"},
   {quote:"I like gardening — it's a place where I find myself when I need to lose myself.", attribution:"Alice Sebold"},
   {quote:"No occupation is so delightful to me as the culture of the earth.", attribution:"Thomas Jefferson"},
   {quote:"I think this is what hooks one to gardening: it is the closest one can come to being present at the Creation.", attribution:"Phyllis Theroux"},
@@ -1928,7 +1927,9 @@ Important guidance:
 - Shrubs: include characteristic hedging and boundary shrubs for this region, not just ornamentals.
 - Regional specialities: if the location is known for specific plants (e.g. Agapanthus and Nerine in Channel Islands, lavender in Provence, bougainvillea on Greek islands), include them — these are genuinely iconic and commonly grown locally.
 - A plant may appear in ONE category only — place it in the most appropriate one.
-Order each list most→least popular.
+
+COVERAGE PLANNING — do this before writing any month block:List every plant in the inventory and assign it to a specific month where a task will appear. Every single plant must be assigned. Only then begin 
+wr iting month blocks. Order each list most→least popular.
 
 Return ONLY valid JSON, no markdown:
 {"vegetables":["name1","name2","name3","name4","name5","name6","name7","name8"],"herbs":["name1","name2","name3","name4","name5","name6","name7","name8"],"fruit":["name1","name2","name3","name4","name5","name6","name7","name8"],"flowers":["name1","name2","name3","name4","name5","name6","name7","name8"],"trees":["name1","name2","name3","name4","name5","name6","name7","name8"],"shrubs":["name1","name2","name3","name4","name5","name6","name7","name8"]}
