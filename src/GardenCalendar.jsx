@@ -329,6 +329,7 @@ const GARDEN_QUOTES = [
   {quote:"A garden is a friend you can visit any time.", attribution:""},
   {quote:"In the garden, growth has its seasons. First comes spring and summer, but then we have fall and winter. And then we get spring and summer again.", attribution:"Chauncey Gardiner, Being There"},
   {quote:"The secret of improved plant breeding, apart from scientific knowledge, is love.", attribution:"Luther Burbank"},
+  {quote:"Dig, depend upon it, is good for both the plant and the gardener.", attribution:"Vita Sackville-West"},
   {quote:"I like gardening — it's a place where I find myself when I need to lose myself.", attribution:"Alice Sebold"},
   {quote:"No occupation is so delightful to me as the culture of the earth.", attribution:"Thomas Jefferson"},
   {quote:"I think this is what hooks one to gardening: it is the closest one can come to being present at the Creation.", attribution:"Phyllis Theroux"},
@@ -1927,9 +1928,7 @@ Important guidance:
 - Shrubs: include characteristic hedging and boundary shrubs for this region, not just ornamentals.
 - Regional specialities: if the location is known for specific plants (e.g. Agapanthus and Nerine in Channel Islands, lavender in Provence, bougainvillea on Greek islands), include them — these are genuinely iconic and commonly grown locally.
 - A plant may appear in ONE category only — place it in the most appropriate one.
-
-COVERAGE PLANNING — do this before writing any month block:List every plant in the inventory and assign it to a specific month where a task will appear. Every single plant must be assigned. Only then begin 
-wr iting month blocks. Order each list most→least popular.
+Order each list most→least popular.
 
 Return ONLY valid JSON, no markdown:
 {"vegetables":["name1","name2","name3","name4","name5","name6","name7","name8"],"herbs":["name1","name2","name3","name4","name5","name6","name7","name8"],"fruit":["name1","name2","name3","name4","name5","name6","name7","name8"],"flowers":["name1","name2","name3","name4","name5","name6","name7","name8"],"trees":["name1","name2","name3","name4","name5","name6","name7","name8"],"shrubs":["name1","name2","name3","name4","name5","name6","name7","name8"]}
@@ -2235,7 +2234,7 @@ LIFECYCLE RULES — apply before every pruning task:
 - Raspberries: autumn-fruiting → cut ALL canes to ground level in Feb. Summer-fruiting → cut only fruited canes after harvest in Aug.
 
 TIMING RULES — use the real climate data above, not assumptions:
-- Last spring frost ${m?._derived?.lastFrost || m?.lastFrost || "mid-March"}: no tender crops outdoors before this.
+- Last spring frost ${m?._derived?.lastFrost || m?.lastFrost || "mid-March"}: no tender crops outdoors before this. NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before this date. Indoor sowing for later transplanting is fine before this date.
 - First autumn frost ${m?._derived?.firstFrost || m?.firstFrost || "mid-November"}: harvest or protect tender crops before this.
 - If frost-free year-round: no cold protection tasks needed. Focus on wet/dry season and heat management.
 - Lawn feed: spring/summer blend only. NEVER apply during coldest 3 months.
@@ -2362,11 +2361,12 @@ ENJOY:Blackbird — males singing territorial song from the apple tree at first 
 ---
 
 CLIMATE-AWARE PLANT RULE: For any plant noted as "ornamental only" or "will not fruit in this climate", tasks must reflect what it actually does here — never suggest fruiting or warm-climate behaviour.
+FROST TIMING RULE: NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before the stated last spring frost date. Indoor sowing for later transplanting is fine before this date.
 ENJOY RULE: Each observation must capture something actively happening THIS specific month. Residential garden scale only.
 ENJOY COUNT: Always write EXACTLY 2 ENJOY lines per month block — no more, no fewer.
 COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
 LIFECYCLE: Apply correct pruning timing for each plant type.
-Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;
+Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;`;
 
     // Init the new months as pending
     setMonths(prev => {
