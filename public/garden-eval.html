@@ -180,35 +180,48 @@ async function callProxy(endpoint, body) {
   return data.content?.map(b => b.text||"").join("") || "";
 }
 
-function buildPrompt(g, batch, allPlants) {
+function buildPrompt(g, batch, allPlants, sowingLog) {
   const frostFree = g.lastFrost === "none";
   const southNote = g.hemi === "S"
     ? "SOUTHERN HEMISPHERE — seasons fully inverted. Summer=Dec–Feb, Autumn=Mar–May, Winter=Jun–Aug, Spring=Sep–Nov. Never use northern hemisphere seasonal assumptions."
     : "";
+  const allPlantsList = Object.values(g.plants).flat().join(", ");
+  const sowingLogSummary = sowingLog && sowingLog.length > 0
+    ? `Already sown/planted in earlier months (do not duplicate):\n${sowingLog.slice(-12).join("\n")}`
+    : "No crops sown or planted in earlier batches yet.";
+  const gardenRulesReminder = `
+GARDEN RULES REMINDER — apply these for every task in this batch:
+INVENTORY: The complete plant list for this garden is: ${allPlantsList}. Before writing every TASK line ask: is this plant in the list above? If not — delete and replace. Never introduce unlisted plants. Named culprits that commonly appear uninvited: potato, rhubarb, sweet peas, asparagus, broad beans, garlic — exclude unless explicitly listed.
+FROST TIMING: Last spring frost: ${g.lastFrost}.${frostFree ? " Frost-free year-round — no cold protection tasks." : ` NEVER direct-sow or plant out frost-sensitive crops (tomatoes, courgettes, runner beans, French beans, peppers, aubergines, basil, dahlias) before this date. Indoor sowing is fine.`}
+${sowingLogSummary}`;
+
   return `You are an expert horticulturist and naturalist.
 Location: ${g.city}. Orientation: ${g.orientation}. Plants: ${allPlants}. Date: ${MONTHS[new Date().getMonth()]} ${new Date().getFullYear()}.
 Climate: ${g.climate}.${southNote ? " " + southNote : ""}
 Last spring frost: ${g.lastFrost}. First autumn frost: ${g.firstFrost}.
 ${frostFree ? "FROST-FREE: Never suggest frost protection, cold protection, or frost-date-based sowing. Focus on wet/dry season and heat management." : ""}
+${gardenRulesReminder}
 
 Output EXACTLY ${batch.length} blocks in this order: ${batch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
 
 MONTH:February
 SEASON:Winter
-SUN:2.5
 TASK:Cut ALL autumn-fruiting raspberry canes to ground level, clearing old growth
-TASK:Sow sweet peas singly in 7cm root trainers on a bright frost-free windowsill
+TASK:Sow tomato seeds 6mm deep in seed trays on a heated windowsill at 18-21°C
 ENJOY:Forsythia — tight yellow buds swelling on bare stems, days from opening
 ENJOY:Blackbird — males singing territorial song from the apple tree at first light
 ---
 
-Rules:
-- TASK: 3–4 per month. Every task must include a measurement, plant part, method, or timing cue.
-- ENJOY: exactly 2 per month. Active events or transitions only — never static appearances.
-- SEASON: correct for hemisphere.
-- FROST TIMING: NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before last frost date (${g.lastFrost}). Indoor sowing for later transplanting is fine.
-- INVENTORY: only plants listed above. Never introduce unlisted plants. Named culprits that commonly appear uninvited: potato, rhubarb, sweet peas, asparagus, broad beans, garlic — exclude all of these unless explicitly listed.
+COVERAGE MANDATE: Every plant in the inventory must appear in at least one TASK across all generated months. Required task types: fruit trees → prune + harvest; shrubs → prune at correct season; bulbs → plant in autumn, lift after foliage dies; vegetables → sow + harvest; herbs → trim after flowering.
+LIFECYCLE RULES: Forsythia/Camellia → prune ONLY after flowering (May–Jun). Hydrangea → prune April only. Lavender → trim August only. Apple → structural prune late Feb only.
+TIMING RULES: ${frostFree ? "Frost-free — no frost tasks." : `Last frost ${g.lastFrost}: no frost-sensitive crops outdoors before this. First frost ${g.firstFrost}: harvest tender crops before this.`}
+CLIMATE-AWARE PLANT RULE: For plants noted as ornamental only or will not fruit in this climate, tasks must reflect what they actually do here.
+FROST TIMING RULE: NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before last frost. Indoor sowing fine before this date.
+INVENTORY RULE: Before writing every TASK line ask: is this plant in the inventory? If not — replace it.
+SEASON RULE: Use Winter/Spring/Summer/Autumn for temperate climates. For tropical/frost-free use Wet/Dry/Hot/Cool season.
+SPECIFICITY RULE: Every TASK must include a measurement, plant part, method, or timing cue.
+ENJOY RULE: Active events or transitions only. Residential garden scale. Exactly 2 per month.
 - End each block with ---`;
 }
 
@@ -218,16 +231,19 @@ async function generateFullCalendar(g, onProgress) {
   const si = (now.getMonth() + 11) % 12;
   const ordered = Array.from({length:12}, (_,i) => MONTHS[(si+i)%12]);
   let fullOutput = "";
+  const sowingLog = []; // accumulates sow/plant mentions across batches
 
   for (let b = 0; b < 4; b++) {
     const batch = ordered.slice(b*3, b*3+3);
     onProgress(`Batch ${b+1}/4 — ${batch.join(", ")}…`);
     const out = await callProxy("/api/call", {
       model: "claude-sonnet-4-20250514", max_tokens: 1000,
-      messages: [{ role:"user", content: buildPrompt(g, batch, allPlants) }]
+      messages: [{ role:"user", content: buildPrompt(g, batch, allPlants, sowingLog) }]
     });
+    // Extract sowing mentions from this batch to pass to next
+    const sowMatches = out.match(/TASK:[^\n]*(sow|plant|start|transplant)[^\n]{0,80}/gi) || [];
+    sowMatches.forEach(m => sowingLog.push(m.replace(/^TASK:/, "").trim()));
     fullOutput += out + "\n";
-    // small pause between batches to be gentle on rate limits
     if (b < 3) await new Promise(r => setTimeout(r, 800));
   }
   return fullOutput;
