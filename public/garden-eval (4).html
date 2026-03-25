@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Garden Calendar — Evaluation Harness v5</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f4f1; color: #1a1a1a; min-height: 100vh; padding: 2rem 1rem 4rem; }
+.app { max-width: 900px; margin: 0 auto; }
+h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 4px; }
+.sub { font-size: 13px; color: #666; margin-bottom: 1.5rem; line-height: 1.5; }
+.config { background: #fff; border: 1px solid #e0ddd8; border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+.config h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #888; margin-bottom: .75rem; }
+.field { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; color: #555; width: 80px; flex-shrink: 0; }
+.field input { flex: 1; padding: 7px 10px; border: 1px solid #d0cdc8; border-radius: 6px; font-size: 13px; font-family: monospace; background: #faf9f7; }
+.field input:focus { outline: none; border-color: #5c7a4a; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+.status-dot.ok { background: #3B6D11; } .status-dot.err { background: #A32D2D; }
+.hint { font-size: 12px; color: #999; margin-top: 3px; padding-left: 88px; }
+.gardens-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); gap: 8px; margin-bottom: 1rem; }
+.garden-card { background: #fff; border: 1px solid #e0ddd8; border-radius: 8px; padding: 10px 12px; cursor: pointer; transition: all .15s; }
+.garden-card:hover { border-color: #b0c89a; }
+.garden-card.selected { border: 2px solid #5c7a4a; background: #f0f5eb; }
+.garden-card .gname { font-size: 13px; font-weight: 600; }
+.garden-card .gclim { font-size: 11px; color: #888; margin-top: 2px; }
+.garden-card .gplants { font-size: 11px; color: #aaa; margin-top: 3px; line-height: 1.4; }
+.garden-card.selected .gclim { color: #3B6D11; }
+.btn-row { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+button { padding: 7px 14px; border: 1px solid #d0cdc8; border-radius: 6px; background: #fff; font-size: 13px; cursor: pointer; color: #1a1a1a; transition: all .15s; }
+button:hover:not(:disabled) { background: #f0ede8; border-color: #b0ada8; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.btn-primary { background: #5c7a4a; border-color: #3e5230; color: #fff; font-weight: 600; }
+.btn-primary:hover:not(:disabled) { background: #3e5230; }
+.run-btn { width: 100%; font-size: 14px; padding: 11px; margin-bottom: 1.5rem; }
+.note { font-size: 12px; color: #888; background: #faf9f7; border: 1px solid #e8e5e0; border-radius: 6px; padding: 8px 12px; margin-bottom: 1rem; line-height: 1.55; }
+.summary { display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.sum-card { flex: 1; min-width: 90px; background: #fff; border: 1px solid #e0ddd8; border-radius: 8px; padding: 10px 14px; }
+.sum-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.sum-val { font-size: 24px; font-weight: 600; }
+.results { display: flex; flex-direction: column; gap: 14px; }
+.result-card { background: #fff; border: 1px solid #e0ddd8; border-radius: 10px; overflow: hidden; }
+.result-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #f0ede8; }
+.result-city { font-size: 14px; font-weight: 600; }
+.result-meta { font-size: 11px; color: #888; }
+.score-bar { display: flex; height: 5px; }
+.seg { flex: 1; }
+.seg-pass { background: #3B6D11; } .seg-warn { background: #BA7517; } .seg-fail { background: #A32D2D; } .seg-skip { background: #e0ddd8; }
+.dims { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.dim-row { display: flex; align-items: flex-start; gap: 10px; }
+.badge { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px; flex-shrink: 0; margin-top: 1px; }
+.badge-pass { background: #EAF3DE; color: #27500A; }
+.badge-warn { background: #FAEEDA; color: #633806; }
+.badge-fail { background: #FCEBEB; color: #501313; }
+.dim-label { font-size: 13px; font-weight: 600; }
+.dim-note { font-size: 12px; color: #666; margin-top: 2px; line-height: 1.45; }
+.result-footer { display: flex; align-items: center; justify-content: space-between; padding: 9px 16px; background: #faf9f7; border-top: 1px solid #f0ede8; }
+.overall-score { font-size: 13px; font-weight: 600; }
+.score-good { color: #27500A; } .score-med { color: #633806; } .score-bad { color: #501313; }
+.raw-box { padding: 12px 16px; border-top: 1px solid #f0ede8; display: none; }
+.raw-box pre { font-family: monospace; font-size: 11px; color: #555; white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto; background: #faf9f7; padding: 10px; border-radius: 6px; border: 1px solid #e8e5e0; }
+.loading-row { display: flex; align-items: center; gap: 10px; padding: 16px; color: #888; font-size: 13px; }
+.spinner { width: 16px; height: 16px; border: 2px solid #e0ddd8; border-top-color: #5c7a4a; border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-row { padding: 12px 16px; font-size: 13px; color: #A32D2D; }
+.progress { font-size: 11px; color: #888; padding: 4px 16px 8px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🌿 Garden Calendar — Evaluation Harness v5</h1>
+  <p class="sub">Generates the full 12-month calendar (4 batches) per garden, then scores 6 dimensions. Inventory hygiene evaluated across all 12 months so the 3-month window isn't penalised for plants with no lifecycle event in that period.</p>
+
+  <div class="config">
+    <h2>Configuration</h2>
+    <div class="field">
+      <label>Proxy URL</label>
+      <input type="text" id="proxyUrl" placeholder="https://your-proxy.onrender.com" />
+      <div class="status-dot" id="proxyDot"></div>
+      <button onclick="pingProxy()">Ping</button>
+    </div>
+    <div class="hint">Your VITE_PROXY_URL — ping first to wake the Render instance</div>
+  </div>
+
+  <div class="config">
+    <h2>Test gardens</h2>
+    <div class="btn-row">
+      <button onclick="selAll()">Select all</button>
+      <button onclick="selNone()">Clear</button>
+    </div>
+    <div class="gardens-grid" id="gardensGrid"></div>
+  </div>
+
+  <div class="note">⚠ Full 12-month eval = 8 proxy calls per garden (4 generate + 1 score each batch + 1 final score). Running all 6 gardens = ~50 calls. Your proxy's IP hourly cap is 10 — run 1–2 gardens at a time, or temporarily raise IP_HOURLY_CAP on Render.</div>
+
+  <button class="run-btn btn-primary" id="runBtn" onclick="runEval()">▶ Run evaluation</button>
+
+  <div id="summaryWrap" style="display:none">
+    <div class="summary">
+      <div class="sum-card"><div class="sum-label">Gardens tested</div><div class="sum-val" id="sTotal">0</div></div>
+      <div class="sum-card"><div class="sum-label">Avg pass rate</div><div class="sum-val" id="sAvg">—</div></div>
+      <div class="sum-card"><div class="sum-label">Dims passed</div><div class="sum-val" id="sPassed">—</div></div>
+      <div class="sum-card"><div class="sum-label">Fails raised</div><div class="sum-val" id="sFails">0</div></div>
+    </div>
+  </div>
+
+  <div class="results" id="results"></div>
+</div>
+
+<script>
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+const GARDENS = [
+  { id:"london",       city:"London, UK",              climate:"Temperate oceanic",                   hemi:"N", lastFrost:"late March",    firstFrost:"late October",  orientation:"South-facing (warm, sunny)",
+    plants:{trees:["Apple","Cherry","Birch"],shrubs:["Rose","Hydrangea","Lavender"],flowers:["Tulip","Dahlia","Peony"],vegetables:["Tomato","Runner bean","Courgette"],fruit:["Strawberry","Raspberry","Blackcurrant"],herbs:["Basil","Mint","Rosemary"]}},
+  { id:"perpignan",    city:"Perpignan, France",        climate:"Mediterranean",                       hemi:"N", lastFrost:"late February", firstFrost:"late November", orientation:"South-facing (warm, sunny)",
+    plants:{trees:["Olive","Fig","Almond"],shrubs:["Lavender","Rosemary","Cistus"],flowers:["Rose","Bougainvillea","Pelargonium"],vegetables:["Aubergine","Pepper","Courgette"],fruit:["Peach","Grape","Strawberry"],herbs:["Thyme","Basil","Tarragon"]}},
+  { id:"bangkok",      city:"Bangkok, Thailand",        climate:"Tropical — no frost, wet/dry seasons",hemi:"N", lastFrost:"none",          firstFrost:"none",          orientation:"Mixed / open aspect",
+    plants:{trees:["Mango","Frangipani","Coconut"],shrubs:["Bougainvillea","Hibiscus","Ixora"],flowers:["Orchid","Heliconia","Bird of paradise"],vegetables:["Thai basil","Chilli","Aubergine"],fruit:["Banana","Papaya","Lychee"],herbs:["Lemongrass","Kaffir lime","Galangal"]}},
+  { id:"johannesburg", city:"Johannesburg, South Africa",climate:"Subtropical highland",              hemi:"S", lastFrost:"late August",   firstFrost:"late May",      orientation:"North-facing (cool, shaded)",
+    plants:{trees:["Jacaranda","Cape chestnut","Lemon"],shrubs:["Agapanthus","Strelitzia","Plumbago"],flowers:["Protea","Gazania","Osteospermum"],vegetables:["Tomato","Sweet potato","Spinach"],fruit:["Peach","Apricot","Strawberry"],herbs:["Rosemary","Basil","Buchu"]}},
+  { id:"lima",         city:"Lima, Peru",               climate:"Subtropical desert — overcast, mild, dry",hemi:"S", lastFrost:"none",      firstFrost:"none",          orientation:"West-facing (afternoon sun)",
+    plants:{trees:["Lucuma","Avocado","Molle"],shrubs:["Salvia","Lantana","Geranium"],flowers:["Carnation","Marigold","Dahlia"],vegetables:["Potato","Aji amarillo","Tomato"],fruit:["Passionfruit","Banana","Fig"],herbs:["Huacatay","Muna","Cilantro"]}},
+  { id:"melbourne",    city:"Melbourne, Australia",     climate:"Temperate oceanic — southern hemisphere",hemi:"S", lastFrost:"late August", firstFrost:"late May",     orientation:"North-facing (cool, shaded)",
+    plants:{trees:["Lemon","Grevillea","Apple"],shrubs:["Westringia","Lavender","Camellia"],flowers:["Kangaroo paw","Rose","Agapanthus"],vegetables:["Tomato","Zucchini","Broad bean"],fruit:["Strawberry","Blueberry","Fig"],herbs:["Basil","Rosemary","Lemon thyme"]}}
+];
+
+const DIMS = [
+  {key:"lifecycle_coverage", label:"Lifecycle coverage",  desc:"Every plant category has at least one appropriate lifecycle stage task across 12 months"},
+  {key:"task_specificity",   label:"Task specificity",    desc:"Tasks contain measurements, plant parts, methods, or timing cues"},
+  {key:"climate_grounding",  label:"Climate grounding",   desc:"Tasks respect frost dates, hemisphere, seasonal signals; no frost-sensitive crops direct-sown before last frost"},
+  {key:"language_register",  label:"Language register",   desc:"No unexplained jargon; no vague filler; suitable for an amateur gardener"},
+  {key:"inventory_hygiene",  label:"Inventory hygiene",   desc:"Every plant appears in at least one task across the full 12 months; no unlisted plants"},
+  {key:"enjoy_quality",      label:"Enjoy quality",       desc:"Enjoy lines describe active events or transitions, not static appearances"}
+];
+
+let selected = new Set(GARDENS.map(g => g.id));
+let results = {};
+
+function proxyBase() { return document.getElementById("proxyUrl").value.trim().replace(/\/$/, ""); }
+
+async function pingProxy() {
+  const url = proxyBase();
+  if (!url) { alert("Enter proxy URL first."); return; }
+  const dot = document.getElementById("proxyDot");
+  dot.className = "status-dot";
+  try {
+    const res = await fetch(`${url}/api/health`);
+    dot.className = res.ok ? "status-dot ok" : "status-dot err";
+    if (res.ok) { const d = await res.json(); alert(`Proxy alive. Generations today: ${d.globalGenToday}/${d.cap}`); }
+    else alert(`Proxy returned HTTP ${res.status}`);
+  } catch(e) { dot.className = "status-dot err"; alert(`Could not reach proxy: ${e.message}`); }
+}
+
+function selAll()  { selected = new Set(GARDENS.map(g => g.id)); renderGardens(); }
+function selNone() { selected.clear(); renderGardens(); }
+
+function renderGardens() {
+  document.getElementById("gardensGrid").innerHTML = GARDENS.map(g => {
+    const on = selected.has(g.id);
+    const ps = Object.values(g.plants).flat().slice(0,5).join(", ");
+    return `<div class="garden-card ${on?"selected":""}" onclick="toggle('${g.id}')">
+      <div class="gname">${g.city}</div>
+      <div class="gclim">${g.climate}</div>
+      <div class="gplants">${ps}…</div>
+    </div>`;
+  }).join("");
+}
+function toggle(id) { selected.has(id) ? selected.delete(id) : selected.add(id); renderGardens(); }
+
+async function callProxy(endpoint, body) {
+  const url = proxyBase();
+  if (!url) throw new Error("No proxy URL set.");
+  const res = await fetch(`${url}${endpoint}`, {
+    method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)
+  });
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || e.error?.message || `HTTP ${res.status}`); }
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  return data.content?.map(b => b.text||"").join("") || "";
+}
+
+function buildPrompt(g, batch, allPlants) {
+  const frostFree = g.lastFrost === "none";
+  const southNote = g.hemi === "S"
+    ? "SOUTHERN HEMISPHERE — seasons fully inverted. Summer=Dec–Feb, Autumn=Mar–May, Winter=Jun–Aug, Spring=Sep–Nov. Never use northern hemisphere seasonal assumptions."
+    : "";
+  return `You are an expert horticulturist and naturalist.
+Location: ${g.city}. Orientation: ${g.orientation}. Plants: ${allPlants}. Date: ${MONTHS[new Date().getMonth()]} ${new Date().getFullYear()}.
+Climate: ${g.climate}.${southNote ? " " + southNote : ""}
+Last spring frost: ${g.lastFrost}. First autumn frost: ${g.firstFrost}.
+${frostFree ? "FROST-FREE: Never suggest frost protection, cold protection, or frost-date-based sowing. Focus on wet/dry season and heat management." : ""}
+
+Output EXACTLY ${batch.length} blocks in this order: ${batch.join(", ")}.
+Use ONLY this exact line format. No extra text, no markdown, no explanation.
+
+MONTH:February
+SEASON:Winter
+SUN:2.5
+TASK:Cut ALL autumn-fruiting raspberry canes to ground level, clearing old growth
+TASK:Sow sweet peas singly in 7cm root trainers on a bright frost-free windowsill
+ENJOY:Forsythia — tight yellow buds swelling on bare stems, days from opening
+ENJOY:Blackbird — males singing territorial song from the apple tree at first light
+---
+
+Rules:
+- TASK: 3–4 per month. Every task must include a measurement, plant part, method, or timing cue.
+- ENJOY: exactly 2 per month. Active events or transitions only — never static appearances.
+- SEASON: correct for hemisphere.
+- FROST TIMING: NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before last frost date (${g.lastFrost}). Indoor sowing for later transplanting is fine.
+- INVENTORY: only plants listed above. Never introduce unlisted plants.
+- End each block with ---`;
+}
+
+async function generateFullCalendar(g, onProgress) {
+  const allPlants = Object.entries(g.plants).map(([cat,ps]) => `${cat}: ${ps.join(", ")}`).join(" | ");
+  const now = new Date();
+  const si = (now.getMonth() + 11) % 12;
+  const ordered = Array.from({length:12}, (_,i) => MONTHS[(si+i)%12]);
+  let fullOutput = "";
+
+  for (let b = 0; b < 4; b++) {
+    const batch = ordered.slice(b*3, b*3+3);
+    onProgress(`Batch ${b+1}/4 — ${batch.join(", ")}…`);
+    const out = await callProxy("/api/call", {
+      model: "claude-sonnet-4-20250514", max_tokens: 1000,
+      messages: [{ role:"user", content: buildPrompt(g, batch, allPlants) }]
+    });
+    fullOutput += out + "\n";
+    // small pause between batches to be gentle on rate limits
+    if (b < 3) await new Promise(r => setTimeout(r, 800));
+  }
+  return fullOutput;
+}
+
+async function scoreCalendar(g, fullOutput, onProgress) {
+  onProgress("Scoring against 6 dimensions…");
+  const allPlants = Object.values(g.plants).flat();
+  const frostFree = g.lastFrost === "none";
+
+  const prompt = `You are evaluating a full 12-month garden calendar against 6 quality dimensions. Be rigorous — cite specific evidence for every verdict.
+
+CONTEXT:
+City: ${g.city} | Climate: ${g.climate}
+Hemisphere: ${g.hemi==="S"?"Southern (summer=Dec–Feb, winter=Jun–Aug)":"Northern"}
+Last frost: ${g.lastFrost} | First frost: ${g.firstFrost} | Frost-free: ${frostFree?"YES":"NO"}
+Full inventory (18 plants): ${allPlants.join(", ")}
+
+FULL 12-MONTH CALENDAR OUTPUT:
+${fullOutput}
+
+SCORING DIMENSIONS:
+
+lifecycle_coverage: Across all 12 months, does every plant category (trees, shrubs, flowers, vegetables, fruit, herbs) have at least one task matching an appropriate lifecycle stage (sow, plant, prune, harvest, divide, deadhead, feed)? Warn if one category misses a key stage. Fail if two or more are absent or only have generic tasks.
+
+season_labels: For tropical/equatorial climates (Bangkok, Singapore etc.) SEASON labels of Wet/Dry or Cool/Hot are acceptable and correct — do NOT penalise for using these instead of Winter/Summer. For southern hemisphere gardens, Summer should appear in Dec–Feb months and Winter in Jun–Aug months.
+
+task_specificity: Do the majority of TASK lines contain at least one of: a measurement, named plant part, method, or timing cue? Warn if 20–40% are vague. Fail if over 40% are vague.
+
+climate_grounding: Check all of: (a) frost-free gardens have zero cold-protection tasks; (b) southern hemisphere gardens show correct seasonal timing across all 12 months; (c) frost-SENSITIVE crops (tomatoes, courgettes, runner beans, French beans, peppers, aubergines, basil, dahlias) are NOT planted in OPEN GROUND OUTDOORS before the stated last frost date (${g.lastFrost}). CRITICAL EXCEPTIONS — do NOT penalise these, they are correct practice: indoor sowing on a windowsill or in a heated propagator before last frost; sowing or growing under glass or in a greenhouse before last frost; hardening off seedlings under glass near the frost date. ONLY fail if crops are explicitly placed in open ground outdoors before last frost with no protective covering mentioned. IMPORTANT: frost-HARDY crops (broad beans, garlic, onions, peas, kale, chard, spinach) can and should be planted before last frost — do NOT penalise this. Fail only for clear unprotected outdoor planting of frost-sensitive crops before last frost, or hemisphere timing errors. Warn for missed climate signals only.
+
+language_register: Precise and accessible to an amateur throughout. No unexplained jargon. No vague filler tasks. Warn for minor issues. Fail if pervasive.
+
+inventory_hygiene: Across all 12 months — (a) every one of the 18 listed plants appears in at least one task; (b) no unlisted plants are mentioned. This is evaluated across the FULL year, not a single batch. Warn if 1–2 plants are missing. Fail if 3+ plants are absent or any unlisted plant appears.
+
+enjoy_quality: Do enjoy lines describe active events, behaviours, arrivals, or transitions — not static appearances? Warn if several are static. Fail if the majority are static.
+
+Return ONLY valid JSON, no markdown:
+{"scores":{"lifecycle_coverage":{"verdict":"pass|warn|fail","note":"one sentence with specific evidence"},"task_specificity":{"verdict":"pass|warn|fail","note":"..."},"climate_grounding":{"verdict":"pass|warn|fail","note":"..."},"language_register":{"verdict":"pass|warn|fail","note":"..."},"inventory_hygiene":{"verdict":"pass|warn|fail","note":"..."},"enjoy_quality":{"verdict":"pass|warn|fail","note":"..."}}}`;
+
+  const raw = await callProxy("/api/call", {
+    model:"claude-sonnet-4-20250514", max_tokens:1200,
+    messages:[{role:"user", content:prompt}]
+  });
+  return JSON.parse(raw.replace(/```json|```/g,"").trim());
+}
+
+async function runEval() {
+  const url = proxyBase();
+  if (!url) { alert("Enter your proxy URL first."); return; }
+  const toRun = GARDENS.filter(g => selected.has(g.id));
+  if (!toRun.length) { alert("Select at least one garden."); return; }
+
+  const btn = document.getElementById("runBtn");
+  btn.disabled = true;
+  results = {};
+  document.getElementById("results").innerHTML = "";
+  document.getElementById("summaryWrap").style.display = "none";
+
+  for (let i = 0; i < toRun.length; i++) {
+    const g = toRun[i];
+    btn.textContent = `Running ${i+1}/${toRun.length} — ${g.city}…`;
+    showLoading(g, "Starting…");
+    try {
+      const cal = await generateFullCalendar(g, msg => showLoading(g, msg));
+      const scores = await scoreCalendar(g, cal, msg => showLoading(g, msg));
+      results[g.id] = { g, cal, scores, error:null };
+    } catch(e) {
+      results[g.id] = { g, cal:null, scores:null, error:e.message };
+    }
+    renderCard(g.id);
+    if (i < toRun.length-1) await new Promise(r => setTimeout(r, 1000));
+  }
+
+  btn.disabled = false;
+  btn.textContent = "▶ Run evaluation";
+  renderSummary(toRun);
+}
+
+function showLoading(g, msg) {
+  const area = document.getElementById("results");
+  let card = document.getElementById("card-"+g.id);
+  if (!card) { card = document.createElement("div"); card.id = "card-"+g.id; card.className = "result-card"; area.appendChild(card); }
+  card.innerHTML = `<div class="result-header"><span class="result-city">${g.city}</span><span class="result-meta">${g.climate}</span></div>
+    <div class="loading-row"><div class="spinner"></div>${msg}</div>`;
+}
+
+function renderCard(id) {
+  const r = results[id];
+  const card = document.getElementById("card-"+id);
+  if (!card || !r) return;
+  if (r.error) { card.innerHTML = `<div class="result-header"><span class="result-city">${r.g.city}</span><span class="result-meta">${r.g.climate}</span></div><div class="error-row">Error: ${esc(r.error)}</div>`; return; }
+
+  const sc = r.scores?.scores || {};
+  const verts = DIMS.map(d => sc[d.key]?.verdict);
+  const passes = verts.filter(v=>v==="pass").length;
+  const fails  = verts.filter(v=>v==="fail").length;
+  const total  = verts.filter(Boolean).length || 1;
+  const pct    = passes/total;
+
+  const bar = DIMS.map(d => {
+    const v = sc[d.key]?.verdict;
+    const cls = v==="pass"?"seg-pass":v==="warn"?"seg-warn":v==="fail"?"seg-fail":"seg-skip";
+    return `<div class="seg ${cls}"></div>`;
+  }).join("");
+
+  const dimRows = DIMS.map(d => {
+    const s = sc[d.key]; if(!s) return "";
+    const bc = s.verdict==="pass"?"badge-pass":s.verdict==="warn"?"badge-warn":"badge-fail";
+    return `<div class="dim-row"><span class="badge ${bc}">${s.verdict}</span><div><div class="dim-label">${d.label}</div><div class="dim-note">${esc(s.note)}</div></div></div>`;
+  }).join("");
+
+  const sc2 = pct>=0.8?"score-good":pct>=0.5?"score-med":"score-bad";
+  const hemi = r.g.hemi==="S"?"S hemisphere":"N hemisphere";
+  card.innerHTML = `
+    <div class="result-header"><span class="result-city">${r.g.city}</span><span class="result-meta">${r.g.climate} · ${hemi}</span></div>
+    <div class="score-bar">${bar}</div>
+    <div class="dims">${dimRows}</div>
+    <div class="result-footer">
+      <span class="overall-score ${sc2}">${passes}/${total} dimensions passed · ${fails} fail${fails!==1?"s":""}</span>
+      <button onclick="togRaw('${id}')">Show 12-month output ↓</button>
+    </div>
+    <div id="raw-${id}" class="raw-box"><pre>${esc(r.cal||"")}</pre></div>`;
+}
+
+function togRaw(id) {
+  const box = document.getElementById("raw-"+id);
+  const btn = box.previousElementSibling.querySelector("button");
+  const open = box.style.display !== "block";
+  box.style.display = open?"block":"none";
+  btn.textContent = open?"Hide output ↑":"Show 12-month output ↓";
+}
+
+function renderSummary(gardens) {
+  const done = gardens.filter(g => results[g.id] && !results[g.id].error);
+  if (!done.length) return;
+  let tp=0, td=0, tf=0;
+  done.forEach(g => {
+    const sc = results[g.id].scores?.scores || {};
+    Object.values(sc).forEach(s => { td++; if(s.verdict==="pass")tp++; if(s.verdict==="fail")tf++; });
+  });
+  document.getElementById("sTotal").textContent  = done.length;
+  document.getElementById("sAvg").textContent    = td ? Math.round((tp/td)*100)+"%" : "—";
+  document.getElementById("sPassed").textContent = td ? `${tp}/${td}` : "—";
+  document.getElementById("sFails").textContent  = tf;
+  document.getElementById("summaryWrap").style.display = "block";
+}
+
+function esc(s) { return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+renderGardens();
+</script>
+</body>
+</html>
