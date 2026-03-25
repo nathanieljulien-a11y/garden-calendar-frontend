@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Garden Calendar — Evaluation Harness v5</title>
+<title>Garden Calendar — Evaluation Harness v6</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f4f1; color: #1a1a1a; min-height: 100vh; padding: 2rem 1rem 4rem; }
@@ -68,7 +68,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 </head>
 <body>
 <div class="app">
-  <h1>🌿 Garden Calendar — Evaluation Harness v5</h1>
+  <h1>🌿 Garden Calendar — Evaluation Harness v6</h1>
   <p class="sub">Generates the full 12-month calendar (4 batches) per garden, then scores 6 dimensions. Inventory hygiene evaluated across all 12 months so the 3-month window isn't penalised for plants with no lifecycle event in that period.</p>
 
   <div class="config">
@@ -208,7 +208,7 @@ Rules:
 - ENJOY: exactly 2 per month. Active events or transitions only — never static appearances.
 - SEASON: correct for hemisphere.
 - FROST TIMING: NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before last frost date (${g.lastFrost}). Indoor sowing for later transplanting is fine.
-- INVENTORY: only plants listed above. Never introduce unlisted plants.
+- INVENTORY: only plants listed above. Never introduce unlisted plants. Named culprits that commonly appear uninvited: potato, rhubarb, sweet peas, asparagus, broad beans, garlic — exclude all of these unless explicitly listed.
 - End each block with ---`;
 }
 
@@ -251,7 +251,7 @@ ${fullOutput}
 
 SCORING DIMENSIONS:
 
-lifecycle_coverage: Across all 12 months, does every plant category (trees, shrubs, flowers, vegetables, fruit, herbs) have at least one task matching an appropriate lifecycle stage (sow, plant, prune, harvest, divide, deadhead, feed)? Warn if one category misses a key stage. Fail if two or more are absent or only have generic tasks.
+lifecycle_coverage: Scan ALL 12 months of output before verdicting. For each plant category (trees, shrubs, flowers, vegetables, fruit, herbs), list every task found across all months, then judge whether key lifecycle stages are covered. A sowing task in February counts even if harvest is in August — judge the full year as one unit. Only fail if a category is genuinely absent from all 12 months or has only generic/vague tasks throughout. Warn if one category is thin but present.
 
 season_labels: For tropical/equatorial climates (Bangkok, Singapore etc.) SEASON labels of Wet/Dry or Cool/Hot are acceptable and correct — do NOT penalise for using these instead of Winter/Summer. For southern hemisphere gardens, Summer should appear in Dec–Feb months and Winter in Jun–Aug months.
 
