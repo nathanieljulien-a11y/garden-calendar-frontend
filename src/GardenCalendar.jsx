@@ -2296,7 +2296,7 @@ TIMING RULES — use the real climate data above, not assumptions:
 - Lawn feed: spring/summer blend only. NEVER apply during coldest 3 months.
 - ${m?._derived?.seasonNote ? `HEMISPHERE/SEASON: ${m._derived.seasonNote}` : ""}
 
-INVENTORY RULE: ONLY suggest tasks for plants explicitly listed in this garden's inventory above. Before writing every single TASK line, ask: "Is this plant in the inventory list?" If no — do not write the task. Delete it and replace it with a task for a plant that IS in the list. Common garden plants that are NOT in this inventory (e.g. rhubarb, sweet peas, asparagus, broad beans, garlic) must never appear in tasks even if they would typically grow in this climate. Always refer to plants by their common name as listed — never use scientific names in task or enjoy text.
+INVENTORY RULE: ONLY suggest tasks for plants explicitly listed in this garden's inventory above. Before writing every single TASK line, ask: "Is this plant in the inventory list?" If no — do not write the task. Delete it and replace it with a task for a plant that IS in the list. Common garden plants that are NOT in this inventory (e.g. rhubarb, leeks, broad beans, garlic, onions, sweet peas, asparagus, potatoes, sweet corn, parsnips) must never appear in tasks even if they would typically grow in this climate. Always refer to plants by their common name as listed — never use scientific names in task or enjoy text.
 
 SPECIFICITY RULE: Every TASK must include a measurement, plant part, method, or timing cue.
 FAIL: "Prune apple" / "Feed lawn" / "Check for pests" / "Water plants"
@@ -2412,11 +2412,12 @@ Other rules:
 
     const gardenRulesReminder = `
 GARDEN RULES REMINDER — apply these for every task in this batch:
-INVENTORY: The complete plant list for this garden is: ${allPlantsList}. Before writing every TASK line ask: is this plant in the list above? If not — delete and replace. Never introduce unlisted plants.
+INVENTORY: The complete plant list for this garden is: ${allPlantsList}. Before writing every TASK line ask: is this plant in the list above? If not — delete and replace. Never introduce unlisted plants. Common culprits that must NOT appear unless listed: rhubarb, leeks, broad beans, garlic, onions, sweet peas, asparagus, potatoes, sweet corn, parsnips — these are typical garden plants but are NOT in this inventory unless explicitly named above.
 FROST TIMING: Last spring frost: ${lastFrost}.${frostFree ? " Frost-free year-round — no cold protection tasks." : ` NEVER direct-sow or plant out frost-sensitive crops (tomatoes, courgettes, runner beans, French beans, peppers, aubergines, basil, dahlias) before this date. Indoor sowing is fine before this date.`}
 ${sowingLogSummary}`;
 
     const batchPrompt = `You are an expert horticulturist and naturalist.
+THIS GARDEN'S COMPLETE PLANT LIST — the ONLY plants you may write tasks for: ${allPlantsList}.
 Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtxRef.current}
 ${gardenRulesReminder}
 
@@ -2432,7 +2433,7 @@ ENJOY:Blackbird — males singing territorial song from the apple tree at first 
 
 CLIMATE-AWARE PLANT RULE: For any plant noted as "ornamental only" or "will not fruit in this climate", tasks must reflect what it actually does here — never suggest fruiting or warm-climate behaviour.
 FROST TIMING RULE: NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before the stated last spring frost date. Indoor sowing for later transplanting is fine before this date.
-INVENTORY RULE: Before writing every TASK line, ask: "Is this plant in the inventory list?" If no — do not write the task. Replace it with a task for a listed plant. Never introduce unlisted plants even if typical for this climate.
+INVENTORY RULE: Before writing every TASK line, ask: "Is this plant in the inventory list?" If no — do not write the task. Replace it with a task for a listed plant. Never introduce unlisted plants even if typical for this climate. Common culprits: rhubarb, leeks, broad beans, garlic, onions, sweet peas, asparagus, potatoes, sweet corn, parsnips.
 SEASON RULE: Use Winter/Spring/Summer/Autumn for temperate and subtropical climates. For tropical or frost-free climates use Wet season/Dry season/Hot season/Cool season as appropriate — never force Winter/Summer labels onto a tropical garden.
 ENJOY RULE: Each observation must capture something actively happening THIS specific month. Residential garden scale only.
 ENJOY COUNT: Always write EXACTLY 2 ENJOY lines per month block — no more, no fewer.
