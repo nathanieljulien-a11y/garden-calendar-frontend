@@ -281,11 +281,11 @@ inventory_hygiene: The AUTHORITATIVE plant list is provided above — treat it a
 
 enjoy_quality: Do enjoy lines describe active events, behaviours, arrivals, or transitions — not static appearances? Warn if several are static. Fail if the majority are static.
 
-Return ONLY valid JSON, no markdown:
+Return ONLY valid JSON, no markdown, no prose. Keep notes concise (max 15 words each):
 {"scores":{"lifecycle_coverage":{"verdict":"pass|warn|fail","note":"one sentence with specific evidence"},"task_specificity":{"verdict":"pass|warn|fail","note":"..."},"climate_grounding":{"verdict":"pass|warn|fail","note":"..."},"language_register":{"verdict":"pass|warn|fail","note":"..."},"inventory_hygiene":{"verdict":"pass|warn|fail","note":"..."},"enjoy_quality":{"verdict":"pass|warn|fail","note":"..."}}}`;
 
   const raw = await callProxy("/api/call", {
-    model:"claude-sonnet-4-20250514", max_tokens:1200,
+    model:"claude-sonnet-4-20250514", max_tokens:2000,
     messages:[{role:"user", content:prompt}]
   });
   return JSON.parse(raw.replace(/```json|```/g,"").trim());
