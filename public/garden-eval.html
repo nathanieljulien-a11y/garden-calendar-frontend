@@ -261,7 +261,7 @@ climate_grounding: Check all of: (a) frost-free gardens have zero cold-protectio
 
 language_register: Precise and accessible to an amateur throughout. No unexplained jargon. No vague filler tasks. Warn for minor issues. Fail if pervasive.
 
-inventory_hygiene: Across all 12 months — (a) every one of the 18 listed plants appears in at least one task; (b) no unlisted plants are mentioned. This is evaluated across the FULL year, not a single batch. Warn if 1–2 plants are missing. Fail if 3+ plants are absent or any unlisted plant appears.
+inventory_hygiene: The AUTHORITATIVE plant list is provided above — treat it as ground truth. Before scoring, write out all 18 listed plants, then scan all 12 months of output and mark each plant as present or absent. (a) Any plant not appearing in at least one TASK across the full year = missing. (b) Any plant appearing in a TASK that is NOT in the authoritative list above = unlisted intruder. Double-check before flagging a plant as unlisted — confirm it is genuinely absent from the list above, not just unfamiliar to you. Warn if 1–2 listed plants are absent. Fail if 3+ listed plants are absent OR any genuinely unlisted plant appears.
 
 enjoy_quality: Do enjoy lines describe active events, behaviours, arrivals, or transitions — not static appearances? Warn if several are static. Fail if the majority are static.
 
