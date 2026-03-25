@@ -191,11 +191,13 @@ function buildPrompt(g, batch, allPlants, sowingLog) {
     : "No crops sown or planted in earlier batches yet.";
   const gardenRulesReminder = `
 GARDEN RULES REMINDER — apply these for every task in this batch:
-INVENTORY: The complete plant list for this garden is: ${allPlantsList}. Before writing every TASK line ask: is this plant in the list above? If not — delete and replace. Never introduce unlisted plants. Named culprits that commonly appear uninvited: potato, rhubarb, sweet peas, asparagus, broad beans, garlic — exclude unless explicitly listed.
+INVENTORY: The complete plant list for this garden is: ${allPlantsList}. Before writing every TASK line ask: is this plant in the list above? If not — delete and replace. Never introduce unlisted plants. Named culprits that commonly appear uninvited: rhubarb, leeks, broad beans, garlic, onions, sweet peas, asparagus, potatoes, sweet corn, parsnips — exclude all unless explicitly listed.
 FROST TIMING: Last spring frost: ${g.lastFrost}.${frostFree ? " Frost-free year-round — no cold protection tasks." : ` NEVER direct-sow or plant out frost-sensitive crops (tomatoes, courgettes, runner beans, French beans, peppers, aubergines, basil, dahlias) before this date. Indoor sowing is fine.`}
 ${sowingLogSummary}`;
 
+  const allPlantsFlat = Object.values(g.plants).flat().join(", ");
   return `You are an expert horticulturist and naturalist.
+THIS GARDEN'S COMPLETE PLANT LIST — the ONLY plants you may write tasks for: ${allPlantsFlat}.
 Location: ${g.city}. Orientation: ${g.orientation}. Plants: ${allPlants}. Date: ${MONTHS[new Date().getMonth()]} ${new Date().getFullYear()}.
 Climate: ${g.climate}.${southNote ? " " + southNote : ""}
 Last spring frost: ${g.lastFrost}. First autumn frost: ${g.firstFrost}.
