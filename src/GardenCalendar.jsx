@@ -2157,6 +2157,33 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
       : "";
     openFarmCtxRef.current = openFarmCtx;
 
+    // ── Knowledge-limited plant detection ────────────────────────────────────
+    // Flag vegetables and herbs where cultivation data is sparse:
+    // signal 1 — OpenFarm returned nothing for this plant
+    // signal 2 — GBIF occurrence count < 10, or plant couldn't be validated
+    // If both signals fire, mark the plant as knowledge-limited so the UI can
+    // show an inline advisory to check with the local horticultural society.
+    const knowledgeLimitedPlants = new Set();
+    const vegHerbEntries = [
+      ...plants.vegetables.map(p => ({ p, cat: "vegetables" })),
+      ...plants.herbs.map(p => ({ p, cat: "herbs" })),
+    ];
+    vegHerbEntries.forEach(({ p }) => {
+      const noOpenFarm = !openFarmData[p.toLowerCase()];
+      const occ = occurrenceByName[p] ?? plantMetaRef.current[p]?.occurrence ?? null;
+      const lowOccurrence = occ === null || occ.count < 10;
+      if (noOpenFarm && lowOccurrence) knowledgeLimitedPlants.add(p);
+    });
+    if (knowledgeLimitedPlants.size > 0) {
+      setPlantMeta(prev => {
+        const next = { ...prev };
+        knowledgeLimitedPlants.forEach(p => {
+          next[p] = { ...(next[p] || {}), knowledgeLimited: true };
+        });
+        return next;
+      });
+    }
+
     // Build rich climate context from real OpenMeteo data
     const metaCtx = m?._cd && m?._derived
       ? `\nREAL CLIMATE DATA for ${city} (10-year averages, Open-Meteo/ERA5):\n${buildClimateContext(m._cd, m._derived)}`
@@ -2240,7 +2267,7 @@ TIMING RULES — use the real climate data above, not assumptions:
 - Lawn feed: spring/summer blend only. NEVER apply during coldest 3 months.
 - ${m?._derived?.seasonNote ? `HEMISPHERE/SEASON: ${m._derived.seasonNote}` : ""}
 
-INVENTORY RULE: ONLY suggest tasks for plants listed in this garden. Do NOT introduce unlisted plants. Always refer to plants by their common name as listed — never use scientific names in task or enjoy text.
+INVENTORY RULE: ONLY suggest tasks for plants explicitly listed in this garden's inventory above. Before writing every single TASK line, ask: "Is this plant in the inventory list?" If no — do not write the task. Delete it and replace it with a task for a plant that IS in the list. Common garden plants that are NOT in this inventory (e.g. rhubarb, sweet peas, asparagus, broad beans, garlic) must never appear in tasks even if they would typically grow in this climate. Always refer to plants by their common name as listed — never use scientific names in task or enjoy text.
 
 SPECIFICITY RULE: Every TASK must include a measurement, plant part, method, or timing cue.
 FAIL: "Prune apple" / "Feed lawn" / "Check for pests" / "Water plants"
@@ -2252,7 +2279,7 @@ Other rules:
 - SUN: avg daily hours adjusted for ${orientation}. One decimal.
 - TASK: 3 lines in winter months (Nov–Mar); up to 4 lines in peak months (Apr–Oct). Include at least one task referencing a garden feature (${features.length ? features.join(", ") : "any features present"}) where seasonally relevant.
 - ENJOY: exactly 2 lines. At least one wildlife or seasonal visitor.
-- SEASON: Winter/Spring/Summer/Autumn only
+- SEASON: Winter/Spring/Summer/Autumn for temperate and subtropical climates. For tropical or frost-free climates use Wet season/Dry season/Hot season/Cool season as appropriate.
 - End each block with ---
 - Output all 12 months in order. NO other text.
 - Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;
@@ -2362,6 +2389,8 @@ ENJOY:Blackbird — males singing territorial song from the apple tree at first 
 
 CLIMATE-AWARE PLANT RULE: For any plant noted as "ornamental only" or "will not fruit in this climate", tasks must reflect what it actually does here — never suggest fruiting or warm-climate behaviour.
 FROST TIMING RULE: NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before the stated last spring frost date. Indoor sowing for later transplanting is fine before this date.
+INVENTORY RULE: Before writing every TASK line, ask: "Is this plant in the inventory list?" If no — do not write the task. Replace it with a task for a listed plant. Never introduce unlisted plants even if typical for this climate.
+SEASON RULE: Use Winter/Spring/Summer/Autumn for temperate and subtropical climates. For tropical or frost-free climates use Wet season/Dry season/Hot season/Cool season as appropriate — never force Winter/Summer labels onto a tropical garden.
 ENJOY RULE: Each observation must capture something actively happening THIS specific month. Residential garden scale only.
 ENJOY COUNT: Always write EXACTLY 2 ENJOY lines per month block — no more, no fewer.
 COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
@@ -3046,6 +3075,34 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
                   ))}
               </div>
             )}
+
+            {/* Knowledge-limited plant advisory — shown for veg/herbs where both
+                OpenFarm and GBIF occurrence data are absent. Soft advisory only,
+                never blocks generation. */}
+            {Object.entries(plantMeta).filter(([,m]) => m?.knowledgeLimited).length > 0 && (() => {
+              const society = meta?.country_code ? HORT_SOCIETY[meta.country_code.toLowerCase()] : null;
+              const limited = Object.entries(plantMeta).filter(([,m]) => m?.knowledgeLimited).map(([name]) => name);
+              return (
+                <div style={{maxWidth:"860px",margin:"0 auto .75rem",padding:"0 1rem"}}>
+                  <div style={{
+                    fontSize:".76rem",
+                    color:"rgba(122,172,207,.9)",
+                    background:"rgba(122,172,207,.07)",
+                    border:"1px solid rgba(122,172,207,.22)",
+                    borderRadius:"4px",
+                    padding:".35rem .65rem",
+                    lineHeight:"1.55",
+                  }}>
+                    📚 <strong>{limited.join(", ")}</strong> — limited open cultivation data available.
+                    Growing advice is based on Claude's general knowledge.
+                    {society
+                      ? <> Verify timing with the <a href={`https://${society.url}`} target="_blank" rel="noopener" style={{color:"inherit"}}>{society.name}</a>.</>
+                      : <> Verify timing with your national horticultural society.</>
+                    }
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* References panel — open with pending message until meta arrives */}
 
