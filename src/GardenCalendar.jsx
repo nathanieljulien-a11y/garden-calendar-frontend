@@ -1185,7 +1185,7 @@ async function fetchNominatim(cityString) {
 //    without setState being called hundreds of times per second.
 //
 // onMonthUpdate(allMonthsSnapshot) — receives the full months map each flush.
-function makeLineParser(onFlush) {
+function makeLineParser(onFlush, sunByMonth = {}, onSowingMention = null) {
   const monthsMap = {};
   let lineBuffer  = "";
   let currentName = null;
@@ -1226,6 +1226,8 @@ function makeLineParser(onFlush) {
       const name = l.slice(6).trim();
       if (!MONTH_NAMES.includes(name)) return;
       monthsMap[name] = { ...emptyMonth(name), _state:"active" };
+      // Inject real sun hours from Open-Meteo — never rely on model-generated SUN: field
+      if (sunByMonth[name] != null) monthsMap[name].sunHours = sunByMonth[name];
       currentName = name;
       lastPrefix = null;
       scheduleFlush();
@@ -1238,8 +1240,18 @@ function makeLineParser(onFlush) {
     if (l === "---") { lastPrefix = null; commitCurrent(); return; }
 
     if      (l.startsWith("SEASON:")) { m.season      = l.slice(7).trim();  lastPrefix = null; }
-    else if (l.startsWith("SUN:"))    { m.sunHours    = parseFloat(l.slice(4)); lastPrefix = null; }
-    else if (l.startsWith("TASK:"))   { m.tasks.push(l.slice(5).trim());  m._taskPartial  = null; lastPrefix = "TASK:"; }
+    else if (l.startsWith("SUN:"))    { /* ignored — sun hours come from Open-Meteo via sunByMonth */ lastPrefix = null; }
+    else if (l.startsWith("TASK:"))   {
+      const taskText = l.slice(5).trim();
+      m.tasks.push(taskText);
+      m._taskPartial = null;
+      lastPrefix = "TASK:";
+      // Extract sowing/planting mentions for the cross-batch reminder
+      if (onSowingMention) {
+        const sowMatch = taskText.match(/\b(sow|plant|start|transplant|propagate)\b.{0,60}/i);
+        if (sowMatch) onSowingMention(`${currentName}: ${sowMatch[0].trim()}`);
+      }
+    }
     else if (l.startsWith("ENJOY:"))  { m.enjoy.push(l.slice(6).trim());  m._enjoyPartial = null; lastPrefix = "ENJOY:"; }
     else if (l.startsWith("INAME:"))  { m.inspiration = { ...(m.inspiration||{}), name:     l.slice(6).trim() }; lastPrefix = null; }
     else if (l.startsWith("ILOC:"))   { m.inspiration = { ...(m.inspiration||{}), location: l.slice(5).trim() }; lastPrefix = null; }
@@ -1826,6 +1838,8 @@ export default function GardenCalendar() {
   const parserRef     = useRef(null);
   const uiIntervalRef = useRef(null);
   const openFarmCtxRef = useRef(""); // stores OpenFarm context for reuse in loadMoreMonths
+  const sowingLogRef   = useRef([]); // accumulates sown/planted crops across batches for reminder
+  const sunByMonthRef  = useRef({}); // { "January": 1.8, ... } from Open-Meteo, replaces SUN: field
   const calTopRef     = useRef(null);
   const monthRefs     = useRef({});  // name -> DOM node
   const scrollArrowRef = useRef(null);
@@ -2001,6 +2015,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     userNavigatedRef.current = false;
     setInspos({}); setInsights({state:"idle", items:[]});
     setShowArrow(true);
+    sowingLogRef.current = []; // reset sowing log for fresh generation
     setPlantMeta(prev => {
       const next = {};
       Object.entries(prev).forEach(([k, v]) => { next[k] = { ...v, occurrence: undefined }; });
@@ -2189,6 +2204,22 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
       ? `\nREAL CLIMATE DATA for ${city} (10-year averages, Open-Meteo/ERA5):\n${buildClimateContext(m._cd, m._derived)}`
       : m ? `Zone:${m.zone}. Last frost:${m.lastFrost}. First frost:${m.firstFrost}. Climate:${m.climate}.` : "";
 
+    // ── Sun hours from Open-Meteo — replaces SUN: model generation ───────────
+    // cd.sunHrs is a 12-element array indexed Jan=0…Dec=11 from Open-Meteo.
+    // We map it to a month-name lookup and store in a ref for loadMoreMonths.
+    // The line parser will pre-populate sunHours from this map when a MONTH: header
+    // is encountered, so the model never needs to generate SUN: values.
+    if (m?._cd?.sunHrs) {
+      const lookup = {};
+      MONTH_NAMES.forEach((name, i) => {
+        const raw = m._cd.sunHrs[i];
+        lookup[name] = raw != null ? Math.round(raw * 10) / 10 : null;
+      });
+      sunByMonthRef.current = lookup;
+    } else {
+      sunByMonthRef.current = {};
+    }
+
     // Build allPlants NOW — after occurrence data is available in occurrenceByName
     // enrichedPlantName reads from plantMeta but React hasn't re-rendered yet,
     // so we pass occurrence data directly via a local lookup
@@ -2210,7 +2241,6 @@ Use ONLY this exact line format. No extra text, no markdown, no explanation.
 
 MONTH:February
 SEASON:Winter
-SUN:2.5
 TASK:Cut ALL autumn-fruiting raspberry canes to ground level, clearing old growth
 TASK:Sow sweet peas singly in 7cm root trainers on a bright frost-free windowsill
 ENJOY:Forsythia — tight yellow buds swelling on bare stems, days from opening
@@ -2218,7 +2248,6 @@ ENJOY:Blackbird — males singing territorial song from the apple tree at first 
 ---
 MONTH:June
 SEASON:Summer
-SUN:7.5
 TASK:Trim rosemary and thyme lightly after flowering, cutting only green leafy growth
 TASK:Pot up strawberry runners into 9cm pots, pinning into compost while still attached
 TASK:Pinch fig shoot tips to 5 leaves to concentrate energy into swelling fruitlets
@@ -2276,7 +2305,6 @@ PASS: "Summer prune apple laterals to 3 leaves above basal cluster" / "Apply 35g
 ENJOY FORMAT: Start every ENJOY line with the subject (plant, bird, insect or phenomenon) followed by an em-dash, then a short concrete observation.
 
 Other rules:
-- SUN: avg daily hours adjusted for ${orientation}. One decimal.
 - TASK: 3 lines in winter months (Nov–Mar); up to 4 lines in peak months (Apr–Oct). Include at least one task referencing a garden feature (${features.length ? features.join(", ") : "any features present"}) where seasonally relevant.
 - ENJOY: exactly 2 lines. At least one wildlife or seasonal visitor.
 - SEASON: Winter/Spring/Summer/Autumn for temperate and subtropical climates. For tropical or frost-free climates use Wet season/Dry season/Hot season/Cool season as appropriate.
@@ -2293,7 +2321,7 @@ Other rules:
         Object.keys(snapshot).forEach(k => { next[k] = snapshot[k]; });
         return next;
       });
-    });
+    }, sunByMonthRef.current, (entry) => { sowingLogRef.current.push(entry); });
     parserRef.current = parser1;
 
     chunkCountRef.current = 0;
@@ -2373,15 +2401,30 @@ Other rules:
         }).join(", ")}`
       : null).filter(Boolean).join(" | ")||"general/unspecified mix";
 
+    // Garden rules reminder — re-stated every batch so rules don't drift across 4 API calls.
+    // Includes: full inventory list, frost date + sensitive crop list, sowing log from prior batches.
+    const allPlantsList = Object.values(plants).flat().join(", ");
+    const lastFrost = m?._derived?.lastFrost || m?.lastFrost || "none";
+    const frostFree = lastFrost === "none";
+    const sowingLogSummary = sowingLogRef.current.length > 0
+      ? `Already sown/planted in earlier months (do not duplicate):\n${sowingLogRef.current.slice(-12).join("\n")}`
+      : "No crops sown or planted in earlier batches yet.";
+
+    const gardenRulesReminder = `
+GARDEN RULES REMINDER — apply these for every task in this batch:
+INVENTORY: The complete plant list for this garden is: ${allPlantsList}. Before writing every TASK line ask: is this plant in the list above? If not — delete and replace. Never introduce unlisted plants.
+FROST TIMING: Last spring frost: ${lastFrost}.${frostFree ? " Frost-free year-round — no cold protection tasks." : ` NEVER direct-sow or plant out frost-sensitive crops (tomatoes, courgettes, runner beans, French beans, peppers, aubergines, basil, dahlias) before this date. Indoor sowing is fine before this date.`}
+${sowingLogSummary}`;
+
     const batchPrompt = `You are an expert horticulturist and naturalist.
 Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtxRef.current}
+${gardenRulesReminder}
 
 Output EXACTLY ${nextBatch.length} blocks in this order: ${nextBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
 
 MONTH:February
 SEASON:Winter
-SUN:2.5
 TASK:Cut ALL autumn-fruiting raspberry canes to ground level, clearing old growth
 ENJOY:Forsythia — tight yellow buds swelling on bare stems, days from opening
 ENJOY:Blackbird — males singing territorial song from the apple tree at first light
@@ -2407,7 +2450,7 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     const parser = makeLineParser((snapshot) => {
       setMonths(prev => ({...prev, ...snapshot}));
       setChunkCount(c => c+1);
-    });
+    }, sunByMonthRef.current, (entry) => { sowingLogRef.current.push(entry); });
     parserRef.current = parser;
 
     try {
