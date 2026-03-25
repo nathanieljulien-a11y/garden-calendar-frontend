@@ -262,14 +262,18 @@ CONTEXT:
 City: ${g.city} | Climate: ${g.climate}
 Hemisphere: ${g.hemi==="S"?"Southern (summer=Dec–Feb, winter=Jun–Aug)":"Northern"}
 Last frost: ${g.lastFrost} | First frost: ${g.firstFrost} | Frost-free: ${frostFree?"YES":"NO"}
-Full inventory (18 plants): ${allPlants.join(", ")}
+AUTHORITATIVE PLANT INVENTORY — memorise before reading output:
+${allPlants.map((p,i) => (i+1)+". "+p).join("\n")}
 
 FULL 12-MONTH CALENDAR OUTPUT:
 ${fullOutput}
 
+PLANT INVENTORY REMINDER — every task must reference only these plants:
+${allPlants.join(", ")}
+
 SCORING DIMENSIONS:
 
-lifecycle_coverage: Scan ALL 12 months of output before verdicting. For each plant category (trees, shrubs, flowers, vegetables, fruit, herbs), list every task found across all months, then judge whether key lifecycle stages are covered. A sowing task in February counts even if harvest is in August — judge the full year as one unit. Only fail if a category is genuinely absent from all 12 months or has only generic/vague tasks throughout. Warn if one category is thin but present.
+lifecycle_coverage: Scan ALL 12 months of output before verdicting. For each plant category (trees, shrubs, flowers, vegetables, fruit, herbs), list every task found across all months, then judge whether key lifecycle stages are covered. A sowing task in February counts even if harvest is in August — judge the full year as one unit. Only fail if a category is genuinely absent from all 12 months or has only generic/vague tasks throughout. Warn if one category is thin but present. NOTE: tulip/bulb planting in late winter or early spring (Jan–Mar) is acceptable late planting practice — do not penalise this.
 
 season_labels: For tropical/equatorial climates (Bangkok, Singapore etc.) SEASON labels of Wet/Dry or Cool/Hot are acceptable and correct — do NOT penalise for using these instead of Winter/Summer. For southern hemisphere gardens, Summer should appear in Dec–Feb months and Winter in Jun–Aug months.
 
@@ -279,7 +283,7 @@ climate_grounding: Check all of: (a) frost-free gardens have zero cold-protectio
 
 language_register: Precise and accessible to an amateur throughout. No unexplained jargon. No vague filler tasks. Warn for minor issues. Fail if pervasive.
 
-inventory_hygiene: SCOPE: this dimension measures ONLY two things — (1) are listed plants present in tasks, and (2) do unlisted plants appear in tasks. Nothing else. Do NOT comment on task repetition, padding, task quality, or how many times a plant appears — those belong in other dimensions. CRITICAL: rules apply to TASK lines ONLY, never ENJOY lines. ENJOY lines may freely reference wildlife, wild plants, or seasonal phenomena outside the inventory. Procedure: list all 18 inventory plants, scan TASK lines across all 12 months, mark each as present or absent. Acceptable absences: purely ornamental trees/shrubs with no realistic cultivation task (birch, ornamental cherry) may appear only in ENJOY. Vegetables, fruit, and herbs must appear in at least one TASK. Shrubs and flowers should appear in at least one TASK. Unlisted plant in any TASK = fail. Warn if 1–2 cultivated plants lack tasks. Fail if 3+ cultivated plants lack tasks OR any unlisted plant appears in tasks.
+inventory_hygiene: SCOPE: this dimension measures ONLY two things — (1) are listed plants present in tasks, and (2) do unlisted plants appear in tasks. Nothing else. Do NOT comment on task repetition, duplicate tasks across months, padding, task quality, or how many times a plant appears — a plant pruned twice in different months is correct horticultural practice, not a violation. Those concerns belong in other dimensions. CRITICAL: rules apply to TASK lines ONLY, never ENJOY lines. ENJOY lines may freely reference wildlife, wild plants, or seasonal phenomena outside the inventory. Procedure: list all 18 inventory plants, scan TASK lines across all 12 months, mark each as present or absent. Acceptable absences: purely ornamental trees/shrubs with no realistic cultivation task (birch, ornamental cherry) may appear only in ENJOY. Vegetables, fruit, and herbs must appear in at least one TASK. Shrubs and flowers should appear in at least one TASK. Unlisted plant in any TASK = fail. Warn if 1–2 cultivated plants lack tasks. Fail if 3+ cultivated plants lack tasks OR any unlisted plant appears in tasks.
 
 enjoy_quality: Do enjoy lines describe active events, behaviours, arrivals, or transitions — not static appearances? Warn if several are static. Fail if the majority are static.
 
