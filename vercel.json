@@ -1,3 +1,6 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/" }]
+  "rewrites": [
+    { "source": "/garden-eval.html", "destination": "/garden-eval.html" },
+    { "source": "/(.*)", "destination": "/" }
+  ]
 }
