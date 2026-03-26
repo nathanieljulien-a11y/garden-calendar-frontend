@@ -2178,12 +2178,37 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     // signal 2 — GBIF occurrence count < 10, or plant couldn't be validated
     // If both signals fire, mark the plant as knowledge-limited so the UI can
     // show an inline advisory to check with the local horticultural society.
+    //
+    // Whitelist: well-known cultivated plants that are absent from OpenFarm/GBIF
+    // for structural reasons (OpenFarm skews North American; GBIF records wild
+    // botanical sightings not garden cultivation). These plants are widely grown
+    // and well-documented — Claude's knowledge of them is reliable.
+    const KNOWLEDGE_WHITELIST = new Set([
+      // Common European/global herbs
+      "mint","thyme","oregano","rosemary","basil","parsley","chives","sage",
+      "dill","fennel","tarragon","marjoram","chervil","bay","lavender","lemon thyme",
+      "lemon balm","sorrel","lovage","savory","winter savory","summer savory",
+      // Common vegetables
+      "tomato","courgette","cucumber","pepper","aubergine","carrot","potato",
+      "onion","garlic","leek","spinach","lettuce","kale","chard","peas",
+      "runner bean","french bean","broad bean","beetroot","radish","turnip",
+      "broccoli","cauliflower","cabbage","brussels sprouts","celery","sweetcorn",
+      "squash","pumpkin","sweet potato","parsnip","swede","spring onion",
+      // Common fruit
+      "strawberry","raspberry","blackcurrant","redcurrant","gooseberry",
+      "apple","pear","plum","cherry","peach","apricot","fig","grape",
+      "blueberry","blackberry","rhubarb",
+    ]);
+
     const knowledgeLimitedPlants = new Set();
     const vegHerbEntries = [
       ...plants.vegetables.map(p => ({ p, cat: "vegetables" })),
       ...plants.herbs.map(p => ({ p, cat: "herbs" })),
     ];
     vegHerbEntries.forEach(({ p }) => {
+      // Skip whitelisted plants — absence from OpenFarm/GBIF is a database gap,
+      // not a knowledge gap
+      if (KNOWLEDGE_WHITELIST.has(p.toLowerCase())) return;
       const noOpenFarm = !openFarmData[p.toLowerCase()];
       const occ = occurrenceByName[p] ?? plantMetaRef.current[p]?.occurrence ?? null;
       const lowOccurrence = occ === null || occ.count < 10;
@@ -2393,7 +2418,8 @@ Other rules:
       `Hardiness zone: ${m.zone}`,
       `Last frost: ${m.lastFrost}`, `First frost: ${m.firstFrost}`,
       `Hemisphere: ${m.hemisphere}`,
-    ].join(". ") : "";
+      m._derived?.seasonNote ? `IMPORTANT: ${m._derived.seasonNote}` : "",
+    ].filter(Boolean).join(". ") : "";
     const allPlants = Object.entries(plants).map(([k,v])=>v.length
       ? `${k}: ${v.map(p => {
           const pm = plantMetaRef.current[p] || {};
@@ -2434,7 +2460,7 @@ ENJOY:Blackbird — males singing territorial song from the apple tree at first 
 CLIMATE-AWARE PLANT RULE: For any plant noted as "ornamental only" or "will not fruit in this climate", tasks must reflect what it actually does here — never suggest fruiting or warm-climate behaviour.
 FROST TIMING RULE: NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before the stated last spring frost date. Indoor sowing for later transplanting is fine before this date.
 INVENTORY RULE: Before writing every TASK line, ask: "Is this plant in the inventory list?" If no — do not write the task. Replace it with a task for a listed plant. Never introduce unlisted plants even if typical for this climate. Common culprits: rhubarb, leeks, broad beans, garlic, onions, sweet peas, asparagus, potatoes, sweet corn, parsnips.
-SEASON RULE: Use Winter/Spring/Summer/Autumn for temperate and subtropical climates. For tropical or frost-free climates use Wet season/Dry season/Hot season/Cool season as appropriate — never force Winter/Summer labels onto a tropical garden.
+SEASON RULE: Use Winter/Spring/Summer/Autumn for temperate and subtropical climates. For tropical or frost-free climates use Wet season/Dry season/Hot season/Cool season as appropriate. SOUTHERN HEMISPHERE: Summer=Dec–Feb, Autumn=Mar–May, Winter=Jun–Aug, Spring=Sep–Nov — never label February as Winter or June as Summer in a southern hemisphere garden.
 ENJOY RULE: Each observation must capture something actively happening THIS specific month. Residential garden scale only.
 ENJOY COUNT: Always write EXACTLY 2 ENJOY lines per month block — no more, no fewer.
 COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
