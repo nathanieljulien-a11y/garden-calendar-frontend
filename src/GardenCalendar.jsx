@@ -2284,13 +2284,20 @@ ENJOY:Lavender — first purple spikes opening at the tips, bees working methodi
 CLIMATE-AWARE PLANT RULE — apply before writing any task or enjoy for a plant:
 Some plants in the inventory carry a note like "ornamental only", "will not fruit in this climate", or "conservatory". For these plants: tasks must reflect what the plant actually DOES in this climate (overwintering, foliage care, pot management) — never suggest fruiting, harvesting fruit, or flowering behaviour that requires a warmer climate. A banana in a temperate garden gets tasks about protecting the crown in winter and cutting back frost-damaged stems — not about fruiting. A bougainvillea on a sheltered wall gets watering and frost-fleece tasks — not about vigorous outdoor climbing.
 
+CLIMATE HAZARD RULE — read the season note in the climate data above and act on it:
+If the season note mentions wind (e.g. Mistral, Tramontane, coastal exposure): include at least one wind-aware task per month in the growing season — staking tall plants, sheltering tender transplants, securing climbers, windbreak advice for the vegetable patch.
+If the season note mentions drought or summer heat: include water conservation tasks in peak summer months — mulching, irrigation timing, shade cloth for vulnerable crops.
+If the season note mentions high humidity or disease pressure: include preventive disease tasks — leaf hygiene, airflow pruning, fungicide timing.
+Apply these throughout the year, not just when the hazard is at its worst — preparation in April prevents losses in July.
+
 ENJOY RULE — apply before writing every ENJOY line:
-Each observation must capture something actively happening or transitioning THIS specific month — an emergence, arrival, behaviour, or sensory shift. Never a static description of appearance.
+Each observation must capture something actively happening or transitioning THIS specific month — an emergence, arrival, behaviour, or sensory shift. Push for geographic and sensory specificity: name the sound, the scent, the time of day, the exact behaviour. A line that could describe any garden anywhere is not good enough — aim for something that could only be written for this location, this month, this garden.
 SCALE RULE — this is a residential town garden, NOT a stately home or nature reserve. Every wildlife observation must be plausible in a small urban garden. Ask: could a person realistically see this from their kitchen window in a city?
-PASS: Robin singing from a fence post. Blackbird foraging under shrubs. Swift passing overhead. Bumblebee on lavender.
+PASS: Robin singing from a fence post. Blackbird foraging under shrubs. Swift passing overhead. Bumblebee on lavender. Wall lizard basking on warm paving. Cicada chorus from the cypress tops.
 FAIL: Murmuration of starlings (landscape-scale). Barn owl hunting (farmland). Deer grazing. Red kite circling (rural).
 GOOD: "Forsythia — tight yellow buds swelling on bare stems, days from opening"
-GOOD: "Swift — screaming low over the raised beds in tight formation, hawking insects"
+GOOD: "Cicada — the rhythmic metallic buzzing reaching a crescendo from the cypress tops in the afternoon heat"
+GOOD: "Mimosa — thousands of yellow pompom flowers bursting open, scenting the air with honey"
 BAD: "Lavender — purple flowers in the garden" / "Roses — beautiful blooms"
 
 COVERAGE MANDATE — plan this before writing any months.
@@ -2458,10 +2465,11 @@ ENJOY:Blackbird — males singing territorial song from the apple tree at first 
 ---
 
 CLIMATE-AWARE PLANT RULE: For any plant noted as "ornamental only" or "will not fruit in this climate", tasks must reflect what it actually does here — never suggest fruiting or warm-climate behaviour.
+CLIMATE HAZARD RULE: If the climate data mentions wind (Mistral, Tramontane, coastal exposure): include at least one wind-aware task per growing-season month — staking, sheltering transplants, securing climbers. If drought or summer heat: include water conservation tasks. If humidity or disease pressure: include preventive disease tasks.
 FROST TIMING RULE: NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before the stated last spring frost date. Indoor sowing for later transplanting is fine before this date.
 INVENTORY RULE: Before writing every TASK line, ask: "Is this plant in the inventory list?" If no — do not write the task. Replace it with a task for a listed plant. Never introduce unlisted plants even if typical for this climate. Common culprits: rhubarb, leeks, broad beans, garlic, onions, sweet peas, asparagus, potatoes, sweet corn, parsnips.
 SEASON RULE: Use Winter/Spring/Summer/Autumn for temperate and subtropical climates. For tropical or frost-free climates use Wet season/Dry season/Hot season/Cool season as appropriate. SOUTHERN HEMISPHERE: Summer=Dec–Feb, Autumn=Mar–May, Winter=Jun–Aug, Spring=Sep–Nov — never label February as Winter or June as Summer in a southern hemisphere garden.
-ENJOY RULE: Each observation must capture something actively happening THIS specific month. Residential garden scale only.
+ENJOY RULE: Each observation must capture something actively happening THIS specific month with sensory and geographic specificity — name the sound, scent, time of day, or exact behaviour. A line that could describe any garden anywhere is not good enough. Residential garden scale only.
 ENJOY COUNT: Always write EXACTLY 2 ENJOY lines per month block — no more, no fewer.
 COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
 LIFECYCLE: Apply correct pruning timing for each plant type.
