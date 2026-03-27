@@ -2322,8 +2322,10 @@ LIFECYCLE RULES — apply before every pruning task:
 - Apple: summer prune new laterals to 3 leaves above basal cluster (Jul–Aug). Structural prune late Feb only — not January.
 - Raspberries: autumn-fruiting → cut ALL canes to ground level in Feb. Summer-fruiting → cut only fruited canes after harvest in Aug.
 - Oleander: evergreen and frost-tender — NEVER hard prune in winter. Prune in late summer after flowering (Aug–Sep) or in spring once frost risk has passed. Hard pruning in winter exposes new growth to cold damage.
-- Mediterranean stone fruit harvest windows: Peach and Apricot ripen Jun–Sep in Zone 9–10 (never November). Cherry ripens May–Jul. Fig has two crops — Breba figs Jun–Jul, main crop Aug–Oct.
+- Mediterranean stone fruit harvest windows: Peach and Apricot ripen Jun–Sep in Zone 9–10 (never November). Cherry ripens May–Jun in Zone 9–10 (not July — birds finish them by then). Fig has two crops — Breba figs Jun–Jul, main crop Aug–Oct. Do NOT reference peach, apricot or cherry after their harvest window ends — no "final leaves", no "last fruits" in October/November.
+- Mediterranean bloom timing: Almond blooms January–February in Zone 9–10 (not March — by March it has green leaves). Peach blooms February–March in Zone 9–10 (not April/May — by May the tree has small green fruits). Never place almond or peach blossom enjoyment after March.
 - Mimosa (Acacia dealbata): blooms January–February in Mediterranean climates. By March flowers are fading. Do NOT place mimosa bloom enjoyment in spring or summer months.
+- Iris: Mediterranean iris (Iris germanica) grows from rhizomes NOT bulbs. Rhizomes must sit ON the soil surface, half-exposed to bake in the sun — never buried deep. NEVER say "plant iris bulbs 10cm deep" — this causes rot. Say "plant iris rhizomes with the top half exposed at soil surface".
 
 TIMING RULES — use the real climate data above, not assumptions:
 - Last spring frost ${m?._derived?.lastFrost || m?.lastFrost || "mid-March"}: no tender crops outdoors before this. NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before this date. Indoor sowing for later transplanting is fine before this date.
@@ -2476,7 +2478,7 @@ SEASON RULE: Use Winter/Spring/Summer/Autumn for temperate and subtropical clima
 ENJOY RULE: Each observation must capture something actively happening THIS specific month with sensory and geographic specificity — name the sound, scent, time of day, or exact behaviour. A line that could describe any garden anywhere is not good enough. Residential garden scale only.
 ENJOY COUNT: Always write EXACTLY 2 ENJOY lines per month block — no more, no fewer.
 COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
-LIFECYCLE: Apply correct pruning timing for each plant type.
+LIFECYCLE: Apply correct pruning timing. Key rules: Oleander — NEVER prune in winter, prune Aug–Sep after flowering only. Stone fruit harvest windows: peach/apricot Jun–Sep, cherry May–Jun (done by July). Fig: breba Jun–Jul, main Aug–Oct. Do NOT reference stone fruit after their harvest window. Bloom timing: almond and peach bloom Feb–Mar (not April/May — green fruit by then); mimosa Jan–Feb only. Iris: plant rhizomes with top half exposed at soil surface — NEVER bury 10cm deep (causes rot). Spring-bloomers (forsythia, camellia): prune only after flowering May–Jun. Lavender: trim August only.
 Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;
 
     // Init the new months as pending
