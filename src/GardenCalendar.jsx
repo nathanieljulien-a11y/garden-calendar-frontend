@@ -2297,7 +2297,8 @@ PASS: Robin singing from a fence post. Blackbird foraging under shrubs. Swift pa
 FAIL: Murmuration of starlings (landscape-scale). Barn owl hunting (farmland). Deer grazing. Red kite circling (rural).
 GOOD: "Forsythia — tight yellow buds swelling on bare stems, days from opening"
 GOOD: "Cicada — the rhythmic metallic buzzing reaching a crescendo from the cypress tops in the afternoon heat"
-GOOD: "Mimosa — thousands of yellow pompom flowers bursting open, scenting the air with honey"
+GOOD: "Mimosa — thousands of yellow pompom flowers bursting open, scenting the air with honey" (January–February only in Mediterranean climates)
+GOOD: "Wall lizard — emerging to bask on sun-warmed paving stones during the midday heat"
 BAD: "Lavender — purple flowers in the garden" / "Roses — beautiful blooms"
 
 COVERAGE MANDATE — plan this before writing any months.
@@ -2320,6 +2321,9 @@ LIFECYCLE RULES — apply before every pruning task:
 - Rosemary, Thyme, Sage: FULLY HARDY in most UK and temperate climates — do NOT suggest lifting or bringing indoors for winter. Light trim after flowering only. Never cut into old leafless wood.
 - Apple: summer prune new laterals to 3 leaves above basal cluster (Jul–Aug). Structural prune late Feb only — not January.
 - Raspberries: autumn-fruiting → cut ALL canes to ground level in Feb. Summer-fruiting → cut only fruited canes after harvest in Aug.
+- Oleander: evergreen and frost-tender — NEVER hard prune in winter. Prune in late summer after flowering (Aug–Sep) or in spring once frost risk has passed. Hard pruning in winter exposes new growth to cold damage.
+- Mediterranean stone fruit harvest windows: Peach and Apricot ripen Jun–Sep in Zone 9–10 (never November). Cherry ripens May–Jul. Fig has two crops — Breba figs Jun–Jul, main crop Aug–Oct.
+- Mimosa (Acacia dealbata): blooms January–February in Mediterranean climates. By March flowers are fading. Do NOT place mimosa bloom enjoyment in spring or summer months.
 
 TIMING RULES — use the real climate data above, not assumptions:
 - Last spring frost ${m?._derived?.lastFrost || m?.lastFrost || "mid-March"}: no tender crops outdoors before this. NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before this date. Indoor sowing for later transplanting is fine before this date.
