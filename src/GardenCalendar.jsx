@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Analytics } from "@vercel/analytics/react";
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
@@ -1994,7 +1995,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     }
   },[city,orientation,apiKey,prefetchMeta]);
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Submit ──────────────────────────────────��──────────────────────────────
   const handleSubmit = async () => {
     if (!city||!orientation) { setError("Please fill in city and orientation."); return; }
     setRateLimitMsg("");
@@ -3358,6 +3359,7 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
           </div>
         )}
       </div>
+      <Analytics />
     </>
   );
 }
