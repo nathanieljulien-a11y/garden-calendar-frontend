@@ -554,7 +554,24 @@ const COMMON_TO_SCIENTIFIC = {
   "viburnum":   "Viburnum",
   "photinia":   "Photinia fraseri",  // Red Robin — most common UK garden photinia
   "photinias":  "Photinia fraseri",
-  // Additional common names missing from GBIF name backbone
+  // Compound and informal names users commonly type
+  "rose bush":      "Rosa",
+  "rose bushes":    "Rosa",
+  "rose tree":      "Rosa",
+  "climbing rose":  "Rosa",
+  "shrub rose":     "Rosa",
+  "bush rose":      "Rosa",
+  "olive tree":     "Olea europaea",
+  "fig tree":       "Ficus carica",
+  "apple tree":     "Malus",
+  "lemon tree":     "Citrus limon",
+  "lemon":          "Citrus limon",
+  "lemons":         "Citrus limon",
+  "cherry tree":    "Prunus avium",
+  "peach tree":     "Prunus persica",
+  "pear tree":      "Pyrus",
+  "plum tree":      "Prunus domestica",
+    // Additional common names missing from GBIF name backbone
   "holly":       "Ilex aquifolium",
   "hollies":     "Ilex aquifolium",
   "olive":       "Olea europaea",
@@ -2320,7 +2337,10 @@ LIFECYCLE RULES — apply before every pruning task:
 - Lavender: trim in August after flowering to base of spike. Spring: remove frost-damaged tips 2–3cm max only. NO hard prune ever.
 - Rosemary, Thyme, Sage: FULLY HARDY in most UK and temperate climates — do NOT suggest lifting or bringing indoors for winter. Light trim after flowering only. Never cut into old leafless wood.
 - Apple: summer prune new laterals to 3 leaves above basal cluster (Jul–Aug). Structural prune late Feb only — not January.
-- Raspberries: autumn-fruiting → cut ALL canes to ground level in Feb. Summer-fruiting → cut only fruited canes after harvest in Aug.
+- Raspberries: autumn-fruiting → cut ALL canes to ground level in Feb. Summer-fruiting → cut only fruited canes IMMEDIATELY after harvest in Aug — not October, not later.
+- Peony: herbaceous perennial — cut back to ground level ONCE only in autumn (Oct–Nov) after foliage yellows and dies. NEVER cut back in spring or summer — removing green foliage in March, July, or September starves the tuber. One cut per year, in autumn only.
+- Agapanthus: evergreen varieties (most common in gardens) — NEVER cut foliage to ground level. Remove only spent flower stems and dead outer leaves. Only deciduous agapanthus can be cut back fully in winter.
+- Broad beans (southern hemisphere): winter crop — sow Mar–Jun, harvest Sep–Oct when pods are plump. NEVER place broad bean harvest in summer months (Dec–Feb) — pods will be tough, starchy and diseased by then.
 - Oleander: evergreen and frost-tender — NEVER hard prune in winter. Prune in late summer after flowering (Aug–Sep) or in spring once frost risk has passed. Hard pruning in winter exposes new growth to cold damage.
 - Mediterranean stone fruit harvest windows: Peach and Apricot ripen Jun–Sep in Zone 9–10 (never November). Cherry ripens May–Jun in Zone 9–10 (not July — birds finish them by then). Fig has two crops — Breba figs Jun–Jul, main crop Aug–Oct. Do NOT reference peach, apricot or cherry after their harvest window ends — no "final leaves", no "last fruits" in October/November.
 - Mediterranean bloom timing: Almond blooms January–February in Zone 9–10 (not March — by March it has green leaves). Peach blooms February–March in Zone 9–10 (not April/May — by May the tree has small green fruits). Never place almond or peach blossom enjoyment after March.
@@ -2329,6 +2349,7 @@ LIFECYCLE RULES — apply before every pruning task:
 
 TIMING RULES — use the real climate data above, not assumptions:
 - Last spring frost ${m?._derived?.lastFrost || m?.lastFrost || "mid-March"}: no tender crops outdoors before this. NEVER direct-sow or plant out frost-sensitive crops (runner beans, French beans, courgettes, tomatoes, peppers, aubergines, basil, dahlias) before this date. Indoor sowing for later transplanting is fine before this date.
+- Soil temperature matters as much as frost date: do not plant out tomatoes or basil until night temperatures are consistently above 10°C — even if frost risk has passed, cold soil causes phosphorus deficiency and stunted growth.
 - First autumn frost ${m?._derived?.firstFrost || m?.firstFrost || "mid-November"}: harvest or protect tender crops before this.
 - If frost-free year-round: no cold protection tasks needed. Focus on wet/dry season and heat management.
 - Lawn feed: spring/summer blend only. NEVER apply during coldest 3 months.
@@ -2478,7 +2499,7 @@ SEASON RULE: Use Winter/Spring/Summer/Autumn for temperate and subtropical clima
 ENJOY RULE: Each observation must capture something actively happening THIS specific month with sensory and geographic specificity — name the sound, scent, time of day, or exact behaviour. A line that could describe any garden anywhere is not good enough. Residential garden scale only.
 ENJOY COUNT: Always write EXACTLY 2 ENJOY lines per month block — no more, no fewer.
 COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
-LIFECYCLE: Apply correct pruning timing. Key rules: Oleander — NEVER prune in winter, prune Aug–Sep after flowering only. Stone fruit harvest windows: peach/apricot Jun–Sep, cherry May–Jun (done by July). Fig: breba Jun–Jul, main Aug–Oct. Do NOT reference stone fruit after their harvest window. Bloom timing: almond and peach bloom Feb–Mar (not April/May — green fruit by then); mimosa Jan–Feb only. Iris: plant rhizomes with top half exposed at soil surface — NEVER bury 10cm deep (causes rot). Spring-bloomers (forsythia, camellia): prune only after flowering May–Jun. Lavender: trim August only.
+LIFECYCLE: Key rules — Peony: cut back ONCE in autumn (Oct–Nov) only, never in spring or summer. Raspberries: summer-fruiting cut immediately after harvest in Aug, not October. Agapanthus: evergreen varieties — remove only spent flower stems and dead leaves, NEVER cut foliage to ground. Broad beans (S hemisphere): harvest Sep–Oct, not summer. Oleander: prune Aug–Sep only, never winter. Stone fruit: peach/apricot harvest Jun–Sep, cherry May–Jun. Almond/peach bloom Feb–Mar only. Mimosa Jan–Feb only. Iris: rhizomes at soil surface, top half exposed — never buried. Spring-bloomers: prune after flowering May–Jun only. Lavender: trim August only. Tomatoes/basil: plant out only when nights consistently above 10°C.
 Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;
 
     // Init the new months as pending
@@ -2610,9 +2631,7 @@ Respond entirely in ${langName()}.`,
 Location: ${city}. Orientation: ${orientation}. ${metaCtx}
 Plants in this garden: ${allPlants}${featuresCtx}
 ${occurrenceCtx ? `\nRegional occurrence data from GBIF (citizen science records within ~50km):\n${occurrenceCtx}\n` : ""}
-Review the plant list for any worth a gentle conversation given this climate and location.
-Consider cold hardiness, heat needs, sun/shade, and regional suitability.
-Where GBIF records are available, use occurrence count as supporting evidence — low counts may indicate marginal suitability.
+IMPORTANT: GBIF records wild botanical sightings, NOT cultivated garden plants. Low GBIF counts are completely normal for roses, olives, photinia, lavender, hydrangea, fruit trees — these are garden cultivars, not wild species. Do NOT flag plants as rare or unsuitable based on low GBIF counts alone. Only flag genuine climate suitability concerns: cold hardiness for tender plants, drought tolerance, heat requirements.
 
 Return ONLY valid JSON, no markdown:
 {
@@ -2620,17 +2639,18 @@ Return ONLY valid JSON, no markdown:
   "goodNewsLine": "<warm 1-sentence sign-off if all fine, else null>",
   "items": [
     {
-      "plant": "<name>",
-      "question": "<curious non-alarming question e.g. 'How is your fig coping in colder winters?'>",
-      "context": "<1 sentence: the specific challenge for this location>",
-      "suggestion": "<1 concrete tip: hardier variety, microclimate advice, or alternative>"
+      "plant": "<n>",
+      "question": "<curious non-alarming question e.g. \'How is your fig coping in colder winters?\'>",
+      "context": "<1 sentence: the specific climate challenge for this location>",
+      "suggestion": "<1 concrete tip: hardier variety, microclimate advice, or protection>"
     }
   ]
 }
 Rules:
-- Max 4 items. Only flag genuine concerns — skip anything broadly suitable.
-- If everything suits the location well, allLookingGood:true and empty items array.
-- Tone: curious and encouraging. "How is X doing?" not "X will fail."
+- Max 4 items. Only flag genuine climate concerns — skip anything broadly suitable or commonly grown here.
+- Never flag roses, olive, photinia, lavender, hydrangea, or standard European garden plants as rare or unsuitable for a temperate European garden.
+- If everything suits the location, allLookingGood:true and empty items array.
+- Tone: curious and encouraging. Never alarming.
 - context + suggestion together under 35 words per item.
 Respond entirely in ${langName()}.`, 700, undefined, apiKey);
       setInsights({state:"done", items:result.items||[], allLookingGood:result.allLookingGood, goodNewsLine:result.goodNewsLine});
