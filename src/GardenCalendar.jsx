@@ -1108,7 +1108,7 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
 
   if (useOwn && provider === "gemini") {
     // Gemini streaming via SSE
-    const model = "gemini-1.5-flash";
+    const model = "gemini-1.5-flash-latest";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${userKey}`;
     const res = await fetch(url, {
       method: "POST",
@@ -1191,7 +1191,7 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
   const useOwn = provider !== "proxy" && userKey;
 
   if (useOwn && provider === "gemini") {
-    const model = "gemini-1.5-flash";
+    const model = "gemini-1.5-flash-latest";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userKey}`;
     const res = await fetch(url, {
       method: "POST",
