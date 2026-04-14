@@ -30,6 +30,32 @@ const styles = `
   .demo-tag { font-style:italic; }
   .demo-about-btn { background:none; border:1px solid rgba(122,140,106,.35); border-radius:2px; color:var(--sage); padding:.15rem .55rem; font-family:'Crimson Pro',serif; font-size:.75rem; cursor:pointer; transition:all .15s; }
   .demo-about-btn:hover { border-color:var(--sage); color:var(--cream); }
+  .settings-overlay { position:fixed; inset:0; background:rgba(10,6,3,.75); z-index:1000; display:flex; align-items:center; justify-content:center; padding:1rem; }
+  .settings-modal { background:#2A1A0A; border:1px solid rgba(200,169,110,.25); border-radius:2px; max-width:520px; width:100%; padding:2rem 2.5rem 2.5rem; position:relative; animation:fadeUp .2s ease; }
+  .settings-modal h2 { font-family:'Playfair Display',serif; font-size:1.2rem; font-weight:400; color:var(--straw); margin-bottom:1.25rem; }
+  .settings-modal h3 { font-family:'Playfair Display',serif; font-size:.9rem; font-weight:600; color:var(--cream); margin:1.2rem 0 .5rem; letter-spacing:.02em; }
+  .settings-modal p { font-size:.85rem; color:var(--parchment); line-height:1.6; margin-bottom:.5rem; }
+  .settings-modal a { color:var(--dew); text-decoration:none; }
+  .settings-modal a:hover { text-decoration:underline; }
+  .settings-close { position:absolute; top:1rem; right:1.25rem; background:none; border:none; color:var(--sage); font-size:1.4rem; cursor:pointer; line-height:1; }
+  .provider-tabs { display:flex; gap:.5rem; margin-bottom:1rem; }
+  .provider-tab { flex:1; padding:.5rem; border:1px solid rgba(200,169,110,.2); border-radius:2px; background:none; color:var(--sage); font-size:.8rem; cursor:pointer; transition:all .15s; text-align:center; font-family:'Crimson Pro',serif; }
+  .provider-tab.active { border-color:var(--straw); background:rgba(200,169,110,.1); color:var(--straw); }
+  .provider-tab:hover:not(.active) { border-color:rgba(200,169,110,.4); color:var(--cream); }
+  .key-field { display:flex; flex-direction:column; gap:.4rem; margin-bottom:.75rem; }
+  .key-field label { font-size:.75rem; text-transform:uppercase; letter-spacing:.07em; color:var(--bloom); }
+  .key-field input { background:rgba(30,18,8,.9); border:1px solid rgba(200,169,110,.25); border-radius:2px; color:var(--cream); padding:.6rem .9rem; font-family:'Crimson Pro',serif; font-size:.95rem; outline:none; transition:border-color .2s; }
+  .key-field input:focus { border-color:var(--straw); }
+  .key-note { font-size:.78rem; color:var(--sage); font-style:italic; }
+  .usage-bar-wrap { background:rgba(30,18,8,.6); border:1px solid rgba(200,169,110,.15); border-radius:2px; padding:.75rem 1rem; margin-bottom:.75rem; }
+  .usage-bar-label { display:flex; justify-content:space-between; font-size:.75rem; color:var(--sage); margin-bottom:.35rem; }
+  .usage-bar-track { height:4px; background:rgba(200,169,110,.12); border-radius:2px; overflow:hidden; }
+  .usage-bar-fill { height:100%; background:var(--fern); border-radius:2px; transition:width .4s ease; }
+  .usage-bar-fill.warn { background:var(--bloom); }
+  .usage-bar-fill.full { background:#8B3A3A; }
+  .save-key-btn { width:100%; margin-top:.75rem; padding:.65rem; background:rgba(92,122,74,.25); border:1px solid rgba(92,122,74,.5); border-radius:2px; color:var(--fern); font-family:'Crimson Pro',serif; font-size:.95rem; cursor:pointer; transition:all .2s; }
+  .save-key-btn:hover { background:rgba(92,122,74,.4); }
+  .provider-badge { font-size:.72rem; padding:.1rem .4rem; border-radius:2px; background:rgba(200,169,110,.12); color:var(--straw); border:1px solid rgba(200,169,110,.2); margin-left:.4rem; vertical-align:middle; }
 
   /* ── About modal ── */
   .about-overlay { position:fixed; inset:0; background:rgba(10,6,2,.82); z-index:2000; display:flex; align-items:center; justify-content:center; padding:1.5rem; animation:fadeIn .2s ease; }
@@ -1068,20 +1094,71 @@ function isArtifact() {
 }
 
 // ─── Streaming helper ─────────────────────────────────────────────────────────
-async function streamClaude(prompt, maxTokens, onChunk, signal, apiKey) {
-  const url = isArtifact()
+// ─── AI provider abstraction ──────────────────────────────────────────────────
+// Supports three modes:
+//   "proxy"  — routes through the garden-calendar proxy (default, rate-limited)
+//   "claude" — calls Anthropic API directly with user's own key (no rate limits)
+//   "gemini" — calls Google Gemini API directly with user's own key
+//
+// streamAI / callAI replace the old streamClaude / callClaude.
+// The rest of the app calls these two functions and never cares which provider is active.
+
+async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
+  const useOwn = provider !== "proxy" && userKey;
+
+  if (useOwn && provider === "gemini") {
+    // Gemini streaming via SSE
+    const model = "gemini-2.0-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${userKey}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens } }),
+      signal,
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      const err = new Error(e.error?.message || `Gemini HTTP ${res.status}`);
+      err.isRateLimit = res.status === 429;
+      throw err;
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      for (const line of dec.decode(value, { stream: true }).split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        const d = line.slice(6).trim();
+        if (d === "[DONE]") continue;
+        try {
+          const evt = JSON.parse(d);
+          const text = evt.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) onChunk(text);
+        } catch {}
+      }
+    }
+    return;
+  }
+
+  // Claude — direct or via proxy
+  const url = (useOwn && provider === "claude")
     ? "https://api.anthropic.com/v1/messages"
-    : `${PROXY_BASE}/api/stream`;
-  const headers = isArtifact()
-    ? { "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" }
-    : { "Content-Type":"application/json" };
+    : isArtifact()
+      ? "https://api.anthropic.com/v1/messages"
+      : `${PROXY_BASE}/api/stream`;
+
+  const headers = (useOwn && provider === "claude") || isArtifact()
+    ? { "Content-Type": "application/json", "x-api-key": userKey || "", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }
+    : { "Content-Type": "application/json" };
+
   const res = await fetch(url, {
-    method:"POST", headers,
-    body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:maxTokens, stream:true, messages:[{role:"user",content:prompt}] }),
+    method: "POST", headers,
+    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: maxTokens, stream: true, messages: [{ role: "user", content: prompt }] }),
     signal,
   });
   if (!res.ok) {
-    const e = await res.json().catch(()=>({}));
+    const e = await res.json().catch(() => ({}));
     const err = new Error(e.message || e.error?.message || `HTTP ${res.status}`);
     err.status = res.status;
     err.isRateLimit = res.status === 429;
@@ -1090,36 +1167,66 @@ async function streamClaude(prompt, maxTokens, onChunk, signal, apiKey) {
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   while (true) {
-    const {done,value} = await reader.read();
+    const { done, value } = await reader.read();
     if (done) break;
-    for (const line of dec.decode(value,{stream:true}).split("\n")) {
+    for (const line of dec.decode(value, { stream: true }).split("\n")) {
       if (!line.startsWith("data: ")) continue;
       const d = line.slice(6).trim();
-      if (d==="[DONE]") continue;
+      if (d === "[DONE]") continue;
       try {
         const evt = JSON.parse(d);
-        if (evt.type==="content_block_delta"&&evt.delta?.type==="text_delta") onChunk(evt.delta.text);
-        if (evt.type==="message_delta"&&evt.delta?.stop_reason==="max_tokens") onChunk("\n");
+        if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") onChunk(evt.delta.text);
+        if (evt.type === "message_delta" && evt.delta?.stop_reason === "max_tokens") onChunk("\n");
       } catch {}
     }
   }
 }
 
-// Non-streaming for small payloads
-async function callClaude(prompt, maxTokens, signal, apiKey) {
-  const url = isArtifact()
+async function callAI(prompt, maxTokens, signal, provider, userKey) {
+  const useOwn = provider !== "proxy" && userKey;
+
+  if (useOwn && provider === "gemini") {
+    const model = "gemini-2.0-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userKey}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens } }),
+      signal,
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    return JSON.parse(text.replace(/```json|```/g, "").trim());
+  }
+
+  // Claude — direct or via proxy
+  const url = (useOwn && provider === "claude")
     ? "https://api.anthropic.com/v1/messages"
-    : `${PROXY_BASE}/api/call`;
-  const headers = isArtifact()
-    ? { "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" }
-    : { "Content-Type":"application/json" };
-  const res = await fetch(url, { method:"POST", headers,
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,messages:[{role:"user",content:prompt}]}),
+    : isArtifact()
+      ? "https://api.anthropic.com/v1/messages"
+      : `${PROXY_BASE}/api/call`;
+
+  const headers = (useOwn && provider === "claude") || isArtifact()
+    ? { "Content-Type": "application/json", "x-api-key": userKey || "", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }
+    : { "Content-Type": "application/json" };
+
+  const res = await fetch(url, {
+    method: "POST", headers,
+    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
     signal,
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message||data.error);
-  return JSON.parse(data.content.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim());
+  if (data.error) throw new Error(data.error.message || data.error);
+  return JSON.parse(data.content.map(b => b.text || "").join("").replace(/```json|```/g, "").trim());
+}
+
+// Legacy aliases — keep for any code that still calls the old names
+async function streamClaude(prompt, maxTokens, onChunk, signal, provider, userKey) {
+  return streamAI(prompt, maxTokens, onChunk, signal, provider || "proxy", userKey || "");
+}
+async function callClaude(prompt, maxTokens, signal, provider, userKey) {
+  return callAI(prompt, maxTokens, signal, provider || "proxy", userKey || "");
 }
 
 // ─── Nominatim geocoding ──────────────────────────────────────────────────────
@@ -1772,6 +1879,17 @@ export default function GardenCalendar() {
   const [favourites, setFavourites]   = useState(() => loadFavourites());
   const [linkCopied, setLinkCopied]   = useState(false);
   const [showAbout, setShowAbout]     = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // AI provider — "proxy" (default, rate-limited) | "claude" | "gemini"
+  const [provider, setProvider] = useState(() => {
+    try { return localStorage.getItem("gc_provider") || "proxy"; } catch { return "proxy"; }
+  });
+  const [userKey, setUserKey] = useState(() => {
+    try { return localStorage.getItem("gc_user_key") || ""; } catch { return ""; }
+  });
+  const [keyDraft, setKeyDraft] = useState("");
+  const [usage, setUsage] = useState(null); // { count, cap }
 
   // Restore garden state from URL hash on first load
   useEffect(() => {
@@ -1965,7 +2083,7 @@ Return ONLY valid JSON, no markdown:
 {"vegetables":["name1","name2","name3","name4","name5","name6","name7","name8"],"herbs":["name1","name2","name3","name4","name5","name6","name7","name8"],"fruit":["name1","name2","name3","name4","name5","name6","name7","name8"],"flowers":["name1","name2","name3","name4","name5","name6","name7","name8"],"trees":["name1","name2","name3","name4","name5","name6","name7","name8"],"shrubs":["name1","name2","name3","name4","name5","name6","name7","name8"]}
 Rules: 8 items per category, common names only, ordered most→least popular.
 Respond entirely in ${langName()}. Use ${langName()} for all plant names and descriptions.`,
-            500, undefined, apiKey
+            500, undefined, provider, userKey
           );
           if (rid !== prefetchIdRef.current) return;
           // Map category names to our internal keys
@@ -1995,9 +2113,33 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
   // ── Wake-up ping — fires once on mount to pre-warm Render free tier ──────
   useEffect(() => {
     if (PROXY_BASE && !isArtifact()) {
-      fetch(`${PROXY_BASE}/api/health`, { method:"GET" }).catch(()=>{});
+      fetch(`${PROXY_BASE}/api/health`, { method:"GET" })
+        .then(r => r.json())
+        .then(d => { if (d.ok) setUsage({ count: d.globalGenToday, cap: d.cap, ipCount: d.ipGenToday, ipCap: d.ipCap }); })
+        .catch(() => {});
     }
   }, []);
+
+  // Refresh usage when settings modal opens
+  useEffect(() => {
+    if (!showSettings || !PROXY_BASE || isArtifact()) return;
+    fetch(`${PROXY_BASE}/api/health`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) setUsage({ count: d.globalGenToday, cap: d.cap, ipCount: d.ipGenToday, ipCap: d.ipCap }); })
+      .catch(() => {});
+  }, [showSettings]);
+
+  const saveProviderSettings = (newProvider, newKey) => {
+    try {
+      localStorage.setItem("gc_provider", newProvider);
+      if (newKey) localStorage.setItem("gc_user_key", newKey);
+      else localStorage.removeItem("gc_user_key");
+    } catch {}
+    setProvider(newProvider);
+    setUserKey(newKey);
+    setKeyDraft("");
+    setShowSettings(false);
+  };
 
   useEffect(()=>{
     // Debounce: wait 600ms after the user stops typing before firing Nominatim.
@@ -2408,7 +2550,7 @@ Other rules:
         chunkCountRef.current++;
         lastChunkAt = Date.now();
         parser1.onChunk(chunk);
-      }, abort.signal, apiKey);
+      }, abort.signal, provider, userKey);
       parser1.flush();
     } catch(e) {
       clearInterval(stallTimer);
@@ -2519,7 +2661,7 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
       await streamClaude(batchPrompt, 3500, (chunk) => {
         chunkCountRef.current++;
         parser.onChunk(chunk);
-      }, abort.signal, apiKey);
+      }, abort.signal, provider, userKey);
       parser.flush();
       setLoadedBatches(b => b + 1);
     } catch(e) {
@@ -2591,7 +2733,7 @@ confidence medium = you know the garden exists and broadly what it contains but 
 known_for: the garden defining characteristic regardless of season.
 ${[...alreadyChosen, ...chosenThisBatch].length > 0 ? "\nDo NOT suggest any of these (already recommended): " + [...alreadyChosen, ...chosenThisBatch].join(", ") + ". Choose a genuinely different garden." : ""}
 Respond entirely in ${langName()}.`,
-          300, undefined, apiKey);
+          300, undefined, provider, userKey);
         // Handle "none" response — no suitable garden found
         if (!result.name || result.name === "none") {
           setInspos(prev => ({ ...prev, [monthName]: { state:"none", data:null } }));
@@ -2652,7 +2794,7 @@ Rules:
 - If everything suits the location, allLookingGood:true and empty items array.
 - Tone: curious and encouraging. Never alarming.
 - context + suggestion together under 35 words per item.
-Respond entirely in ${langName()}.`, 700, undefined, apiKey);
+Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
       setInsights({state:"done", items:result.items||[], allLookingGood:result.allLookingGood, goodNewsLine:result.goodNewsLine});
     } catch(e) {
       setInsights({state:"error", items:[]});
@@ -2733,7 +2875,13 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
         <span className="demo-sep">·</span>
         <span className="demo-tag">AI-powered garden calendar</span>
         <span className="demo-sep">·</span>
-        <span className="demo-tag">Powered by Claude</span>
+        <span className="demo-tag">
+          Powered by{" "}
+          {provider === "gemini" ? "Gemini" : "Claude"}
+          {provider !== "proxy" && userKey && <span className="provider-badge">own key</span>}
+        </span>
+        <span className="demo-sep">·</span>
+        <button className="demo-about-btn" onClick={() => setShowSettings(true)}>⚙ Settings</button>
         <span className="demo-sep">·</span>
         <button className="demo-about-btn" onClick={() => setShowAbout(true)}>About</button>
       </div>
@@ -2769,6 +2917,105 @@ Respond entirely in ${langName()}.`, 700, undefined, apiKey);
           </div>
         </div>
       )}
+
+      {/* ── Settings modal ── */}
+      {showSettings && (() => {
+        const isOwn = provider !== "proxy";
+        const pct = usage ? Math.round((usage.count / usage.cap) * 100) : 0;
+        const fillCls = pct >= 90 ? "full" : pct >= 70 ? "warn" : "";
+        const providerLabel = provider === "gemini" ? "Gemini" : provider === "claude" ? "Claude" : "Shared";
+        const keyPlaceholder = provider === "gemini" ? "AIza…" : "sk-ant-…";
+        const keyLink = provider === "gemini"
+          ? "https://aistudio.google.com/app/apikey"
+          : "https://console.anthropic.com/";
+
+        return (
+          <div className="settings-overlay" onClick={e => { if (e.target === e.currentTarget) setShowSettings(false); }}>
+            <div className="settings-modal">
+              <button className="settings-close" onClick={() => setShowSettings(false)}>×</button>
+              <h2>⚙ Settings</h2>
+
+              <h3>AI provider</h3>
+              <p>Use the shared demo (rate-limited) or connect your own API key for unlimited access.</p>
+              <div className="provider-tabs">
+                {[["proxy","🌿 Shared demo"],["claude","Claude (Anthropic)"],["gemini","Gemini (Google)"]].map(([p, label]) => (
+                  <button key={p} className={`provider-tab${provider === p ? " active" : ""}`}
+                    onClick={() => { setProvider(p); setKeyDraft(""); }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {provider === "proxy" && (
+                <>
+                  <h3>Daily usage</h3>
+                  {usage ? (
+                    <div className="usage-bar-wrap">
+                      <div className="usage-bar-label">
+                        <span>Shared pool today</span>
+                        <span>{usage.count} / {usage.cap}</span>
+                      </div>
+                      <div className="usage-bar-track">
+                        <div className={`usage-bar-fill ${fillCls}`} style={{width: `${Math.min(pct,100)}%`}}/>
+                      </div>
+                      {usage.ipCap != null && (
+                        <>
+                          <div className="usage-bar-label" style={{marginTop:".5rem"}}>
+                            <span>Your generations today</span>
+                            <span>{usage.ipCount ?? 0} / {usage.ipCap}</span>
+                          </div>
+                          <div className="usage-bar-track">
+                            <div className={`usage-bar-fill ${(usage.ipCount ?? 0) >= usage.ipCap ? "full" : (usage.ipCount ?? 0) >= usage.ipCap * 0.7 ? "warn" : ""}`}
+                              style={{width: `${Math.min(((usage.ipCount ?? 0)/usage.ipCap)*100, 100)}%`}}/>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <p style={{opacity:.6,fontStyle:"italic",fontSize:".85rem"}}>Loading usage data…</p>
+                  )}
+                  <p style={{fontSize:".8rem",color:"var(--sage)"}}>
+                    The shared demo has a daily generation cap to keep it free for everyone.
+                    Connect your own API key above for unlimited use.
+                  </p>
+                </>
+              )}
+
+              {provider !== "proxy" && (
+                <>
+                  <h3>Your {providerLabel} API key</h3>
+                  <div className="key-field">
+                    <label>{providerLabel} API key</label>
+                    <input
+                      type="password"
+                      value={keyDraft || (userKey && provider === provider ? "••••••••••••••" : "")}
+                      onChange={e => setKeyDraft(e.target.value)}
+                      placeholder={keyPlaceholder}
+                      onFocus={e => { if (!keyDraft) setKeyDraft(""); }}
+                    />
+                  </div>
+                  <p className="key-note">
+                    Your key is stored only in your browser and never sent to our servers.{" "}
+                    <a href={keyLink} target="_blank" rel="noopener">Get a key →</a>
+                  </p>
+                  <button className="save-key-btn" onClick={() => {
+                    const k = keyDraft.trim() || userKey;
+                    saveProviderSettings(provider, k);
+                  }}>
+                    Save & use {providerLabel}
+                  </button>
+                </>
+              )}
+
+              {provider === "proxy" && (
+                <button className="save-key-btn" onClick={() => saveProviderSettings("proxy", "")}>
+                  Continue with shared demo
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
       {showArrow && (
         <button className="float-arrow" onClick={slowScroll} title="Scroll to calendar">
           <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
