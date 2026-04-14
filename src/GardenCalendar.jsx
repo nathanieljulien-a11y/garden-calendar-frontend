@@ -1085,6 +1085,25 @@ const PROXY_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_
   ? String(window.__VITE_PROXY_URL__).replace(/\/$/, "")
   : "";
 
+// ─── Gemini rate limiter ──────────────────────────────────────────────────────
+// Gemini free tier allows 15 RPM. The app fires several AI calls close together
+// (suggestions on prefetch, then stream on generate). This queue serialises all
+// Gemini calls and enforces a minimum 5s gap between them to stay within limits.
+const _geminiQueue = { promise: Promise.resolve(), lastCall: 0 };
+const GEMINI_MIN_GAP_MS = 5000; // 5s between calls = max 12 RPM, safely under 15 RPM
+
+async function withGeminiQueue(fn) {
+  _geminiQueue.promise = _geminiQueue.promise.then(async () => {
+    const elapsed = Date.now() - _geminiQueue.lastCall;
+    if (_geminiQueue.lastCall > 0 && elapsed < GEMINI_MIN_GAP_MS) {
+      await new Promise(r => setTimeout(r, GEMINI_MIN_GAP_MS - elapsed));
+    }
+    _geminiQueue.lastCall = Date.now();
+    return fn();
+  });
+  return _geminiQueue.promise;
+}
+
 // True only in Claude artifact sandbox — no proxy, needs direct API key
 function isArtifact() {
   if (typeof window === "undefined") return false;
@@ -1107,7 +1126,8 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
   const useOwn = provider !== "proxy" && userKey;
 
   if (useOwn && provider === "gemini") {
-    // Gemini streaming via SSE — retry up to 3 times with backoff on 429
+    // Gemini streaming via SSE — serialised through rate-limit queue, retry on 429
+    return withGeminiQueue(async () => {
     const model = "gemini-2.0-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${userKey}`;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -1155,6 +1175,7 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
       }
       return; // success — exit retry loop
     }
+    }); // end withGeminiQueue
     return;
   }
 
@@ -1203,6 +1224,7 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
   const useOwn = provider !== "proxy" && userKey;
 
   if (useOwn && provider === "gemini") {
+    return withGeminiQueue(async () => {
     const model = "gemini-2.0-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userKey}`;
     // Retry up to 3 times with exponential backoff for 429s
@@ -1228,6 +1250,7 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
       return JSON.parse(text.replace(/```json|```/g, "").trim());
     }
+    }); // end withGeminiQueue
   }
 
   // Claude — direct or via proxy
