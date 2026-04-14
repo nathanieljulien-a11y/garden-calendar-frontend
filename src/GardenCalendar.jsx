@@ -1227,17 +1227,18 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
     return withGeminiQueue(async () => {
     const model = (() => { try { return localStorage.getItem("gc_gemini_model") || "gemini-2.5-flash"; } catch { return "gemini-2.5-flash"; } })();
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userKey}`;
+    // Gemini needs more tokens than Claude for the same JSON — use a higher floor
+    const geminiTokens = Math.max(maxTokens, 1200);
     // Retry up to 3 times with exponential backoff for 429s
     for (let attempt = 0; attempt < 3; attempt++) {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens } }),
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: geminiTokens } }),
         signal,
       });
       if (res.status === 429) {
         if (attempt === 2) {
-          const e = await res.json().catch(() => ({}));
           const err = new Error("Gemini rate limit — too many requests in quick succession. Please wait a moment and try again.");
           err.isRateLimit = true;
           throw err;
@@ -1247,8 +1248,23 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
       }
       const data = await res.json();
       if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      return JSON.parse(text.replace(/```json|```/g, "").trim());
+      const candidate = data.candidates?.[0];
+      const finishReason = candidate?.finishReason;
+      if (finishReason === "MAX_TOKENS") {
+        throw new Error("Gemini response was truncated — the output was too long. Please try again.");
+      }
+      const text = candidate?.content?.parts?.[0]?.text || "";
+      const cleaned = text.replace(/```json|```/g, "").trim();
+      try {
+        return JSON.parse(cleaned);
+      } catch(e) {
+        // Try to salvage truncated JSON by finding the last complete object
+        const lastBrace = cleaned.lastIndexOf("}");
+        if (lastBrace > 0) {
+          try { return JSON.parse(cleaned.slice(0, lastBrace + 1)); } catch {}
+        }
+        throw new Error(`Gemini returned malformed JSON. Try again or switch to Claude. (${e.message})`);
+      }
     }
     }); // end withGeminiQueue
   }
