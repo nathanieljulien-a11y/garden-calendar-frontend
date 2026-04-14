@@ -1108,7 +1108,7 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
 
   if (useOwn && provider === "gemini") {
     // Gemini streaming via SSE
-    const model = "gemini-2.0-flash";
+    const model = "gemini-1.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${userKey}`;
     const res = await fetch(url, {
       method: "POST",
@@ -1118,8 +1118,13 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      const err = new Error(e.error?.message || `Gemini HTTP ${res.status}`);
-      err.isRateLimit = res.status === 429;
+      const rawMsg = e.error?.message || `Gemini HTTP ${res.status}`;
+      const isQuota = res.status === 429 || rawMsg.toLowerCase().includes("quota") || rawMsg.toLowerCase().includes("billing");
+      const friendlyMsg = isQuota
+        ? "Gemini quota exceeded. The free tier has limited daily requests — try again tomorrow, or upgrade your Google AI plan at ai.google.dev."
+        : rawMsg.length > 200 ? rawMsg.slice(0, 200) + "…" : rawMsg;
+      const err = new Error(friendlyMsg);
+      err.isRateLimit = isQuota;
       throw err;
     }
     const reader = res.body.getReader();
@@ -1186,7 +1191,7 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
   const useOwn = provider !== "proxy" && userKey;
 
   if (useOwn && provider === "gemini") {
-    const model = "gemini-2.0-flash";
+    const model = "gemini-1.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userKey}`;
     const res = await fetch(url, {
       method: "POST",
@@ -2998,6 +3003,13 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
                     Your key is stored only in your browser and never sent to our servers.{" "}
                     <a href={keyLink} target="_blank" rel="noopener">Get a key →</a>
                   </p>
+                  {provider === "gemini" && (
+                    <p className="key-note" style={{marginTop:".35rem"}}>
+                      Uses <strong>gemini-1.5-flash</strong>. Free tier availability varies by region —
+                      if you hit quota limits, upgrade at{" "}
+                      <a href="https://ai.google.dev" target="_blank" rel="noopener">ai.google.dev</a>.
+                    </p>
+                  )}
                   <button className="save-key-btn" onClick={() => {
                     const k = keyDraft.trim() || userKey;
                     saveProviderSettings(provider, k);
