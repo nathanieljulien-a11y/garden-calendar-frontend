@@ -2120,21 +2120,15 @@ export default function GardenCalendar() {
 
       // Step 2: Fetch real climate data from OpenMeteo
       const hemisphere = detectHemisphere(geoResult.lat);
-      // Try climate normals API first (fast, ~15KB). Fall back to archive if unavailable.
+      // Fetch climate data from Open-Meteo ERA5 archive (global coverage, reliable).
+      // The climate normals API has been unreliable so we go straight to the archive.
       let cd;
       try {
-        cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
-        // Validate we got real data
-        if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("empty response");
+        cd = await fetchOpenMeteoArchive(geoResult.lat, geoResult.lng);
+        if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("archive empty response");
       } catch(e) {
-        console.warn("[climate] normals API failed, trying archive:", e.message);
-        try {
-          cd = await fetchOpenMeteoArchive(geoResult.lat, geoResult.lng);
-          if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("archive empty response");
-        } catch(e2) {
-          console.error("[climate] archive also failed:", e2.message);
-          throw new Error("Climate data unavailable for this location — Open-Meteo returned no data. Try a nearby larger city.");
-        }
+        console.error("[climate] archive failed:", e.message);
+        throw new Error("Climate data unavailable for this location — Open-Meteo returned no data. Try a nearby larger city.");
       }
       if (rid!==prefetchIdRef.current) return;
       const derived = deriveClimateFromOM(cd, hemisphere);
@@ -2382,21 +2376,14 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
           const geoResult = await fetchNominatim(city);
           if (rid!==submitIdRef.current) return;
           const hemisphere = detectHemisphere(geoResult.lat);
-          // Try climate normals API first (fast, ~15KB). Fall back to archive if unavailable.
+          // Fetch climate data from Open-Meteo ERA5 archive (global coverage, reliable).
       let cd;
       try {
-        cd = await fetchOpenMeteoClimate(geoResult.lat, geoResult.lng);
-        // Validate we got real data
-        if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("empty response");
+        cd = await fetchOpenMeteoArchive(geoResult.lat, geoResult.lng);
+        if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("archive empty response");
       } catch(e) {
-        console.warn("[climate] normals API failed, trying archive:", e.message);
-        try {
-          cd = await fetchOpenMeteoArchive(geoResult.lat, geoResult.lng);
-          if (!cd.tMean || cd.tMean.every(v => v == null)) throw new Error("archive empty response");
-        } catch(e2) {
-          console.error("[climate] archive also failed:", e2.message);
-          throw new Error("Climate data unavailable for this location — try a nearby larger city.");
-        }
+        console.error("[climate] archive failed:", e.message);
+        throw new Error("Climate data unavailable for this location — try a nearby larger city.");
       }
           if (rid!==submitIdRef.current) return;
           const derived = deriveClimateFromOM(cd, hemisphere);
