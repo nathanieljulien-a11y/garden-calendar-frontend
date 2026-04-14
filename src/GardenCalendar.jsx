@@ -1151,10 +1151,18 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
         const rawMsg = e.error?.message || `Gemini HTTP ${res.status}`;
+        const isOverloaded = res.status === 503 || rawMsg.toLowerCase().includes("high demand") || rawMsg.toLowerCase().includes("overloaded") || rawMsg.toLowerCase().includes("temporarily");
+        // Retry on overload/503 just like rate limits
+        if (isOverloaded && attempt < 2) {
+          await new Promise(r => setTimeout(r, (attempt + 1) * 5000)); // 5s, 10s
+          continue;
+        }
         const isQuota = rawMsg.toLowerCase().includes("quota") || rawMsg.toLowerCase().includes("billing") || rawMsg.toLowerCase().includes("spend");
-        const friendlyMsg = isQuota
-          ? "Gemini quota exceeded. Enable billing in Google AI Studio (aistudio.google.com) — usage stays free within limits, but billing must be active."
-          : rawMsg.length > 200 ? rawMsg.slice(0, 200) + "…" : rawMsg;
+        const friendlyMsg = isOverloaded
+          ? "Gemini is experiencing high demand. Waiting a moment and retrying…"
+          : isQuota
+            ? "Gemini quota exceeded. Enable billing in Google AI Studio (aistudio.google.com) — usage stays free within limits, but billing must be active."
+            : rawMsg.length > 200 ? rawMsg.slice(0, 200) + "…" : rawMsg;
         const err = new Error(friendlyMsg);
         err.isRateLimit = isQuota;
         throw err;
@@ -1245,8 +1253,18 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
           err.isRateLimit = true;
           throw err;
         }
-        await new Promise(r => setTimeout(r, (attempt + 1) * 3000)); // 3s, 6s
+        await new Promise(r => setTimeout(r, (attempt + 1) * 3000));
         continue;
+      }
+      if (res.status === 503 || !res.ok) {
+        const e = await res.json().catch(() => ({}));
+        const rawMsg = e.error?.message || `Gemini HTTP ${res.status}`;
+        const isOverloaded = res.status === 503 || rawMsg.toLowerCase().includes("high demand") || rawMsg.toLowerCase().includes("overloaded");
+        if (isOverloaded && attempt < 2) {
+          await new Promise(r => setTimeout(r, (attempt + 1) * 5000));
+          continue;
+        }
+        throw new Error(rawMsg.length > 200 ? rawMsg.slice(0, 200) + "…" : rawMsg);
       }
       const data = await res.json();
       if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
