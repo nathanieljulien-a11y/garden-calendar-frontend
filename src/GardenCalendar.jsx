@@ -922,56 +922,81 @@ const emptyMonth = (name) => ({
 const OM_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 async function fetchOpenMeteoClimate(lat, lng) {
-  const vars = [
-    "temperature_2m_mean","temperature_2m_min","temperature_2m_max",
-    "precipitation_sum","sunshine_duration"
-  ].join(",");
-  // Single probe with the most globally reliable model.
-  // The normals API has significant coverage gaps (islands, coastal Mediterranean, tropics).
-  // If the first attempt fails or returns no data, throw immediately — the caller will
-  // fall back to the archive API which has global coverage.
-  const model = "MRI_AGCM3_2_S";
-  const url = `https://climate-api.open-meteo.com/v1/climate?latitude=${lat}&longitude=${lng}&monthly=${vars}&models=${model}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`normals API returned ${res.status}`);
-    const raw = await res.json();
-    const monthly = raw.monthly || raw.data || null;
-    if (!monthly?.temperature_2m_mean?.length) throw new Error("no coverage for this location");
-    // Parse the 30-year monthly arrays → 12 monthly averages
-    const times    = monthly.time || [];
-    const tMeanRaw  = monthly.temperature_2m_mean || [];
-    const tMinRaw   = monthly.temperature_2m_min  || [];
-    const tMaxRaw   = monthly.temperature_2m_max  || [];
-    const precipRaw = monthly.precipitation_sum   || [];
-    const sunRaw    = monthly.sunshine_duration   || [];
-    const acc = Array.from({length:12}, () => ({tMean:[],tMin:[],tMax:[],precip:[],sun:[]}));
-    for (let i = 0; i < times.length; i++) {
-      const m = new Date(times[i] + "-01").getMonth();
-      if (tMeanRaw[i]  != null) acc[m].tMean.push(tMeanRaw[i]);
-      if (tMinRaw[i]   != null) acc[m].tMin.push(tMinRaw[i]);
-      if (tMaxRaw[i]   != null) acc[m].tMax.push(tMaxRaw[i]);
-      if (precipRaw[i] != null) acc[m].precip.push(precipRaw[i]);
-      if (sunRaw[i]    != null) acc[m].sun.push(sunRaw[i]);
+  // Open-Meteo climate normals API variable support varies by model.
+  // MRI_AGCM3_2_S dropped support for temperature_2m_min/max in 2025.
+  // Strategy: try mean+precip+sun first (universally supported), then
+  // attempt min/max separately. If the whole call fails, throw so the
+  // caller falls back to the archive API which has full global coverage.
+  const baseVars = ["temperature_2m_mean", "precipitation_sum", "sunshine_duration"];
+  const extVars  = ["temperature_2m_min", "temperature_2m_max"];
+
+  // Try models in order of preference — first success wins
+  const models = ["MRI_AGCM3_2_S", "CMCC_CM2_VHR4", "EC_Earth3P_HR"];
+
+  async function tryFetch(vars, model) {
+    const url = `https://climate-api.open-meteo.com/v1/climate?latitude=${lat}&longitude=${lng}&monthly=${vars.join(",")}&models=${model}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      const raw = await res.json();
+      if (raw.error) return null;
+      return raw;
+    } catch {
+      clearTimeout(timer);
+      return null;
     }
-    const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
-    const tMinMonthly = acc.map(a => avg(a.tMin));
+  }
+
+  let raw = null;
+  let usedModel = null;
+
+  for (const model of models) {
+    // Try with all vars first
+    raw = await tryFetch([...baseVars, ...extVars], model);
+    if (raw?.monthly?.temperature_2m_mean?.length) { usedModel = model; break; }
+    // Try without min/max if that failed
+    raw = await tryFetch(baseVars, model);
+    if (raw?.monthly?.temperature_2m_mean?.length) { usedModel = model; break; }
+    raw = null;
+  }
+
+  if (!raw) throw new Error("normals API returned no usable data");
+
+  const monthly = raw.monthly || {};
+  if (!monthly.temperature_2m_mean?.length) throw new Error("no coverage for this location");
+
+  const times    = monthly.time || [];
+  const tMeanRaw  = monthly.temperature_2m_mean || [];
+  const tMinRaw   = monthly.temperature_2m_min  || []; // may be empty
+  const tMaxRaw   = monthly.temperature_2m_max  || []; // may be empty
+  const precipRaw = monthly.precipitation_sum   || [];
+  const sunRaw    = monthly.sunshine_duration   || [];
+
+  const acc = Array.from({length:12}, () => ({tMean:[],tMin:[],tMax:[],precip:[],sun:[]}));
+  for (let i = 0; i < times.length; i++) {
+    const m = new Date(times[i] + "-01").getMonth();
+    if (tMeanRaw[i]  != null) acc[m].tMean.push(tMeanRaw[i]);
+    if (tMinRaw[i]   != null) acc[m].tMin.push(tMinRaw[i]);
+    if (tMaxRaw[i]   != null) acc[m].tMax.push(tMaxRaw[i]);
+    if (precipRaw[i] != null) acc[m].precip.push(precipRaw[i]);
+    if (sunRaw[i]    != null) acc[m].sun.push(sunRaw[i]);
+  }
+  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+  const tMeanMonthly = acc.map(a => avg(a.tMean));
+  const tMinMonthly  = acc.map((a, i) => avg(a.tMin) ?? (tMeanMonthly[i] != null ? tMeanMonthly[i] - 4 : null));
+  const tMaxMonthly  = acc.map((a, i) => avg(a.tMax) ?? (tMeanMonthly[i] != null ? tMeanMonthly[i] + 4 : null));
     return {
       lat: raw.latitude, lng: raw.longitude,
-      tMean:    acc.map(a => avg(a.tMean)),
+      tMean:    tMeanMonthly,
       tMin:     tMinMonthly,
-      tMax:     acc.map(a => avg(a.tMax)),
+      tMax:     tMaxMonthly,
       precip:   acc.map(a => avg(a.precip)),
       sunHrs:   acc.map(a => { const s = avg(a.sun); return s != null ? s / 3600 : null; }),
       frostDays: tMinMonthly.map(t => t == null ? 0 : Math.max(0, (2 - t) * 3)),
     };
-  } catch(e) {
-    clearTimeout(timer);
-    throw e; // let caller fall back to archive
-  }
 }
 
 function deriveClimateFromOM(cd, hemisphere) {
