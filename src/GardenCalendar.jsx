@@ -1130,11 +1130,13 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
     return withGeminiQueue(async () => {
     const model = (() => { try { return localStorage.getItem("gc_gemini_model") || "gemini-2.5-flash"; } catch { return "gemini-2.5-flash"; } })();
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${userKey}`;
+    // Gemini needs more headroom than Claude for the same output length
+    const geminiStreamTokens = Math.max(maxTokens * 2, 6000);
     for (let attempt = 0; attempt < 3; attempt++) {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens } }),
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: geminiStreamTokens } }),
         signal,
       });
       if (res.status === 429) {
@@ -1250,11 +1252,9 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
       if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
       const candidate = data.candidates?.[0];
       const finishReason = candidate?.finishReason;
-      if (finishReason === "MAX_TOKENS") {
-        throw new Error("Gemini response was truncated — the output was too long. Please try again.");
-      }
       const text = candidate?.content?.parts?.[0]?.text || "";
       const cleaned = text.replace(/```json|```/g, "").trim();
+      // If truncated, still try to parse — may be salvageable
       try {
         return JSON.parse(cleaned);
       } catch(e) {
@@ -1263,7 +1263,10 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
         if (lastBrace > 0) {
           try { return JSON.parse(cleaned.slice(0, lastBrace + 1)); } catch {}
         }
-        throw new Error(`Gemini returned malformed JSON. Try again or switch to Claude. (${e.message})`);
+        const reason = finishReason === "MAX_TOKENS"
+          ? "Gemini response was truncated. Try again or switch to Claude."
+          : `Gemini returned malformed JSON. Try again or switch to Claude. (${e.message})`;
+        throw new Error(reason);
       }
     }
     }); // end withGeminiQueue
