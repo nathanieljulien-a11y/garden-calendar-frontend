@@ -1107,41 +1107,53 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
   const useOwn = provider !== "proxy" && userKey;
 
   if (useOwn && provider === "gemini") {
-    // Gemini streaming via SSE
+    // Gemini streaming via SSE — retry up to 3 times with backoff on 429
     const model = "gemini-2.0-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${userKey}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens } }),
-      signal,
-    });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      const rawMsg = e.error?.message || `Gemini HTTP ${res.status}`;
-      const isQuota = res.status === 429 || rawMsg.toLowerCase().includes("quota") || rawMsg.toLowerCase().includes("billing");
-      const friendlyMsg = isQuota
-        ? "Gemini quota exceeded. You may need to enable billing in Google AI Studio (aistudio.google.com) — usage stays free within quota limits, but billing must be active to unlock the free tier."
-        : rawMsg.length > 200 ? rawMsg.slice(0, 200) + "…" : rawMsg;
-      const err = new Error(friendlyMsg);
-      err.isRateLimit = isQuota;
-      throw err;
-    }
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      for (const line of dec.decode(value, { stream: true }).split("\n")) {
-        if (!line.startsWith("data: ")) continue;
-        const d = line.slice(6).trim();
-        if (d === "[DONE]") continue;
-        try {
-          const evt = JSON.parse(d);
-          const text = evt.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text) onChunk(text);
-        } catch {}
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens } }),
+        signal,
+      });
+      if (res.status === 429) {
+        if (attempt === 2) {
+          const err = new Error("Gemini rate limit — too many requests in quick succession. Please wait a moment and try again.");
+          err.isRateLimit = true;
+          throw err;
+        }
+        await new Promise(r => setTimeout(r, (attempt + 1) * 4000)); // 4s, 8s
+        continue;
       }
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        const rawMsg = e.error?.message || `Gemini HTTP ${res.status}`;
+        const isQuota = rawMsg.toLowerCase().includes("quota") || rawMsg.toLowerCase().includes("billing") || rawMsg.toLowerCase().includes("spend");
+        const friendlyMsg = isQuota
+          ? "Gemini quota exceeded. Enable billing in Google AI Studio (aistudio.google.com) — usage stays free within limits, but billing must be active."
+          : rawMsg.length > 200 ? rawMsg.slice(0, 200) + "…" : rawMsg;
+        const err = new Error(friendlyMsg);
+        err.isRateLimit = isQuota;
+        throw err;
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of dec.decode(value, { stream: true }).split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          const d = line.slice(6).trim();
+          if (d === "[DONE]") continue;
+          try {
+            const evt = JSON.parse(d);
+            const text = evt.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) onChunk(text);
+          } catch {}
+        }
+      }
+      return; // success — exit retry loop
     }
     return;
   }
@@ -1193,16 +1205,29 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
   if (useOwn && provider === "gemini") {
     const model = "gemini-2.0-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userKey}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens } }),
-      signal,
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    return JSON.parse(text.replace(/```json|```/g, "").trim());
+    // Retry up to 3 times with exponential backoff for 429s
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens } }),
+        signal,
+      });
+      if (res.status === 429) {
+        if (attempt === 2) {
+          const e = await res.json().catch(() => ({}));
+          const err = new Error("Gemini rate limit — too many requests in quick succession. Please wait a moment and try again.");
+          err.isRateLimit = true;
+          throw err;
+        }
+        await new Promise(r => setTimeout(r, (attempt + 1) * 3000)); // 3s, 6s
+        continue;
+      }
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      return JSON.parse(text.replace(/```json|```/g, "").trim());
+    }
   }
 
   // Claude — direct or via proxy
