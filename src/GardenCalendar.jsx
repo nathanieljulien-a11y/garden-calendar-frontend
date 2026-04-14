@@ -1128,7 +1128,7 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
   if (useOwn && provider === "gemini") {
     // Gemini streaming via SSE — serialised through rate-limit queue, retry on 429
     return withGeminiQueue(async () => {
-    const model = "gemini-2.0-flash";
+    const model = (() => { try { return localStorage.getItem("gc_gemini_model") || "gemini-2.5-flash"; } catch { return "gemini-2.5-flash"; } })();
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${userKey}`;
     for (let attempt = 0; attempt < 3; attempt++) {
       const res = await fetch(url, {
@@ -1225,7 +1225,7 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
 
   if (useOwn && provider === "gemini") {
     return withGeminiQueue(async () => {
-    const model = "gemini-2.0-flash";
+    const model = (() => { try { return localStorage.getItem("gc_gemini_model") || "gemini-2.5-flash"; } catch { return "gemini-2.5-flash"; } })();
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userKey}`;
     // Retry up to 3 times with exponential backoff for 429s
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -1943,6 +1943,11 @@ export default function GardenCalendar() {
   });
   const [keyDraft, setKeyDraft] = useState("");
   const [usage, setUsage] = useState(null); // { count, cap }
+  const [geminiModel, setGeminiModel] = useState(() => {
+    try { return localStorage.getItem("gc_gemini_model") || "gemini-2.5-flash"; } catch { return "gemini-2.5-flash"; }
+  });
+  const [keyVerifying, setKeyVerifying] = useState(false);
+  const [keyError, setKeyError] = useState("");
 
   // Restore garden state from URL hash on first load
   useEffect(() => {
@@ -2182,7 +2187,53 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
       .catch(() => {});
   }, [showSettings]);
 
-  const saveProviderSettings = (newProvider, newKey) => {
+  // Preferred Gemini models in priority order — first available wins
+  const GEMINI_MODEL_PREFERENCE = [
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.0-flash-lite",
+    "gemini-flash-latest",
+    "gemini-pro-latest",
+  ];
+
+  const discoverGeminiModel = async (key) => {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`
+    );
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error?.message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    const available = new Set(
+      (data.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+        .map(m => m.name.replace("models/", ""))
+    );
+    const chosen = GEMINI_MODEL_PREFERENCE.find(m => available.has(m));
+    if (!chosen) throw new Error(
+      `No supported Gemini model found on your account. Available: ${[...available].filter(m=>m.startsWith("gemini")).slice(0,5).join(", ")}`
+    );
+    return chosen;
+  };
+
+  const saveProviderSettings = async (newProvider, newKey) => {
+    setKeyError("");
+    if (newProvider === "gemini" && newKey) {
+      setKeyVerifying(true);
+      try {
+        const model = await discoverGeminiModel(newKey);
+        try {
+          localStorage.setItem("gc_gemini_model", model);
+        } catch {}
+        setGeminiModel(model);
+      } catch (e) {
+        setKeyVerifying(false);
+        setKeyError(e.message);
+        return; // don't save if discovery failed
+      }
+      setKeyVerifying(false);
+    }
     try {
       localStorage.setItem("gc_provider", newProvider);
       if (newKey) localStorage.setItem("gc_user_key", newKey);
@@ -2930,7 +2981,7 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
         <span className="demo-sep">·</span>
         <span className="demo-tag">
           Powered by{" "}
-          {provider === "gemini" ? "Gemini" : "Claude"}
+          {provider === "gemini" ? `Gemini (${geminiModel})` : "Claude"}
           {provider !== "proxy" && userKey && <span className="provider-badge">own key</span>}
         </span>
         <span className="demo-sep">·</span>
@@ -3053,16 +3104,30 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
                   </p>
                   {provider === "gemini" && (
                     <p className="key-note" style={{marginTop:".35rem"}}>
-                      Uses <strong>gemini-2.0-flash</strong>. Free tier availability varies by region —
-                      if you hit quota limits, upgrade at{" "}
-                      <a href="https://ai.google.dev" target="_blank" rel="noopener">ai.google.dev</a>.
+                      We'll automatically detect the best available model on your account.
+                      Free tier availability varies by region —{" "}
+                      <a href="https://aistudio.google.com/spend" target="_blank" rel="noopener">check spend limits</a>{" "}
+                      if you hit quota errors.
                     </p>
                   )}
-                  <button className="save-key-btn" onClick={() => {
-                    const k = keyDraft.trim() || userKey;
-                    saveProviderSettings(provider, k);
-                  }}>
-                    Save & use {providerLabel}
+                  {keyError && (
+                    <p style={{fontSize:".82rem",color:"var(--bloom)",marginTop:".5rem",lineHeight:"1.5"}}>
+                      ⚠ {keyError}
+                    </p>
+                  )}
+                  {provider === "gemini" && userKey && !keyDraft && geminiModel && (
+                    <p className="key-note" style={{marginTop:".35rem",color:"var(--fern)"}}>
+                      ✓ Using <strong>{geminiModel}</strong>
+                    </p>
+                  )}
+                  <button
+                    className="save-key-btn"
+                    disabled={keyVerifying}
+                    onClick={() => {
+                      const k = keyDraft.trim() || userKey;
+                      saveProviderSettings(provider, k);
+                    }}>
+                    {keyVerifying ? "Checking your account…" : `Save & use ${providerLabel}`}
                   </button>
                 </>
               )}
