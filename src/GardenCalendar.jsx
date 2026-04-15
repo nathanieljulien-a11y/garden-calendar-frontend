@@ -1199,7 +1199,16 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
             const evt = JSON.parse(d);
             const text = evt.candidates?.[0]?.content?.parts?.[0]?.text;
             if (text) onChunk(text);
-          } catch {}
+            // Detect truncation — Gemini signals this in the stream's final event
+            const finishReason = evt.candidates?.[0]?.finishReason;
+            if (finishReason === "MAX_TOKENS") {
+              const err = new Error("Gemini response was truncated — the calendar output was too long. Try again or switch to Claude in Settings.");
+              err.isStreamError = true;
+              throw err;
+            }
+          } catch(parseErr) {
+            if (parseErr.isStreamError) throw parseErr;
+          }
         }
       }
       return; // success — exit retry loop
@@ -1257,7 +1266,7 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
     const model = (() => { try { return localStorage.getItem("gc_gemini_model") || "gemini-2.5-flash"; } catch { return "gemini-2.5-flash"; } })();
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userKey}`;
     // Gemini needs more tokens than Claude for the same JSON — use a higher floor
-    const geminiTokens = Math.max(maxTokens, 1200);
+    const geminiTokens = Math.max(maxTokens * 2, 2000); // Gemini is verbose — needs 2x Claude's budget for same JSON output
     // Retry up to 3 times with exponential backoff for 429s
     for (let attempt = 0; attempt < 3; attempt++) {
       const res = await fetch(url, {
@@ -2705,7 +2714,7 @@ Other rules:
       clearInterval(uiIntervalRef.current); uiIntervalRef.current = null;
       if (e.name==="AbortError"||rid!==submitIdRef.current) return;
       if (e.isRateLimit) { setRateLimitMsg(e.message); return; }
-      setError("Stream failed: "+e.message); return;
+      setError((e.isStreamError ? "Stream failed: " : "Generation failed: ")+e.message); return;
     }
     clearInterval(stallTimer);
     clearInterval(uiIntervalRef.current); uiIntervalRef.current = null;
