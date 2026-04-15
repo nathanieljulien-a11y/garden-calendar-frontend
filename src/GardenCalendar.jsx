@@ -2659,6 +2659,10 @@ SPECIFICITY RULE: Every TASK must include a measurement, plant part, method, or 
 FAIL: "Prune apple" / "Feed lawn" / "Check for pests" / "Water plants"
 PASS: "Summer prune apple laterals to 3 leaves above basal cluster" / "Apply 35g/m² balanced granular feed" / "Inspect tomato leaves weekly for early blight — remove affected leaves immediately"
 
+BREVITY RULE: Every TASK line must be under 20 words. Write in terse imperative style — no subordinate clauses, no "in order to", no "to ensure that". Start with a verb. Include the key measurement or method, then stop.
+BAD: "Prune established Rose bushes, cutting dead, damaged, or crossing stems, and reducing healthy stems by one-third above an outward-facing bud."
+GOOD: "Prune roses, cutting stems back to an outward-facing bud 15cm above ground."
+
 ENJOY FORMAT: Start every ENJOY line with the subject (plant, bird, insect or phenomenon) followed by an em-dash, then a short concrete observation.
 
 Other rules:
@@ -2797,6 +2801,7 @@ INVENTORY RULE: Before writing every TASK line, ask: "Is this plant in the inven
 SEASON RULE: Use Winter/Spring/Summer/Autumn for temperate and subtropical climates. For tropical or frost-free climates use Wet season/Dry season/Hot season/Cool season as appropriate. SOUTHERN HEMISPHERE: Summer=Dec–Feb, Autumn=Mar–May, Winter=Jun–Aug, Spring=Sep–Nov — never label February as Winter or June as Summer in a southern hemisphere garden.
 ENJOY RULE: Each observation must capture something actively happening THIS specific month with sensory and geographic specificity — name the sound, scent, time of day, or exact behaviour. A line that could describe any garden anywhere is not good enough. Residential garden scale only.
 ENJOY COUNT: Always write EXACTLY 2 ENJOY lines per month block — no more, no fewer.
+BREVITY: Every TASK line must be under 20 words. Terse imperative style — start with a verb, include the key measurement or method, then stop. No subordinate clauses.
 COVERAGE: Every plant should appear in at least one task across all generated months. Use 3 tasks in winter, up to 4 in peak months.
 LIFECYCLE: Key rules — Peony: cut back ONCE in autumn (Oct–Nov) only, never in spring or summer. Raspberries: summer-fruiting cut immediately after harvest in Aug, not October. Agapanthus: evergreen varieties — remove only spent flower stems and dead leaves, NEVER cut foliage to ground. Broad beans (S hemisphere): harvest Sep–Oct, not summer. Oleander: prune Aug–Sep only, never winter. Stone fruit: peach/apricot harvest Jun–Sep, cherry May–Jun. Almond/peach bloom Feb–Mar only. Mimosa Jan–Feb only. Iris: rhizomes at soil surface, top half exposed — never buried. Spring-bloomers: prune after flowering May–Jun only. Lavender: trim August only. Tomatoes/basil: plant out only when nights consistently above 10°C.
 Respond entirely in ${langName()}. All task and enjoy text must be in ${langName()}.`;
