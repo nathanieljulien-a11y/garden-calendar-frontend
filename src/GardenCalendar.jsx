@@ -1265,14 +1265,14 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
     return withGeminiQueue(async () => {
     const model = (() => { try { return localStorage.getItem("gc_gemini_model") || "gemini-2.5-flash"; } catch { return "gemini-2.5-flash"; } })();
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userKey}`;
-    // Gemini needs more tokens than Claude for the same JSON — use a higher floor
-    const geminiTokens = Math.max(maxTokens * 2, 2000); // Gemini is verbose — needs 2x Claude's budget for same JSON output
+    // Gemini is significantly more verbose than Claude for JSON — use a generous ceiling
+    const geminiTokens = Math.max(maxTokens * 4, 4000);
     // Retry up to 3 times with exponential backoff for 429s
     for (let attempt = 0; attempt < 3; attempt++) {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: geminiTokens } }),
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: geminiTokens, temperature: 0.1, responseMimeType: "application/json" } }),
         signal,
       });
       if (res.status === 429) {
