@@ -1167,14 +1167,18 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
         const e = await res.json().catch(() => ({}));
         const rawMsg = e.error?.message || `Gemini HTTP ${res.status}`;
         const isOverloaded = res.status === 503 || rawMsg.toLowerCase().includes("high demand") || rawMsg.toLowerCase().includes("overloaded") || rawMsg.toLowerCase().includes("temporarily");
-        // Retry on overload/503 just like rate limits
+        // Retry on overload/503 — longer backoff to let Google recover
         if (isOverloaded && attempt < 2) {
-          await new Promise(r => setTimeout(r, (attempt + 1) * 5000)); // 5s, 10s
+          const waitMs = (attempt + 1) * 8000; // 8s, 16s
+          // Send empty heartbeat chunks every 2s so the stall timer doesn't fire
+          const heartbeat = setInterval(() => onChunk(""), 2000);
+          await new Promise(r => setTimeout(r, waitMs));
+          clearInterval(heartbeat);
           continue;
         }
         const isQuota = rawMsg.toLowerCase().includes("quota") || rawMsg.toLowerCase().includes("billing") || rawMsg.toLowerCase().includes("spend");
         const friendlyMsg = isOverloaded
-          ? "Gemini is experiencing high demand. Waiting a moment and retrying…"
+          ? `Gemini is unavailable (503) after ${attempt + 1} attempt${attempt ? "s" : ""}. Try again in a moment, or switch to Claude in Settings.`
           : isQuota
             ? "Gemini quota exceeded. Enable billing in Google AI Studio (aistudio.google.com) — usage stays free within limits, but billing must be active."
             : rawMsg.length > 200 ? rawMsg.slice(0, 200) + "…" : rawMsg;
@@ -2677,14 +2681,15 @@ Other rules:
       setChunkCount(chunkCountRef.current); // sync chunk count to React
     }, 50);
 
-    // Stall detector — if no chunks for 22s, abort and show error
+    // Stall detector — if no chunks for 22s (Claude/proxy) or 60s (Gemini, allows retry backoff), abort and show error
     let lastChunkAt = Date.now();
+    const stallLimit = (provider === "gemini" && userKey) ? 65000 : 22000;
     const stallTimer = setInterval(() => {
-      if (Date.now() - lastChunkAt > 22000) {
+      if (Date.now() - lastChunkAt > stallLimit) {
         clearInterval(stallTimer);
         abort.abort();
         clearInterval(uiIntervalRef.current); uiIntervalRef.current = null;
-        setError("Stream stalled — no data received for 20 seconds. Please try again.");
+        setError("Stream stalled — no data received. Please try again.");
       }
     }, 2000);
 
