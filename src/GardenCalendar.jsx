@@ -3286,6 +3286,54 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
         )}
 
         {/* ── FORM: LOCATION STEP ── */}
+        {showHome && stage === "form" && (
+  <div className="form-card" style={{ maxWidth: 600, margin: '0 auto' }}>
+    <div className="form-title" style={{ marginBottom: '.35rem' }}>Welcome back</div>
+    <p className="form-hint" style={{ marginBottom: '1.75rem' }}>
+      Pick up where you left off, or start a new garden.
+    </p>
+    <HomeScreen
+      gardens={gardens}
+      selectedId={selectedGardenId}
+      onSelectGarden={(id) => {
+        const g = gardens.find(g => g.id === id);
+        if (!g) return;
+        touchGarden(id);
+        setSelectedGardenId(id);
+        setGardens(readGardens());
+        if (g.city)        setCity(g.city);
+        if (g.orientation) setOri(g.orientation);
+        if (g.features)    setFeatures(g.features);
+        if (g.plants)      setPlants(g.plants);
+      }}
+      onCreateEdit={() => {
+        const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : null;
+        if (g) {
+          if (g.city)        setCity(g.city);
+          if (g.orientation) setOri(g.orientation);
+          if (g.features)    setFeatures(g.features);
+          if (g.plants)      setPlants(g.plants);
+        }
+        setShowHome(false);
+        setFormStep('location');
+      }}
+      onRenameGarden={(id, newName) => {
+        const updated = renameGarden(id, newName);
+        if (updated) setGardens(updated);
+      }}
+      onDeleteGarden={(id) => {
+        const updated = deleteGarden(id);
+        setGardens(updated);
+        if (!updated.length) {
+          setShowHome(false);
+          setSelectedGardenId(null);
+        } else {
+          setSelectedGardenId(updated[0].id);
+        }
+      }}
+    />
+  </div>
+)}
         {stage==="form" && formStep==="location" && (
           <div className="form-card">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:".5rem",marginBottom:".25rem"}}>
