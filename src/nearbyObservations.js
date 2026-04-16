@@ -91,29 +91,47 @@ export async function fetchNearbyObservations(lat, lng, inventoryPlants = [], si
   d1.setDate(d1.getDate() - 14);
   const d1str = d1.toISOString().slice(0, 10);
 
-  // Build query — research grade only, last 14 days, 30km radius
-  const params = new URLSearchParams({
-    lat:           lat.toFixed(4),
-    lng:           lng.toFixed(4),
-    radius:        30,
-    quality_grade: 'research',
-    d1:            d1str,
-    iconic_taxa:   GARDEN_TAXA,
-    per_page:      50,
-    order:         'desc',
-    order_by:      'observed_on',
+  // Two parallel fetches:
+  // 1. Plants — include captive=true to get cultivated garden plants (tulips, magnolia etc)
+  // 2. Wildlife — birds and insects, wild only, research grade
+  const baseParams = {
+    lat:      lat.toFixed(4),
+    lng:      lng.toFixed(4),
+    radius:   30,
+    d1:       d1str,
+    per_page: 100,
+    order:    'desc',
+    order_by: 'observed_on',
+  };
+
+  const plantParams = new URLSearchParams({
+    ...baseParams,
+    iconic_taxa: 'Plantae',
+    // No quality_grade filter — include casual + needs_id + research
+    // captive not filtered — includes cultivated garden plants
   });
 
-  const url = `${INAT_BASE}/observations?${params}`;
-  const res = await fetch(url, {
-    signal,
-    headers: { 'Accept': 'application/json' },
+  const wildlifeParams = new URLSearchParams({
+    ...baseParams,
+    iconic_taxa:   'Aves,Insecta,Arachnida',
+    quality_grade: 'research', // wildlife benefits from stricter filtering
+    captive:       'false',
   });
 
-  if (!res.ok) throw new Error(`iNaturalist returned ${res.status}`);
-  const data = await res.json();
+  const [plantRes, wildlifeRes] = await Promise.allSettled([
+    fetch(`${INAT_BASE}/observations?${plantParams}`, { signal, headers: { 'Accept': 'application/json' } }),
+    fetch(`${INAT_BASE}/observations?${wildlifeParams}`, { signal, headers: { 'Accept': 'application/json' } }),
+  ]);
 
-  return normaliseInatObservations(data, inventoryPlants);
+  const plantData    = plantRes.status    === 'fulfilled' && plantRes.value.ok    ? await plantRes.value.json()    : { results: [] };
+  const wildlifeData = wildlifeRes.status === 'fulfilled' && wildlifeRes.value.ok ? await wildlifeRes.value.json() : { results: [] };
+
+  // Merge results — plants first so they rank higher when counts are equal
+  const merged = {
+    results: [...(plantData.results || []), ...(wildlifeData.results || [])],
+  };
+
+  return normaliseInatObservations(merged, inventoryPlants);
 }
 
 /**
@@ -121,59 +139,71 @@ export async function fetchNearbyObservations(lat, lng, inventoryPlants = [], si
  * Groups by taxon, counts sightings, returns top 5 most-observed.
  * Exported for testing with fixture data.
  */
+// Birds unlikely to appear in a domestic garden — filter these out
+const NON_GARDEN_BIRDS = new Set([
+  'coot', 'moorhen', 'mallard', 'tufted duck', 'great crested grebe',
+  'cormorant', 'grey heron', 'mute swan', 'canada goose', 'barnacle goose',
+  'herring gull', 'lesser black-backed gull', 'common gull', 'black-headed gull',
+  'kingfisher', 'grey wagtail', 'sand martin', 'house martin',
+]);
+
 export function normaliseInatObservations(raw, inventoryPlants = []) {
   const results = raw?.results || [];
   const inventoryLower = inventoryPlants.map(p => p.toLowerCase());
 
-  // Group by taxon ID
   const byTaxon = {};
   for (const obs of results) {
     const taxon = obs.taxon;
     if (!taxon) continue;
 
-    const commonName = taxon.preferred_common_name || taxon.name || '';
+    const commonName = (taxon.preferred_common_name || taxon.name || '').toLowerCase();
     const sciName    = taxon.name || '';
+    const group      = taxon.iconic_taxon_name || '';
 
-    // Skip if it's already in the user's inventory (not interesting to surface)
+    // Skip if in user's inventory
     if (inventoryLower.some(p =>
-      commonName.toLowerCase().includes(p) || p.includes(commonName.toLowerCase())
+      commonName.includes(p) || p.includes(commonName)
     )) continue;
 
-    // Skip very generic taxa (order/class level — not useful)
+    // Skip very generic ranks
     if (!taxon.rank || ['order','class','phylum','kingdom'].includes(taxon.rank)) continue;
+
+    // Skip non-garden waterbirds
+    if (group === 'Aves' && NON_GARDEN_BIRDS.has(commonName)) continue;
 
     const id = taxon.id;
     if (!byTaxon[id]) {
       byTaxon[id] = {
-        commonName,
+        commonName:     taxon.preferred_common_name || taxon.name || '',
         scientificName: sciName,
-        taxonGroup:     taxon.iconic_taxon_name || 'Plantae',
-        emoji:          TAXON_EMOJI[taxon.iconic_taxon_name] || '🌿',
+        taxonGroup:     group,
+        emoji:          TAXON_EMOJI[group] || '🌿',
         count:          0,
         mostRecentDate: null,
         photoUrl:       null,
         inatUrl:        `https://www.inaturalist.org/taxa/${id}`,
+        _isPlant:       group === 'Plantae',
       };
     }
 
     byTaxon[id].count++;
 
-    // Track most recent observation date
     if (obs.observed_on && (!byTaxon[id].mostRecentDate || obs.observed_on > byTaxon[id].mostRecentDate)) {
       byTaxon[id].mostRecentDate = obs.observed_on;
     }
 
-    // Use first available photo
     if (!byTaxon[id].photoUrl && obs.photos?.[0]?.url) {
-      // iNat photo URLs come in 'square' size (75px) — replace with 'small' (240px)
       byTaxon[id].photoUrl = obs.photos[0].url.replace('square', 'small');
     }
   }
 
-  // Sort by count descending, take top 5
+  // Score: plants get a bonus to surface garden-relevant flora over common birds
+  // Score = count * multiplier (1.4 for plants, 1.0 for wildlife)
   const observations = Object.values(byTaxon)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
+    .map(o => ({ ...o, _score: o.count * (o._isPlant ? 1.4 : 1.0) }))
+    .sort((a, b) => b._score - a._score)
+    .slice(0, 6)
+    .map(({ _isPlant, _score, ...o }) => o); // strip internal fields
 
   return {
     fetchedAt:    Date.now(),
