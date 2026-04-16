@@ -174,12 +174,11 @@ export async function fetchNearbyObservations(lat, lng, inventoryPlants = [], si
   };
 }
 
-// Birds unlikely to appear in a domestic garden — filter these out
-const NON_GARDEN_BIRDS = new Set([
-  'coot', 'moorhen', 'mallard', 'tufted duck', 'great crested grebe',
-  'cormorant', 'grey heron', 'mute swan', 'canada goose', 'barnacle goose',
-  'herring gull', 'lesser black-backed gull', 'common gull', 'black-headed gull',
-  'kingfisher', 'grey wagtail', 'sand martin', 'house martin',
+// Only show birds from garden-relevant orders
+// Passeriformes = perching birds, Apodiformes = swifts,
+// Columbiformes = pigeons/doves, Piciformes = woodpeckers, Psittaciformes = parrots
+const GARDEN_BIRD_ORDERS = new Set([
+  'passeriformes', 'apodiformes', 'columbiformes', 'piciformes', 'psittaciformes',
 ]);
 
 export function normaliseInatObservations(raw, inventoryPlants = [], isCaptive = false) {
@@ -197,7 +196,10 @@ export function normaliseInatObservations(raw, inventoryPlants = [], isCaptive =
 
     if (inventoryLower.some(p => commonName.includes(p) || p.includes(commonName))) continue;
     if (!taxon.rank || ['order','class','phylum','kingdom'].includes(taxon.rank)) continue;
-    if (group === 'Aves' && Array.from(NON_GARDEN_BIRDS).some(b => commonName.includes(b))) continue;
+    if (group === 'Aves') {
+      const order = (taxon.order_name || '').toLowerCase();
+      if (!GARDEN_BIRD_ORDERS.has(order)) continue;
+    }
 
     const id = taxon.id;
     if (!byTaxon[id]) {
