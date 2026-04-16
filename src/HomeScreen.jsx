@@ -167,6 +167,7 @@ export function HomeScreen({
   onSelectGarden,
   onCreateEdit,
   onCreateNew,
+  onToday,  
   onRenameGarden,
   onDeleteGarden,
 }) {
@@ -212,6 +213,16 @@ export function HomeScreen({
       {/* Path buttons */}
       <div className="home-paths">
     <button
+  className="home-path-primary"
+  type="button"
+  onClick={onToday}
+>
+  <div className="home-path-label">What should I do today?</div>
+  <div className="home-path-sub">
+    Weather-aware tasks for {selected?.name || selected?.city || 'your garden'}
+  </div>
+</button>
+        <button
       className="home-path-secondary"
       type="button"
       onClick={onCreateNew}
