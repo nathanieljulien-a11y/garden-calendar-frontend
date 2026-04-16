@@ -166,6 +166,7 @@ export function HomeScreen({
   selectedId,
   onSelectGarden,
   onCreateEdit,
+  onCreateNew,
   onRenameGarden,
   onDeleteGarden,
 }) {
@@ -210,6 +211,17 @@ export function HomeScreen({
 
       {/* Path buttons */}
       <div className="home-paths">
+    <button
+      className="home-path-secondary"
+      type="button"
+      onClick={onCreateNew}
+    >
+    <div>
+    <div className="home-path-label">+ Create new garden</div>
+    <div className="home-path-sub">Start fresh with a new location</div>
+  </div>
+  <span className="home-path-arrow">›</span>
+</button>
         {/* Path 2 — Create or edit (always visible, this is the main existing flow) */}
         <button
           className="home-path-secondary"
