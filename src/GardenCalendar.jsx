@@ -4,6 +4,7 @@ import { HomeScreen, HOME_SCREEN_STYLES } from './HomeScreen.jsx';
 import { fetchWeatherForecast, computeUrgencySignals, readWeatherCache, writeWeatherCache } from './weatherService.js';
 import { WeatherSummary, WEATHER_SUMMARY_STYLES } from './WeatherSummary.jsx';
 import { buildTodayPrompt, validateTodayResponse, readTodayCache, writeTodayCache } from './todayTasks.js';
+import { fetchNearbyObservations, normaliseInatObservations, readInatCache, writeInatCache, relativeDate } from './nearbyObservations.js';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
@@ -2017,8 +2018,11 @@ const [showHome, setShowHome] = useState(() => {
   const [todayTasks, setTodayTasks]               = useState(null);
   const [todayTasksLoading, setTodayTasksLoading] = useState(false);
   const [todayTasksError, setTodayTasksError]     = useState(null);
-  const [todayRefreshUsed, setTodayRefreshUsed]   = useState(false);
+  const [todayRefreshUsed, setTodayRefreshUsed]       = useState(false);
   const [todayRefreshLoading, setTodayRefreshLoading] = useState(false);
+  const [inatData, setInatData]                       = useState(null);
+  const [inatLoading, setInatLoading]                 = useState(false);
+  const [inatError, setInatError]                     = useState(null);
   const [linkCopied, setLinkCopied]   = useState(false);
   const [showAbout, setShowAbout]     = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -2876,6 +2880,7 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     setTodayGarden(null); setWeatherData(null); setWeatherSignals([]); setWeatherLoading(false); setWeatherError(null);
     setTodayTasks(null); setTodayTasksLoading(false); setTodayTasksError(null);
     setTodayRefreshUsed(false); setTodayRefreshLoading(false);
+    setInatData(null); setInatLoading(false); setInatError(null);
   };
   
 // Save garden link to clipboard + add to favourites
@@ -2981,6 +2986,25 @@ Return tasks for: ${batch.join(', ')}`;
       return null;
     }
   }, [provider, userKey]);
+
+  const fetchNearbyObs = useCallback(async (garden) => {
+    if (!garden?.lat || !garden?.lng) return;
+    const cached = readInatCache(garden.id);
+    if (cached) { setInatData(cached); return; }
+    setInatLoading(true);
+    setInatError(null);
+    try {
+      const inventoryPlants = Object.values(garden.plants || {}).flat();
+      const data = await fetchNearbyObservations(garden.lat, garden.lng, inventoryPlants);
+      writeInatCache(garden.id, data);
+      setInatData(data);
+    } catch (e) {
+      // Silently fail — iNat is supplementary, not critical
+      setInatError(e.message);
+    } finally {
+      setInatLoading(false);
+    }
+  }, []);
 
   const fetchTodayTasks = useCallback(async (garden, weatherData, signals, isRefresh = false) => {
     if (!garden?.climateData?._cd) {
@@ -3540,13 +3564,13 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
         setTodayGarden(g);
         setTodayTasks(null);
         setTodayTasksError(null);
+        setInatData(null);
+        setInatError(null);
         setStage('today');
-        // Fire weather and tasks in parallel — weather is fast (~200ms), tasks are slow (~5-10s)
-        // Weather resolves first so the panel shows immediately; tasks follow
+        // Fire weather, iNat, and tasks — weather+iNat are fast and show immediately
         const weatherPromise = fetchTodayWeather(g);
+        fetchNearbyObs(g);
         weatherPromise.then(() => {
-          // Re-read weather state isn't available here due to closure — pass signals directly
-          // Tasks are fired after weather completes so signals are available
           fetchTodayTasks(g, readWeatherCache(g.id), computeUrgencySignals(readWeatherCache(g.id)));
         });
       }}
@@ -4003,6 +4027,77 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
             <div className="cal-actions">
               <button className="btn-ghost" onClick={() => { setStage("form"); setShowHome(true); }}>← Back</button>
             </div>
+
+            {/* ── Nearby this week — iNaturalist ── */}
+            {(inatLoading || inatData || inatError) && (
+              <div style={{ marginTop: '1.5rem' }}>
+                <div style={{ fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--dew)', marginBottom: '.65rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                  🔭 Spotted nearby this week
+                  <span style={{ opacity: .5, fontStyle: 'italic', textTransform: 'none', letterSpacing: 0, fontSize: '.72rem' }}>— via iNaturalist</span>
+                </div>
+
+                {inatLoading && (
+                  <div style={{ fontSize: '.82rem', color: 'var(--sage)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                    <span style={{ display:'inline-block', animation:'spin .7s linear infinite' }}>◌</span>
+                    Loading nearby sightings…
+                  </div>
+                )}
+
+                {inatError && !inatLoading && (
+                  <div style={{ fontSize: '.78rem', color: 'var(--sage)', fontStyle: 'italic', opacity: .6 }}>
+                    Nearby sightings unavailable right now
+                  </div>
+                )}
+
+                {inatData && !inatLoading && inatData.observations.length === 0 && (
+                  <div style={{ fontSize: '.82rem', color: 'var(--sage)', fontStyle: 'italic' }}>
+                    No recent observations found within 30km
+                  </div>
+                )}
+
+                {inatData && !inatLoading && inatData.observations.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+                    {inatData.observations.map((obs, i) => (
+                      <a
+                        key={i}
+                        href={obs.inatUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.5rem .75rem', background: 'rgba(30,18,8,.55)', border: '1px solid rgba(138,180,160,.15)', borderRadius: '2px', textDecoration: 'none', transition: 'border-color .15s' }}
+                      >
+                        {obs.photoUrl ? (
+                          <img
+                            src={obs.photoUrl}
+                            alt={obs.commonName}
+                            style={{ width: 40, height: 40, borderRadius: '2px', objectFit: 'cover', flexShrink: 0 }}
+                            onError={e => { e.target.style.display = 'none'; }}
+                          />
+                        ) : (
+                          <span style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0 }}>{obs.emoji}</span>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '.9rem', color: 'var(--cream)', fontFamily: "'Playfair Display',serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {obs.commonName || obs.scientificName}
+                          </div>
+                          <div style={{ fontSize: '.72rem', color: 'var(--sage)', fontStyle: 'italic' }}>
+                            {obs.scientificName !== obs.commonName && obs.commonName ? obs.scientificName + ' · ' : ''}
+                            {obs.count} {obs.count === 1 ? 'sighting' : 'sightings'}{obs.mostRecentDate ? ` · last seen ${relativeDate(obs.mostRecentDate)}` : ''}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '.72rem', color: 'var(--dew)', opacity: .6, flexShrink: 0 }}>↗</span>
+                      </a>
+                    ))}
+                    <div style={{ fontSize: '.65rem', color: 'rgba(180,180,160,.35)', marginTop: '.35rem', fontStyle: 'italic' }}>
+                      Research-grade observations within 30km · last 14 days ·{' '}
+                      <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline', opacity: .8 }}>
+                        iNaturalist
+                      </a>
+                      {' '}· CC BY
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
