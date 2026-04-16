@@ -1996,6 +1996,7 @@ export default function GardenCalendar() {
   const [apiKey,setApiKey]   = useState("");
   const [city,setCity]       = useState("");
   const [rateLimitMsg,setRateLimitMsg] = useState("");
+  const [favourites, setFavourites] = useState(() => loadFavourites());
   const [gardens, setGardens] = useState(() => migrateLegacyFavourites());
 const [selectedGardenId, setSelectedGardenId] = useState(() => {
   const gs = migrateLegacyFavourites();
