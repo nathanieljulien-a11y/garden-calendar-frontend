@@ -107,8 +107,7 @@ export async function fetchNearbyObservations(lat, lng, inventoryPlants = [], si
   const plantParams = new URLSearchParams({
     ...baseParams,
     iconic_taxa: 'Plantae',
-    // No quality_grade filter — include casual + needs_id + research
-    // captive not filtered — includes cultivated garden plants
+    captive:     'true',  // cultivated garden plants only
   });
 
   const wildlifeParams = new URLSearchParams({
