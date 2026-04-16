@@ -2857,7 +2857,7 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     if (uiIntervalRef.current) { clearInterval(uiIntervalRef.current); uiIntervalRef.current = null; }
     ++prefetchIdRef.current; ++submitIdRef.current;
     unlockedPages.current = new Set();
-    setStage("form"); setFormStep("location"); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
+    setStage("form"); setFormStep("location"); setShowHome(hasSavedGardens() && gardens.length > 0); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
   };
   
