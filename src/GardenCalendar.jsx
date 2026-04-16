@@ -1996,7 +1996,15 @@ export default function GardenCalendar() {
   const [apiKey,setApiKey]   = useState("");
   const [city,setCity]       = useState("");
   const [rateLimitMsg,setRateLimitMsg] = useState("");
-  const [favourites, setFavourites]   = useState(() => loadFavourites());
+  const [gardens, setGardens] = useState(() => migrateLegacyFavourites());
+const [selectedGardenId, setSelectedGardenId] = useState(() => {
+  const gs = migrateLegacyFavourites();
+  return gs[0]?.id ?? null;
+});
+const [showHome, setShowHome] = useState(() => {
+  const hasHash = typeof window !== 'undefined' && !!window.location.hash.slice(1);
+  return hasSavedGardens() && !hasHash;
+});
   const [linkCopied, setLinkCopied]   = useState(false);
   const [showAbout, setShowAbout]     = useState(false);
   const [showSettings, setShowSettings] = useState(false);
