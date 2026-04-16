@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { readGardens, saveGarden, touchGarden, renameGarden, deleteGarden, migrateLegacyFavourites, hasSavedGardens, createGardenObject } from './gardenStorage.js';
 import { HomeScreen, HOME_SCREEN_STYLES } from './HomeScreen.jsx';
+import { fetchWeatherForecast, computeUrgencySignals, readWeatherCache, writeWeatherCache } from './weatherService.js';
+import { WeatherSummary, WEATHER_SUMMARY_STYLES } from './WeatherSummary.jsx';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
@@ -2006,6 +2008,11 @@ const [showHome, setShowHome] = useState(() => {
   const hasHash = typeof window !== 'undefined' && !!window.location.hash.slice(1);
   return hasSavedGardens() && !hasHash;
 });
+  const [todayGarden, setTodayGarden]       = useState(null);
+  const [weatherData, setWeatherData]       = useState(null);
+  const [weatherSignals, setWeatherSignals] = useState([]);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError]     = useState(null);
   const [linkCopied, setLinkCopied]   = useState(false);
   const [showAbout, setShowAbout]     = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -2860,9 +2867,38 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     unlockedPages.current = new Set();
     setStage("form"); setFormStep("location"); setShowHome(hasSavedGardens() && gardens.length > 0); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
+    setTodayGarden(null); setWeatherData(null); setWeatherSignals([]); setWeatherLoading(false); setWeatherError(null);
   };
   
 // Save garden link to clipboard + add to favourites
+  const fetchTodayWeather = useCallback(async (garden) => {
+    if (!garden?.lat || !garden?.lng) {
+      setWeatherError('No location data for this garden — please regenerate your calendar first.');
+      return;
+    }
+    const cached = readWeatherCache(garden.id);
+    if (cached) {
+      setWeatherData(cached);
+      setWeatherSignals(computeUrgencySignals(cached));
+      setWeatherLoading(false);
+      return;
+    }
+    setWeatherLoading(true);
+    setWeatherError(null);
+    setWeatherData(null);
+    setWeatherSignals([]);
+    try {
+      const data = await fetchWeatherForecast(garden.lat, garden.lng);
+      writeWeatherCache(garden.id, data);
+      setWeatherData(data);
+      setWeatherSignals(computeUrgencySignals(data));
+    } catch (e) {
+      setWeatherError(e.message || 'Could not fetch weather data');
+    } finally {
+      setWeatherLoading(false);
+    }
+  }, []);
+
     const saveCurrentGarden = useCallback(() => {
   const existing = selectedGardenId ? readGardens().find(g => g.id === selectedGardenId) : null;
   const garden = createGardenObject({
@@ -3068,7 +3104,7 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
 
   return (
     <>
-      <style>{styles + HOME_SCREEN_STYLES}</style>
+      <style>{styles + HOME_SCREEN_STYLES + WEATHER_SUMMARY_STYLES}</style>
       <div className="grain"/>
       <div className="demo-banner">
         <span className="demo-name">NatJulien_Demo</span>
@@ -3326,6 +3362,13 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
         setSelectedGardenId(null);
         setShowHome(false);
         setFormStep('location');
+      }}
+      onToday={() => {
+        const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
+        if (!g) return;
+        setTodayGarden(g);
+        setStage('today');
+        fetchTodayWeather(g);
       }}
       onRenameGarden={(id, newName) => {
         const updated = renameGarden(id, newName);
@@ -3648,6 +3691,52 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
           </div>
         )}
 
+
+        {/* ── TODAY VIEW ── */}
+        {stage === "today" && todayGarden && (
+          <div className="cal-wrap" style={{ maxWidth: 640, margin: '0 auto' }}>
+            <div className="cal-header" style={{ marginBottom: '1.25rem' }}>
+              <div className="deco" style={{ fontSize: '1.1rem' }}>✦ ✿ ✦</div>
+              <h2 style={{ fontSize: '1.6rem' }}>
+                {todayGarden.name || todayGarden.city || 'Your garden'} today
+              </h2>
+              <p style={{ color: 'var(--sage)', fontStyle: 'italic', marginTop: '.3rem', fontSize: '.9rem' }}>
+                {new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' })}
+                {todayGarden.city && todayGarden.name !== todayGarden.city ? ` · ${todayGarden.city}` : ''}
+              </p>
+              {Object.values(todayGarden.plants||{}).flat().length > 0 && (
+                <div className="meta-pills" style={{ justifyContent: 'center', marginTop: '.75rem' }}>
+                  <div className="pill">🌱 <b>{Object.values(todayGarden.plants||{}).flat().length}</b> plants</div>
+                  {todayGarden.climateData?._derived?.zone && (
+                    <div className="pill">🌡 {todayGarden.climateData._derived.zone}</div>
+                  )}
+                </div>
+              )}
+            </div>
+            <WeatherSummary
+              weatherData={weatherData}
+              signals={weatherSignals}
+              loading={weatherLoading}
+              error={weatherError}
+            />
+            <div style={{
+              background: 'rgba(58,34,16,.35)',
+              border: '1px dashed rgba(200,169,110,.2)',
+              borderRadius: '2px',
+              padding: '1.5rem',
+              textAlign: 'center',
+              color: 'var(--sage)',
+              fontSize: '.9rem',
+              fontStyle: 'italic',
+              marginBottom: '1.5rem',
+            }}>
+              🌿 Personalised daily tasks coming in the next update
+            </div>
+            <div className="cal-actions">
+              <button className="btn-ghost" onClick={() => { setStage("form"); setShowHome(true); }}>← Back</button>
+            </div>
+          </div>
+        )}
 
         {/* ── CALENDAR ── */}
         {stage==="calendar" && (
