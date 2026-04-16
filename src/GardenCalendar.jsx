@@ -2859,8 +2859,26 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     setStage("form"); setFormStep("location"); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
   };
-
-  // Save garden link to clipboard + add to favourites
+  
+// Save garden link to clipboard + add to favourites
+    const saveCurrentGarden = useCallback(() => {
+  const existing = selectedGardenId ? readGardens().find(g => g.id === selectedGardenId) : null;
+  const garden = createGardenObject({
+    ...(existing || {}),
+    id:          existing?.id,
+    city,
+    orientation,
+    features,
+    plants,
+    lat:         meta?.lat         ?? existing?.lat         ?? null,
+    lng:         meta?.lng         ?? existing?.lng         ?? null,
+    climateData: meta?._cd ? { _cd: meta._cd, _derived: meta._derived } : (existing?.climateData ?? null),
+  });
+  const updated = saveGarden(garden);
+  setGardens(updated);
+  setSelectedGardenId(garden.id);
+  return garden.id;
+}, [city, orientation, features, plants, meta, selectedGardenId]);
   const handleSaveLink = () => {
     const url = buildGardenUrl(city, orientation, features, plants);
     // Update the browser URL bar so the current page IS the saved link
