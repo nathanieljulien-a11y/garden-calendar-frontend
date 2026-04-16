@@ -2014,9 +2014,11 @@ const [showHome, setShowHome] = useState(() => {
   const [weatherSignals, setWeatherSignals] = useState([]);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError]     = useState(null);
-  const [todayTasks, setTodayTasks]         = useState(null);   // validated task payload
+  const [todayTasks, setTodayTasks]               = useState(null);
   const [todayTasksLoading, setTodayTasksLoading] = useState(false);
   const [todayTasksError, setTodayTasksError]     = useState(null);
+  const [todayRefreshUsed, setTodayRefreshUsed]   = useState(false);
+  const [todayRefreshLoading, setTodayRefreshLoading] = useState(false);
   const [linkCopied, setLinkCopied]   = useState(false);
   const [showAbout, setShowAbout]     = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -2873,6 +2875,7 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
     setTodayGarden(null); setWeatherData(null); setWeatherSignals([]); setWeatherLoading(false); setWeatherError(null);
     setTodayTasks(null); setTodayTasksLoading(false); setTodayTasksError(null);
+    setTodayRefreshUsed(false); setTodayRefreshLoading(false);
   };
   
 // Save garden link to clipboard + add to favourites
@@ -2904,40 +2907,170 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     }
   }, []);
 
-  const fetchTodayTasks = useCallback(async (garden, weatherData, signals) => {
-    // Require climateData — without it task quality is too low (Sprint 3 decision)
+  // ── Silent calendar refresh for Today view ───────────────────────────────
+  // Called when a garden has no calendarTasks (generated before Sprint 3, or never generated).
+  // Uses callAI (non-streaming JSON) — faster than full streaming, no ENJOY lines needed.
+  // Returns the calendar tasks object { monthName: string[] } or null on failure.
+  const generateCalendarForToday = useCallback(async (garden) => {
+    const cd  = garden.climateData?._cd;
+    const der = garden.climateData?._derived;
+    if (!cd || !der) return null;
+
+    const nowMonthIdx = new Date().getMonth();
+    const startIdx = (nowMonthIdx + 11) % 12;
+    const batch = Array.from({length:3}, (_,i) => MONTH_NAMES[(startIdx + i) % 12]);
+    const now = `${MONTH_NAMES[nowMonthIdx]} ${new Date().getFullYear()}`;
+
+    const allPlants = Object.entries(garden.plants || {})
+      .map(([k,v]) => v.length ? `${k}: ${v.join(', ')}` : null)
+      .filter(Boolean).join(' | ') || 'general/unspecified';
+
+    const featuresCtx = garden.features?.length
+      ? ` Garden features: ${garden.features.join(', ')}.` : '';
+
+    const metaCtx = [
+      `Climate type: ${der.climateType}`,
+      `Hardiness zone: ${der.zone}`,
+      `Last frost: ${der.lastFrost || 'none'}`,
+      `First frost: ${der.firstFrost || 'none'}`,
+      der.seasonNote ? `IMPORTANT: ${der.seasonNote}` : '',
+    ].filter(Boolean).join('. ');
+
+    const prompt = `You are an expert horticulturist. Generate garden tasks for ${batch.join(', ')}.
+Location: ${garden.city}. Orientation: ${garden.orientation || 'unspecified'}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
+
+Return ONLY valid JSON — an object with month names as keys and arrays of task strings as values.
+Each task: terse imperative, under 20 words, specific plant/measurement/method.
+3 tasks in winter months, up to 4 in peak months.
+Only include tasks for plants listed above. Apply frost timing rules — no tender crop outdoor tasks before last frost.
+
+Example format:
+{"April":["Summer prune apple laterals to 3 leaves above basal cluster","Check roses for aphids, squash colonies by hand"],"May":["Plant out tomato seedlings once nights are above 10°C","Tie in climbing rose new shoots horizontally"]}
+
+Return tasks for: ${batch.join(', ')}`;
+
+    try {
+      const raw = await callAI(prompt, 1200, undefined, provider, userKey);
+      // raw should be { "April": [...], "May": [...], ... }
+      if (!raw || typeof raw !== 'object') return null;
+      const calendarTasks = {};
+      batch.forEach(month => {
+        if (Array.isArray(raw[month]) && raw[month].length) {
+          calendarTasks[month] = raw[month];
+        }
+      });
+      if (!Object.keys(calendarTasks).length) return null;
+
+      // Update months state so calendar view shows fresh content
+      setMonths(prev => {
+        const next = { ...prev };
+        Object.entries(calendarTasks).forEach(([month, tasks]) => {
+          next[month] = {
+            ...(next[month] || emptyMonth(month)),
+            tasks,
+            _state: 'done',
+            _taskPartial: null,
+            _enjoyPartial: null,
+          };
+        });
+        return next;
+      });
+
+      return calendarTasks;
+    } catch {
+      return null;
+    }
+  }, [provider, userKey]);
+
+  const fetchTodayTasks = useCallback(async (garden, weatherData, signals, isRefresh = false) => {
     if (!garden?.climateData?._cd) {
       setTodayTasksError('no_climate');
       return;
     }
-    // Check cache first — keyed by gardenId + date, expires at midnight
-    const cached = readTodayCache(garden.id);
-    if (cached) {
-      setTodayTasks(cached);
-      setTodayTasksLoading(false);
-      return;
+    const refreshKey = `gc_today_refresh_${garden.id}_${new Date().toISOString().slice(0,10)}`;
+
+    // Check cache — skip for refresh (always generates fresh)
+    if (!isRefresh) {
+      const cached = readTodayCache(garden.id);
+      if (cached) {
+        setTodayTasks(cached);
+        setTodayTasksLoading(false);
+        try { if (localStorage.getItem(refreshKey)) setTodayRefreshUsed(true); } catch {}
+        return;
+      }
     }
-    setTodayTasksLoading(true);
-    setTodayTasksError(null);
-    setTodayTasks(null);
+
+    if (isRefresh) {
+      setTodayRefreshLoading(true);
+    } else {
+      setTodayTasksLoading(true);
+      setTodayTasksError(null);
+      setTodayTasks(null);
+    }
+
     try {
-      const monthName = ['January','February','March','April','May','June',
-                         'July','August','September','October','November','December']
-                        [new Date().getMonth()];
-      const prompt = buildTodayPrompt(garden, weatherData, signals, monthName);
+      const monthName = MONTH_NAMES[new Date().getMonth()];
+
+      // If no calendar tasks stored, generate them silently first
+      let calendarTasks = garden.calendarTasks || {};
+      if (!Object.keys(calendarTasks).length && !isRefresh) {
+        setTodayTasksLoading(true); // keep spinner while we generate calendar
+        const freshCalendar = await generateCalendarForToday(garden);
+        if (freshCalendar) {
+          calendarTasks = freshCalendar;
+          // Save the updated garden with fresh calendarTasks
+          const updatedGarden = { ...garden, calendarTasks: freshCalendar };
+          const saved = saveGarden(updatedGarden);
+          setGardens(saved);
+          // Update todayGarden ref so refresh button has latest data
+          setTodayGarden(updatedGarden);
+        }
+      }
+
+      const existingTasks = isRefresh
+        ? (readTodayCache(garden.id)?.tasks || [])
+        : [];
+
+      const prompt = buildTodayPrompt(
+        garden, weatherData, signals, monthName, calendarTasks, existingTasks, isRefresh
+      );
       const raw = await callAI(prompt, 1000, undefined, provider, userKey);
       const payload = validateTodayResponse(raw);
-      writeTodayCache(garden.id, payload);
-      setTodayTasks(payload);
-    } catch (e) {
-      setTodayTasksError(e.message || 'Could not generate tasks');
-    } finally {
-      setTodayTasksLoading(false);
-    }
-  }, [provider, userKey]);
 
-    const saveCurrentGarden = useCallback(() => {
+      if (isRefresh) {
+        const existing = readTodayCache(garden.id);
+        const merged = {
+          ...existing,
+          tasks: [...(existing?.tasks || []), ...payload.tasks],
+          generatedAt: Date.now(),
+        };
+        writeTodayCache(garden.id, merged);
+        setTodayTasks(merged);
+        try { localStorage.setItem(refreshKey, '1'); } catch {}
+        setTodayRefreshUsed(true);
+      } else {
+        writeTodayCache(garden.id, payload);
+        setTodayTasks(payload);
+      }
+    } catch (e) {
+      if (!isRefresh) setTodayTasksError(e.message || 'Could not generate tasks');
+    } finally {
+      if (isRefresh) setTodayRefreshLoading(false);
+      else setTodayTasksLoading(false);
+    }
+  }, [provider, userKey, generateCalendarForToday]);
+
+    const saveCurrentGarden = useCallback((monthsSnapshot) => {
   const existing = selectedGardenId ? readGardens().find(g => g.id === selectedGardenId) : null;
+  // Store current + adjacent month tasks so Today view can use them without months state
+  const snap = monthsSnapshot || months;
+  const calendarTasksForToday = {};
+  [-1, 0, 1].forEach(offset => {
+    const mIdx = (nowIdx + 12 + offset) % 12;
+    const mName = MONTH_NAMES[mIdx];
+    const m = snap[mName];
+    if (m?.tasks?.length) calendarTasksForToday[mName] = m.tasks;
+  });
   const garden = createGardenObject({
     ...(existing || {}),
     id:          existing?.id,
@@ -2948,12 +3081,13 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     lat:         meta?.lat         ?? existing?.lat         ?? null,
     lng:         meta?.lng         ?? existing?.lng         ?? null,
     climateData: meta?._cd ? { _cd: meta._cd, _derived: meta._derived } : (existing?.climateData ?? null),
+    calendarTasks: Object.keys(calendarTasksForToday).length ? calendarTasksForToday : (existing?.calendarTasks ?? null),
   });
   const updated = saveGarden(garden);
   setGardens(updated);
   setSelectedGardenId(garden.id);
   return garden.id;
-}, [city, orientation, features, plants, meta, selectedGardenId]);
+}, [city, orientation, features, plants, meta, selectedGardenId, months, nowIdx]);
   const handleSaveLink = () => {
     const url = buildGardenUrl(city, orientation, features, plants);
     // Update the browser URL bar so the current page IS the saved link
@@ -3801,7 +3935,9 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
               <div style={{ background: 'rgba(30,18,8,.7)', border: '1px solid rgba(200,169,110,.15)', borderRadius: '2px', padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.88rem', color: 'var(--sage)', fontStyle: 'italic' }}>
                   <span style={{ display:'inline-block', animation:'spin .7s linear infinite' }}>◌</span>
-                  Preparing your tasks for today…
+                  {todayGarden?.calendarTasks && Object.keys(todayGarden.calendarTasks).length
+                    ? 'Preparing your tasks for today…'
+                    : 'Checking what\'s due in your garden this month…'}
                 </div>
                 <Shimmer lines={3}/>
               </div>
@@ -3845,6 +3981,22 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
                 <div style={{ fontSize: '.65rem', color: 'rgba(180,180,160,.35)', marginTop: '.75rem', fontStyle: 'italic' }}>
                   Tasks refresh daily · based on your garden and today's weather
                 </div>
+                {/* Refresh button — append 2-3 more ideas, once per day */}
+                {!todayRefreshUsed && !todayRefreshLoading && (
+                  <button
+                    className="btn-ghost"
+                    style={{ marginTop: '.9rem', fontSize: '.85rem', padding: '.5rem 1rem', width: '100%' }}
+                    onClick={() => fetchTodayTasks(todayGarden, weatherData, weatherSignals, true)}
+                  >
+                    Done? Some more ideas →
+                  </button>
+                )}
+                {todayRefreshLoading && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.82rem', color: 'var(--sage)', fontStyle: 'italic', marginTop: '.75rem' }}>
+                    <span style={{ display:'inline-block', animation:'spin .7s linear infinite' }}>◌</span>
+                    Finding more ideas…
+                  </div>
+                )}
               </div>
             ) : null}
 
