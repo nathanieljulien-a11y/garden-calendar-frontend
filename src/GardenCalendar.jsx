@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { readGardens, saveGarden, touchGarden, renameGarden, deleteGarden, migrateLegacyFavourites, hasSavedGardens, createGardenObject } from './gardenStorage.js';
+import { HomeScreen, HOME_SCREEN_STYLES } from './HomeScreen.jsx';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
