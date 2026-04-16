@@ -3032,7 +3032,7 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
 
   return (
     <>
-      <style>{styles}</style>
+      <style>{styles + HOME_SCREEN_STYLES}</style>
       <div className="grain"/>
       <div className="demo-banner">
         <span className="demo-name">NatJulien_Demo</span>
