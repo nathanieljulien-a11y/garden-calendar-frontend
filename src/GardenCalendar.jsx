@@ -2749,6 +2749,7 @@ Other rules:
     });
     setS1Done(true); setActiveMonth(null);
     setShowArrow(false);
+    saveCurrentGarden();
   };
 
   const loadMoreMonths = async () => {
