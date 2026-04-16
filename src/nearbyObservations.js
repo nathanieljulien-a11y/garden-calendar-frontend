@@ -169,7 +169,8 @@ export function normaliseInatObservations(raw, inventoryPlants = []) {
     if (!taxon.rank || ['order','class','phylum','kingdom'].includes(taxon.rank)) continue;
 
     // Skip non-garden waterbirds
-    if (group === 'Aves' && NON_GARDEN_BIRDS.has(commonName)) continue;
+    // Skip non-garden waterbirds — check includes so 'eurasian coot' matches 'coot'
+    if (group === 'Aves' && Array.from(NON_GARDEN_BIRDS).some(b => commonName.includes(b))) continue;
 
     const id = taxon.id;
     if (!byTaxon[id]) {
