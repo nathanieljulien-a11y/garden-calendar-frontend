@@ -2025,16 +2025,24 @@ const [showHome, setShowHome] = useState(() => {
   const [keyError, setKeyError] = useState("");
 
   // Restore garden state from URL hash on first load
-  useEffect(() => {
-    const hash = window.location.hash.slice(1);
-    if (!hash) return;
-    const state = decodeGardenState(hash);
-    if (!state) return;
-    if (state.city)        setCity(state.city);
-    if (state.orientation) setOri(state.orientation);
-    if (state.features)    setFeatures(state.features);
-    if (state.plants)      setPlants(state.plants);
-  }, []);
+useEffect(() => {
+  const gs = migrateLegacyFavourites();
+  if (gs.length) {
+    setGardens(gs);
+    setSelectedGardenId(gs[0].id);
+  }
+
+  const hash = window.location.hash.slice(1);
+  if (!hash) return;
+  const state = decodeGardenState(hash);
+  if (!state) return;
+  if (state.city)        setCity(state.city);
+  if (state.orientation) setOri(state.orientation);
+  if (state.features)    setFeatures(state.features);
+  if (state.plants)      setPlants(state.plants);
+  setShowHome(false);
+}, []); // eslint-disable-line react-hooks/exhaustive-deps
+  
   // iNat localised suggestions: { trees: ["Rose","Lavender",...], ... }
   const [localSuggestions, setLocalSuggestions] = useState({});
   // Per-category loading state: { trees: "loading"|"ready"|"fallback"|null }
