@@ -3318,6 +3318,15 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
         setShowHome(false);
         setFormStep('location');
       }}
+      onCreateNew={() => {
+        setCity('');
+        setOri('');
+        setFeatures([]);
+        setPlants({ trees:[], shrubs:[], flowers:[], vegetables:[], fruit:[], herbs:[] });
+        setSelectedGardenId(null);
+        setShowHome(false);
+        setFormStep('location');
+      }}
       onRenameGarden={(id, newName) => {
         const updated = renameGarden(id, newName);
         if (updated) setGardens(updated);
