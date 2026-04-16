@@ -28,7 +28,7 @@
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 export const GARDENS_KEY  = 'gc_gardens';
-export const LEGACY_KEY   = 'gc_favs';
+export const LEGACY_KEY = 'gc_favourites_v1';
 export const MAX_GARDENS  = 3; // PRD §4.2
 
 // ─── UUID helpers ─────────────────────────────────────────────────────────────
