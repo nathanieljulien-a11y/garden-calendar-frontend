@@ -3260,7 +3260,7 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
         {rateLimitMsg && <div className="rate-limit-box">🌿 {rateLimitMsg}</div>}
 
         {/* ── SAVED GARDENS (favourites) — shown above form when any exist ── */}
-        {stage === "form" && favourites.length > 0 && (
+        {stage === "form" && !showHome && favourites.length > 0 && gardens.length === 0 && (
           <div className="favs-panel">
             <div className="favs-title">⭐ Your saved gardens</div>
             <div className="favs-list">
