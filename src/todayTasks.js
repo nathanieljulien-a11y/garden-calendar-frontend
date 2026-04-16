@@ -52,7 +52,7 @@ export function writeTodayCache(gardenId, payload) {
  * @param {string} monthName   — current month name e.g. "April"
  * @returns {string}           — prompt string for callAI
  */
-export function buildTodayPrompt(garden, weatherData, signals, monthName) {
+export function buildTodayPrompt(garden, weatherData, signals, monthName, calendarTasks = {}, existingTasks = [], isRefresh = false) {
   const { city, orientation, plants, climateData } = garden;
   const cd  = climateData?._cd;
   const der = climateData?._derived;
@@ -114,6 +114,21 @@ export function buildTodayPrompt(garden, weatherData, signals, monthName) {
     'lawn_care', 'general_maintenance',
   ];
 
+  // Calendar tasks for current + adjacent months — grounds Today in the existing calendar
+  const MONTH_NAMES_LIST = ['January','February','March','April','May','June',
+                             'July','August','September','October','November','December'];
+  const calendarCtx = Object.keys(calendarTasks).length > 0
+    ? `\nCALENDAR TASKS (already scheduled for this period — use these as the basis for today's priorities):\n` +
+      Object.entries(calendarTasks)
+        .map(([month, tasks]) => `${month}:\n${tasks.map(t => `  • ${t}`).join('\n')}`)
+        .join('\n')
+    : '';
+
+  // For refresh: list already-shown tasks so we don't repeat them
+  const existingCtx = existingTasks.length > 0
+    ? `\nALREADY SHOWN TODAY (do not repeat these):\n${existingTasks.map(t => `  • ${t.question}`).join('\n')}`
+    : '';
+
   return `You are an expert horticulturist giving a gardener their personalised daily briefing.
 
 GARDEN
@@ -123,6 +138,8 @@ Plants: ${allPlants}
 Month: ${monthName}
 ${climateCtx ? `\nCLIMATE\n${climateCtx}` : ''}
 ${monthClimate ? `${monthName} normals: ${monthClimate}` : ''}
+${calendarCtx}
+${existingCtx}
 
 WEATHER TODAY
 ${todayWeather || 'No weather data available.'}
@@ -133,14 +150,26 @@ ACTIVE URGENCY SIGNALS
 ${signalLines}
 
 TASK
-Generate 3–5 prioritised garden tasks for today. Rules:
+${isRefresh
+  ? `Generate 2–3 ADDITIONAL garden tasks — different from the ones already shown today. These should complement what's already been suggested, perhaps covering different plants or aspects of the garden not yet addressed.`
+  : `Generate 3–5 prioritised garden tasks for today.`}
+Rules:
 - Frame each task as a friendly question: "Have you…?", "Did you…?", "Is it time to…?"
 - Reference the weather or urgency signals where directly relevant
 - Only include tasks for plants explicitly listed in the inventory above
-- If urgency signals are active, at least one task must address them
-- If nothing is urgent, give 3 light maintenance tasks with low urgency
+- ${isRefresh ? 'Do NOT repeat any tasks already shown today (listed above)' : 'If urgency signals are active, at least one task must address them'}
+- ${isRefresh ? 'Cover different plants or task types from those already shown' : 'If nothing is urgent, give 3 light maintenance tasks with low urgency'}
 - No enjoy lines — tasks only
+- If calendar tasks are listed above, draw from them for task ideas — they represent what should be done this month
 - category must be one of: ${CATEGORY_KEYS.join(', ')}
+
+PLANTING SEASON RULES — apply before every task:
+- Tender crops (tomatoes, aubergines, peppers, courgettes, French beans, runner beans, basil, dahlias) cannot be in the ground until: (a) last frost date has passed AND (b) night temperatures are consistently above 10°C. Do NOT suggest watering, feeding, training, harvesting, or pest tasks for these crops unless both conditions are met for this location and month.
+- In Mediterranean climates (last frost Feb/Mar), tender crops are typically planted out May–June. In April they are at most seedlings indoors — suggest sowing or indoor care only.
+- In temperate oceanic climates (last frost Mar/Apr), tender crops go out May–June. In April suggest indoor sowing only.
+- NEVER suggest "reduce watering" or irrigation management for crops not yet in the ground.
+- Perennials, shrubs, trees, roses, and hardy herbs are in the ground year-round — tasks for these are always valid if seasonally appropriate.
+- Use the month, climate type, and last frost date above to reason about what is realistically growing outdoors right now.
 
 Return ONLY valid JSON, no markdown:
 {
@@ -157,9 +186,9 @@ Return ONLY valid JSON, no markdown:
   "calmMessage": null
 }
 
-If nothing is urgent and the garden just needs light maintenance, set allCalm:true and provide a warm 1-sentence calmMessage (e.g. "Your garden is looking after itself well — a few light tasks to keep things ticking over.").
+If nothing is urgent and the garden just needs light maintenance, set allCalm:true and provide a warm 1-sentence calmMessage.
 urgency must be "high", "medium", or "low".
-Return 3 tasks minimum, 5 maximum.`;
+${isRefresh ? 'Return exactly 2–3 tasks.' : 'Return 3 tasks minimum, 5 maximum.'}`;
 }
 
 // ─── Response validator ───────────────────────────────────────────────────────
