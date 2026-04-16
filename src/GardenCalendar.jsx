@@ -3,6 +3,7 @@ import { readGardens, saveGarden, touchGarden, renameGarden, deleteGarden, migra
 import { HomeScreen, HOME_SCREEN_STYLES } from './HomeScreen.jsx';
 import { fetchWeatherForecast, computeUrgencySignals, readWeatherCache, writeWeatherCache } from './weatherService.js';
 import { WeatherSummary, WEATHER_SUMMARY_STYLES } from './WeatherSummary.jsx';
+import { buildTodayPrompt, validateTodayResponse, readTodayCache, writeTodayCache } from './todayTasks.js';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
@@ -2013,6 +2014,9 @@ const [showHome, setShowHome] = useState(() => {
   const [weatherSignals, setWeatherSignals] = useState([]);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError]     = useState(null);
+  const [todayTasks, setTodayTasks]         = useState(null);   // validated task payload
+  const [todayTasksLoading, setTodayTasksLoading] = useState(false);
+  const [todayTasksError, setTodayTasksError]     = useState(null);
   const [linkCopied, setLinkCopied]   = useState(false);
   const [showAbout, setShowAbout]     = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -2868,6 +2872,7 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     setStage("form"); setFormStep("location"); setShowHome(hasSavedGardens() && gardens.length > 0); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
     setTodayGarden(null); setWeatherData(null); setWeatherSignals([]); setWeatherLoading(false); setWeatherError(null);
+    setTodayTasks(null); setTodayTasksLoading(false); setTodayTasksError(null);
   };
   
 // Save garden link to clipboard + add to favourites
@@ -2898,6 +2903,38 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
       setWeatherLoading(false);
     }
   }, []);
+
+  const fetchTodayTasks = useCallback(async (garden, weatherData, signals) => {
+    // Require climateData — without it task quality is too low (Sprint 3 decision)
+    if (!garden?.climateData?._cd) {
+      setTodayTasksError('no_climate');
+      return;
+    }
+    // Check cache first — keyed by gardenId + date, expires at midnight
+    const cached = readTodayCache(garden.id);
+    if (cached) {
+      setTodayTasks(cached);
+      setTodayTasksLoading(false);
+      return;
+    }
+    setTodayTasksLoading(true);
+    setTodayTasksError(null);
+    setTodayTasks(null);
+    try {
+      const monthName = ['January','February','March','April','May','June',
+                         'July','August','September','October','November','December']
+                        [new Date().getMonth()];
+      const prompt = buildTodayPrompt(garden, weatherData, signals, monthName);
+      const raw = await callAI(prompt, 1000, undefined, provider, userKey);
+      const payload = validateTodayResponse(raw);
+      writeTodayCache(garden.id, payload);
+      setTodayTasks(payload);
+    } catch (e) {
+      setTodayTasksError(e.message || 'Could not generate tasks');
+    } finally {
+      setTodayTasksLoading(false);
+    }
+  }, [provider, userKey]);
 
     const saveCurrentGarden = useCallback(() => {
   const existing = selectedGardenId ? readGardens().find(g => g.id === selectedGardenId) : null;
@@ -3367,8 +3404,17 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
         const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
         if (!g) return;
         setTodayGarden(g);
+        setTodayTasks(null);
+        setTodayTasksError(null);
         setStage('today');
-        fetchTodayWeather(g);
+        // Fire weather and tasks in parallel — weather is fast (~200ms), tasks are slow (~5-10s)
+        // Weather resolves first so the panel shows immediately; tasks follow
+        const weatherPromise = fetchTodayWeather(g);
+        weatherPromise.then(() => {
+          // Re-read weather state isn't available here due to closure — pass signals directly
+          // Tasks are fired after weather completes so signals are available
+          fetchTodayTasks(g, readWeatherCache(g.id), computeUrgencySignals(readWeatherCache(g.id)));
+        });
       }}
       onRenameGarden={(id, newName) => {
         const updated = renameGarden(id, newName);
@@ -3713,25 +3759,95 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
                 </div>
               )}
             </div>
+
+            {/* Weather summary — resolves first */}
             <WeatherSummary
               weatherData={weatherData}
               signals={weatherSignals}
               loading={weatherLoading}
               error={weatherError}
             />
-            <div style={{
-              background: 'rgba(58,34,16,.35)',
-              border: '1px dashed rgba(200,169,110,.2)',
-              borderRadius: '2px',
-              padding: '1.5rem',
-              textAlign: 'center',
-              color: 'var(--sage)',
-              fontSize: '.9rem',
-              fontStyle: 'italic',
-              marginBottom: '1.5rem',
-            }}>
-              🌿 Personalised daily tasks coming in the next update
-            </div>
+
+            {/* Tasks section */}
+            {todayTasksError === 'no_climate' ? (
+              // Sprint 3 decision: prompt user to regenerate rather than degrade
+              <div style={{
+                background: 'rgba(58,34,16,.45)',
+                border: '1px solid rgba(200,169,110,.25)',
+                borderRadius: '2px',
+                padding: '1.25rem 1.5rem',
+                marginBottom: '1.5rem',
+              }}>
+                <div style={{ fontFamily: "'Playfair Display',serif", fontSize: '1rem', color: 'var(--straw)', marginBottom: '.5rem' }}>
+                  Climate data needed for daily tasks
+                </div>
+                <p style={{ fontSize: '.88rem', color: 'var(--parchment)', lineHeight: '1.6', marginBottom: '.9rem' }}>
+                  To generate weather-aware tasks, we need your garden's climate data. This is created when you generate your calendar.
+                </p>
+                <button className="btn-solid" style={{ fontSize: '.88rem', padding: '.6rem 1.2rem' }}
+                  onClick={() => {
+                    if (todayGarden.city)        setCity(todayGarden.city);
+                    if (todayGarden.orientation) setOri(todayGarden.orientation);
+                    if (todayGarden.features)    setFeatures(todayGarden.features);
+                    if (todayGarden.plants)      setPlants(todayGarden.plants);
+                    setStage('form');
+                    setShowHome(false);
+                    setFormStep('location');
+                  }}>
+                  Generate calendar for {todayGarden.name || todayGarden.city} →
+                </button>
+              </div>
+            ) : todayTasksLoading ? (
+              <div style={{ background: 'rgba(30,18,8,.7)', border: '1px solid rgba(200,169,110,.15)', borderRadius: '2px', padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.88rem', color: 'var(--sage)', fontStyle: 'italic' }}>
+                  <span style={{ display:'inline-block', animation:'spin .7s linear infinite' }}>◌</span>
+                  Preparing your tasks for today…
+                </div>
+                <Shimmer lines={3}/>
+              </div>
+            ) : todayTasksError ? (
+              <div style={{ background: 'rgba(30,18,8,.7)', border: '1px solid rgba(200,169,110,.15)', borderRadius: '2px', padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '.82rem', color: 'var(--bloom)', fontStyle: 'italic', marginBottom: '.6rem' }}>⚠ Couldn't load tasks — {todayTasksError}</div>
+                <button className="btn-ghost" style={{ fontSize: '.82rem', padding: '.4rem .9rem' }}
+                  onClick={() => fetchTodayTasks(todayGarden, weatherData, weatherSignals)}>
+                  ↺ Try again
+                </button>
+              </div>
+            ) : todayTasks ? (
+              <div style={{ background: 'rgba(30,18,8,.7)', border: '1px solid rgba(200,169,110,.18)', borderRadius: '2px', padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
+                {todayTasks.allCalm && todayTasks.calmMessage && (
+                  <div style={{ fontSize: '.88rem', color: 'var(--fern)', fontStyle: 'italic', marginBottom: '.85rem', paddingBottom: '.75rem', borderBottom: '1px solid rgba(200,169,110,.1)' }}>
+                    ✓ {todayTasks.calmMessage}
+                  </div>
+                )}
+                <div style={{ fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--straw)', marginBottom: '.65rem' }}>
+                  Today's tasks
+                </div>
+                <ul style={{ listStyle: 'none' }}>
+                  {todayTasks.tasks.map((task, i) => (
+                    <li key={i} style={{ padding: '.6rem 0', borderBottom: '1px solid rgba(200,169,110,.07)', display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
+                      <span style={{ color: task.urgency === 'high' ? 'var(--bloom)' : task.urgency === 'medium' ? 'var(--straw)' : 'var(--fern)', flexShrink: 0, marginTop: '.15rem', fontSize: '.8rem' }}>
+                        {task.urgency === 'high' ? '●' : task.urgency === 'medium' ? '●' : '○'}
+                      </span>
+                      <div>
+                        <div style={{ fontSize: '.95rem', color: 'var(--cream)', marginBottom: '.2rem', fontFamily: "'Playfair Display',serif", fontWeight: 400 }}>
+                          {task.question}
+                        </div>
+                        {task.context && (
+                          <div style={{ fontSize: '.82rem', color: 'var(--sage)', lineHeight: '1.5' }}>
+                            {task.context}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div style={{ fontSize: '.65rem', color: 'rgba(180,180,160,.35)', marginTop: '.75rem', fontStyle: 'italic' }}>
+                  Tasks refresh daily · based on your garden and today's weather
+                </div>
+              </div>
+            ) : null}
+
             <div className="cal-actions">
               <button className="btn-ghost" onClick={() => { setStage("form"); setShowHome(true); }}>← Back</button>
             </div>
