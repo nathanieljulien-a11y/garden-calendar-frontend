@@ -3335,7 +3335,7 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
     />
   </div>
 )}
-        {stage==="form" && formStep==="location" && (
+        {!showHome && stage==="form" && formStep==="location" && (
           <div className="form-card">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:".5rem",marginBottom:".25rem"}}>
               <div className="form-title" style={{margin:0}}>Tell us about your garden</div>
@@ -3441,7 +3441,7 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
         )}
 
         {/* ── FORM: PLANTS STEP ── */}
-        {stage==="form" && formStep==="plants" && (
+        {!showHome && stage==="form" && formStep==="plants" && (
           <div className="form-card">
             <div style={{display:"flex",alignItems:"center",gap:".75rem",marginBottom:"1rem"}}>
               <button onClick={()=>setFormStep("location")} type="button"
