@@ -9,7 +9,7 @@ import { getVideosForTask, climateToRegion } from './videoService.js';
 import { VideoButton, VIDEO_PANEL_STYLES } from './VideoPanel.jsx';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
- 
+
 const styles = `
   ${FONTS}
   *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
@@ -1823,16 +1823,19 @@ function orientationShort(o) { return o?o.split(" (")[0]:""; }
 // Maps substrings in calendar task text to videoLibrary.json category keys.
 // Used by MonthPanel to look up curated videos for each task.
 const TASK_KEYWORD_TO_CATEGORY = {
-  'hard prune':       'hard-prune-roses',
-  'prune roses':      'hard-prune-roses',
-  'prune rose':       'hard-prune-roses',
-  'prune hybrid tea': 'hard-prune-roses',
-  'wisteria':         'prune-wisteria-summer',
-  'softwood cutting': 'take-softwood-cuttings',
-  'bare-root tree':   'plant-bare-root-trees',
-  'bare root tree':   'plant-bare-root-trees',
-  'bare-root hedg':   'plant-bare-root-trees',
-  'bare root hedg':   'plant-bare-root-trees',
+  'prune roses':           'hard-prune-roses',
+  'prune rose':            'hard-prune-roses',
+  'hard prune roses':      'hard-prune-roses',
+  'hard prune rose':       'hard-prune-roses',
+  'prune hybrid tea':      'hard-prune-roses',
+  'wisteria':              'prune-wisteria-summer',
+  'softwood cutting':      'take-softwood-cuttings',
+  'bare-root tree':        'plant-bare-root-trees',
+  'bare root tree':        'plant-bare-root-trees',
+  'bare-root hedg':        'plant-bare-root-trees',
+  'bare root hedg':        'plant-bare-root-trees',
+  'plant bare-root rose':  'plant-bare-root-trees',
+  'plant bare root rose':  'plant-bare-root-trees',
 };
 
 function taskTextToCategory(taskText) {
@@ -4411,3 +4414,4 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
     </>
   );
 }
+   
