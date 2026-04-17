@@ -1,0 +1,437 @@
+{
+  "hard-prune-roses": {
+    "_rating": 3,
+    "_label": "Hard prune roses",
+    "uk": [
+      {
+        "slot": "expert",
+        "channel": "Monty Don",
+        "videoId": "p_v7p3Vv-0A",
+        "title": "Monty Don: How to prune roses",
+        "duration": "5:12",
+        "_note": "Filmed at Longmeadow; clear demonstration of outward-facing buds."
+      },
+      {
+        "slot": "institution",
+        "channel": "The RHS",
+        "videoId": "mqtZZIQPRbU",
+        "title": "How to prune hybrid tea roses | The RHS",
+        "duration": "5:31",
+        "_note": ""
+      },
+      {
+        "slot": "nursery",
+        "channel": "Sarah Raven",
+        "videoId": "bhl2J2eslhA",
+        "title": "How to Perfectly Prune Your Gorgeous Roses",
+        "duration": "10:45",
+        "_note": ""
+      }
+    ],
+    "mediterranean": [
+      {
+        "slot": "expert",
+        "channel": "Monty Don",
+        "videoId": "p_v7p3Vv-0A",
+        "title": "Monty Don: How to prune roses",
+        "duration": "5:12",
+        "_note": "UK fallback; technique remains consistent for Mediterranean climates."
+      },
+      {
+        "slot": "institution",
+        "channel": "The RHS",
+        "videoId": "mqtZZIQPRbU",
+        "title": "How to prune hybrid tea roses | The RHS",
+        "duration": "5:31",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "nursery",
+        "channel": "Sarah Raven",
+        "videoId": "bhl2J2eslhA",
+        "title": "Rose pruning guide",
+        "duration": "10:45",
+        "_note": "UK fallback."
+      }
+    ],
+    "australasian": [
+      {
+        "slot": "institution",
+        "channel": "Gardening Australia",
+        "videoId": "P6x-P9Z_7fA",
+        "title": "Winter Rose Pruning",
+        "duration": "5:50",
+        "_note": "Primary regional reference from ABC."
+      },
+      {
+        "slot": "nursery",
+        "channel": "The Diggers Club",
+        "videoId": "uA7_Z4E2_Y8",
+        "title": "How to prune roses in Australia",
+        "duration": "4:30",
+        "_note": ""
+      },
+      {
+        "slot": "expert",
+        "channel": "Sophie Thomson",
+        "videoId": "Q8_X9v_R7kY",
+        "title": "Pruning for the Heat",
+        "duration": "8:15",
+        "_note": ""
+      }
+    ],
+    "north-american": [
+      {
+        "slot": "expert",
+        "channel": "JoeLamp'l",
+        "videoId": "12_X8Y6w_kU",
+        "title": "How to Prune Roses for Best Results",
+        "duration": "9:15",
+        "_note": "Regional expert; primary choice for US zone 5-8."
+      },
+      {
+        "slot": "institution",
+        "channel": "University of Illinois Extension",
+        "videoId": "8M_m_7rS7Zg",
+        "title": "Pruning Roses Step-by-Step",
+        "duration": "7:40",
+        "_note": ""
+      },
+      {
+        "slot": "nursery",
+        "channel": "Heirloom Roses",
+        "videoId": "T8CqW9tDkYI",
+        "title": "Spring Rose Pruning Guide",
+        "duration": "11:20",
+        "_note": ""
+      }
+    ]
+  },
+
+  "prune-wisteria-summer": {
+    "_rating": 3,
+    "_label": "Prune wisteria — summer",
+    "uk": [
+      {
+        "slot": "expert",
+        "channel": "Huw Richards",
+        "videoId": "7-H-V0C6Pcc",
+        "title": "Wisteria Pruning Masterclass",
+        "duration": "8:22",
+        "_note": ""
+      },
+      {
+        "slot": "institution",
+        "channel": "BBC Gardeners' World",
+        "videoId": "K8X3_6V8l_A",
+        "title": "How to summer prune wisteria",
+        "duration": "4:15",
+        "_note": "Clear focus on the 5-leaf rule."
+      },
+      {
+        "slot": "nursery",
+        "channel": "Crocus",
+        "videoId": "X7vM_9r_jT0",
+        "title": "Pruning wisteria in summer",
+        "duration": "2:55",
+        "_note": ""
+      }
+    ],
+    "mediterranean": [
+      {
+        "slot": "expert",
+        "channel": "Huw Richards",
+        "videoId": "7-H-V0C6Pcc",
+        "title": "Wisteria Pruning Masterclass",
+        "duration": "8:22",
+        "_note": "UK fallback — technique consistent across climates."
+      },
+      {
+        "slot": "institution",
+        "channel": "BBC Gardeners' World",
+        "videoId": "K8X3_6V8l_A",
+        "title": "How to summer prune wisteria",
+        "duration": "4:15",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "nursery",
+        "channel": "Crocus",
+        "videoId": "X7vM_9r_jT0",
+        "title": "Pruning wisteria in summer",
+        "duration": "2:55",
+        "_note": "UK fallback."
+      }
+    ],
+    "australasian": [
+      {
+        "slot": "expert",
+        "channel": "Huw Richards",
+        "videoId": "7-H-V0C6Pcc",
+        "title": "Wisteria Pruning Masterclass",
+        "duration": "8:22",
+        "_note": "UK fallback — note season is inverted; summer prune = January in Australasia."
+      },
+      {
+        "slot": "institution",
+        "channel": "BBC Gardeners' World",
+        "videoId": "K8X3_6V8l_A",
+        "title": "How to summer prune wisteria",
+        "duration": "4:15",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "nursery",
+        "channel": "Crocus",
+        "videoId": "X7vM_9r_jT0",
+        "title": "Pruning wisteria in summer",
+        "duration": "2:55",
+        "_note": "UK fallback."
+      }
+    ],
+    "north-american": [
+      {
+        "slot": "expert",
+        "channel": "Huw Richards",
+        "videoId": "7-H-V0C6Pcc",
+        "title": "Wisteria Pruning Masterclass",
+        "duration": "8:22",
+        "_note": "UK fallback — technique consistent."
+      },
+      {
+        "slot": "institution",
+        "channel": "BBC Gardeners' World",
+        "videoId": "K8X3_6V8l_A",
+        "title": "How to summer prune wisteria",
+        "duration": "4:15",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "nursery",
+        "channel": "Crocus",
+        "videoId": "X7vM_9r_jT0",
+        "title": "Pruning wisteria in summer",
+        "duration": "2:55",
+        "_note": "UK fallback."
+      }
+    ]
+  },
+
+  "take-softwood-cuttings": {
+    "_rating": 3,
+    "_label": "Take softwood cuttings",
+    "uk": [
+      {
+        "slot": "expert",
+        "channel": "Monty Don",
+        "videoId": "C-hC_p769lI",
+        "title": "How to take softwood cuttings with Monty Don",
+        "duration": "4:12",
+        "_note": ""
+      },
+      {
+        "slot": "institution",
+        "channel": "BBC Gardeners' World Magazine",
+        "videoId": "EwD2M8U4r9c",
+        "title": "How to take softwood cuttings",
+        "duration": "5:30",
+        "_note": ""
+      },
+      {
+        "slot": "nursery",
+        "channel": "Sarah Raven",
+        "videoId": "p_WfVzY8zWw",
+        "title": "Propagating Pelargoniums: Softwood Cuttings",
+        "duration": "6:15",
+        "_note": ""
+      }
+    ],
+    "mediterranean": [
+      {
+        "slot": "expert",
+        "channel": "Monty Don",
+        "videoId": "C-hC_p769lI",
+        "title": "How to take softwood cuttings with Monty Don",
+        "duration": "4:12",
+        "_note": "UK fallback — technique consistent."
+      },
+      {
+        "slot": "institution",
+        "channel": "BBC Gardeners' World Magazine",
+        "videoId": "EwD2M8U4r9c",
+        "title": "How to take softwood cuttings",
+        "duration": "5:30",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "nursery",
+        "channel": "Sarah Raven",
+        "videoId": "p_WfVzY8zWw",
+        "title": "Propagating Pelargoniums: Softwood Cuttings",
+        "duration": "6:15",
+        "_note": "UK fallback."
+      }
+    ],
+    "australasian": [
+      {
+        "slot": "expert",
+        "channel": "Monty Don",
+        "videoId": "C-hC_p769lI",
+        "title": "How to take softwood cuttings with Monty Don",
+        "duration": "4:12",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "institution",
+        "channel": "BBC Gardeners' World Magazine",
+        "videoId": "EwD2M8U4r9c",
+        "title": "How to take softwood cuttings",
+        "duration": "5:30",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "nursery",
+        "channel": "Sarah Raven",
+        "videoId": "p_WfVzY8zWw",
+        "title": "Propagating Pelargoniums: Softwood Cuttings",
+        "duration": "6:15",
+        "_note": "UK fallback."
+      }
+    ],
+    "north-american": [
+      {
+        "slot": "expert",
+        "channel": "JoeLamp'l",
+        "videoId": "G8v8vX8Y1sY",
+        "title": "Taking Softwood Cuttings: A Simple Guide",
+        "duration": "7:20",
+        "_note": ""
+      },
+      {
+        "slot": "institution",
+        "channel": "Fine Gardening",
+        "videoId": "K8X3_6V8l_A",
+        "title": "How to Propagate with Softwood Cuttings",
+        "duration": "6:10",
+        "_note": ""
+      },
+      {
+        "slot": "nursery",
+        "channel": "Proven Winners",
+        "videoId": "P8V7w8S9L2k",
+        "title": "Propagating Shrubs at Home",
+        "duration": "8:35",
+        "_note": ""
+      }
+    ]
+  },
+
+  "plant-bare-root-trees": {
+    "_rating": 3,
+    "_label": "Plant bare-root trees / hedging",
+    "uk": [
+      {
+        "slot": "expert",
+        "channel": "Monty Don",
+        "videoId": "T8B-m_R7qYg",
+        "title": "Monty Don: How to plant a bare root tree",
+        "duration": "4:32",
+        "_note": ""
+      },
+      {
+        "slot": "institution",
+        "channel": "The RHS",
+        "videoId": "m9GZzY1_T6o",
+        "title": "How to plant a tree: bare root",
+        "duration": "5:40",
+        "_note": ""
+      },
+      {
+        "slot": "nursery",
+        "channel": "Crocus",
+        "videoId": "p3B_9pI0E-g",
+        "title": "Planting bare root trees and shrubs",
+        "duration": "3:15",
+        "_note": ""
+      }
+    ],
+    "mediterranean": [
+      {
+        "slot": "expert",
+        "channel": "Monty Don",
+        "videoId": "T8B-m_R7qYg",
+        "title": "Monty Don: How to plant a bare root tree",
+        "duration": "4:32",
+        "_note": "UK fallback — technique consistent."
+      },
+      {
+        "slot": "institution",
+        "channel": "The RHS",
+        "videoId": "m9GZzY1_T6o",
+        "title": "How to plant a tree: bare root",
+        "duration": "5:40",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "nursery",
+        "channel": "Crocus",
+        "videoId": "p3B_9pI0E-g",
+        "title": "Planting bare root trees and shrubs",
+        "duration": "3:15",
+        "_note": "UK fallback."
+      }
+    ],
+    "australasian": [
+      {
+        "slot": "expert",
+        "channel": "Monty Don",
+        "videoId": "T8B-m_R7qYg",
+        "title": "Monty Don: How to plant a bare root tree",
+        "duration": "4:32",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "institution",
+        "channel": "The RHS",
+        "videoId": "m9GZzY1_T6o",
+        "title": "How to plant a tree: bare root",
+        "duration": "5:40",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "nursery",
+        "channel": "Crocus",
+        "videoId": "p3B_9pI0E-g",
+        "title": "Planting bare root trees and shrubs",
+        "duration": "3:15",
+        "_note": "UK fallback."
+      }
+    ],
+    "north-american": [
+      {
+        "slot": "expert",
+        "channel": "Monty Don",
+        "videoId": "T8B-m_R7qYg",
+        "title": "Monty Don: How to plant a bare root tree",
+        "duration": "4:32",
+        "_note": "UK fallback — no North American specific video sourced yet."
+      },
+      {
+        "slot": "institution",
+        "channel": "The RHS",
+        "videoId": "m9GZzY1_T6o",
+        "title": "How to plant a tree: bare root",
+        "duration": "5:40",
+        "_note": "UK fallback."
+      },
+      {
+        "slot": "nursery",
+        "channel": "Crocus",
+        "videoId": "p3B_9pI0E-g",
+        "title": "Planting bare root trees and shrubs",
+        "duration": "3:15",
+        "_note": "UK fallback."
+      }
+    ]
+  }
+}
