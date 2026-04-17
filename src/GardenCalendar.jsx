@@ -5,6 +5,8 @@ import { fetchWeatherForecast, computeUrgencySignals, readWeatherCache, writeWea
 import { WeatherSummary, WEATHER_SUMMARY_STYLES } from './WeatherSummary.jsx';
 import { buildTodayPrompt, validateTodayResponse, readTodayCache, writeTodayCache } from './todayTasks.js';
 import { fetchNearbyObservations, normaliseInatObservations, readInatCache, writeInatCache, relativeDate } from './nearbyObservations.js';
+import { getVideosForTask, climateToRegion } from './videoService.js';
+import { VideoButton, VIDEO_PANEL_STYLES } from './VideoPanel.jsx';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
@@ -1817,8 +1819,32 @@ function StreamBar({months, stream1Done, activeMonth, chunkCount}) {
 
 function orientationShort(o) { return o?o.split(" (")[0]:""; }
 
+// ─── Video keyword → category key map ────────────────────────────────────────
+// Maps substrings in calendar task text to videoLibrary.json category keys.
+// Used by MonthPanel to look up curated videos for each task.
+const TASK_KEYWORD_TO_CATEGORY = {
+  'hard prune':       'hard-prune-roses',
+  'prune roses':      'hard-prune-roses',
+  'prune rose':       'hard-prune-roses',
+  'prune hybrid tea': 'hard-prune-roses',
+  'wisteria':         'prune-wisteria-summer',
+  'softwood cutting': 'take-softwood-cuttings',
+  'bare-root tree':   'plant-bare-root-trees',
+  'bare root tree':   'plant-bare-root-trees',
+  'bare-root hedg':   'plant-bare-root-trees',
+  'bare root hedg':   'plant-bare-root-trees',
+};
+
+function taskTextToCategory(taskText) {
+  const lower = taskText.toLowerCase();
+  for (const [keyword, category] of Object.entries(TASK_KEYWORD_TO_CATEGORY)) {
+    if (lower.includes(keyword)) return category;
+  }
+  return null;
+}
+
 // ─── MonthPanel ───────────────────────────────────────────────────────────────
-function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t}) {
+function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, videoRegion}) {
   if (!m || m._state==="pending") {
     return <div className="month-ghost"><Shimmer lines={2}/></div>;
   }
@@ -1848,7 +1874,17 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t}) {
         <div className="mp-section-label tasks-lbl">Things to do</div>
         {m.tasks.length > 0 || m._taskPartial ? (
           <ul className="mp-list">
-            {m.tasks.map((t,j)=><li key={j}><span className="bullet-task">›</span>{t}</li>)}
+            {m.tasks.map((task,j) => {
+              const categoryKey = taskTextToCategory(task);
+              const videoResult = categoryKey ? getVideosForTask(categoryKey, videoRegion || 'uk') : null;
+              return (
+                <li key={j}>
+                  <span className="bullet-task">›</span>
+                  <span style={{flex:1}}>{task}</span>
+                  {videoResult && <VideoButton taskResult={videoResult}/>}
+                </li>
+              );
+            })}
             {m._taskPartial && isActive && (
               <li key="tp"><span className="bullet-task">›</span><span className="typing-cursor">{m._taskPartial}</span></li>
             )}
@@ -2141,6 +2177,11 @@ useEffect(() => {
   const nowIdx  = new Date().getMonth();
   const nowName = MONTH_NAMES[nowIdx];
   const totalPlants = Object.values(plants).flat().length;
+
+  // Resolve video library region from stored climate data
+  const videoRegion = meta?._derived?.climateType
+    ? climateToRegion(meta._derived.climateType)
+    : 'uk';
 
 
   // ── Prefetch meta ──────────────────────────────────────────────────────────
@@ -3299,7 +3340,7 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
 
   return (
     <>
-      <style>{styles + HOME_SCREEN_STYLES + WEATHER_SUMMARY_STYLES}</style>
+      <style>{styles + HOME_SCREEN_STYLES + WEATHER_SUMMARY_STYLES + VIDEO_PANEL_STYLES}</style>
       <div className="grain"/>
       <div className="demo-banner">
         <span className="demo-name">NatJulien_Demo</span>
@@ -3989,7 +4030,7 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
                       <span style={{ color: task.urgency === 'high' ? 'var(--bloom)' : task.urgency === 'medium' ? 'var(--straw)' : 'var(--fern)', flexShrink: 0, marginTop: '.15rem', fontSize: '.8rem' }}>
                         {task.urgency === 'high' ? '●' : task.urgency === 'medium' ? '●' : '○'}
                       </span>
-                      <div>
+                      <div style={{flex:1}}>
                         <div style={{ fontSize: '.95rem', color: 'var(--cream)', marginBottom: '.2rem', fontFamily: "'Playfair Display',serif", fontWeight: 400 }}>
                           {task.question}
                         </div>
@@ -3998,6 +4039,17 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
                             {task.context}
                           </div>
                         )}
+                        {(() => {
+                          const todayRegion = todayGarden?.climateData?._derived?.climateType
+                            ? climateToRegion(todayGarden.climateData._derived.climateType)
+                            : 'uk';
+                          const videoResult = task.category ? getVideosForTask(task.category, todayRegion) : null;
+                          return videoResult ? (
+                            <div style={{marginTop:'.4rem'}}>
+                              <VideoButton taskResult={videoResult}/>
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     </li>
                   ))}
@@ -4294,6 +4346,7 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
                         inspo={inspos[name] || {state:"idle",data:null}}
                         onFetchInspo={()=>fetchInspo([name])}
                         t={t}
+                        videoRegion={videoRegion}
                       />
                     </div>
                   );
