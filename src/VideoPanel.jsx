@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react';
-import { searchYouTube, buildEmbedUrl, buildSearchQuery } from './videoService.js';
+import { searchYouTube, buildEmbedUrl } from './videoService.js';
 
 // PROXY_BASE is read from the same env var as the rest of the app
 const PROXY_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PROXY_URL)
@@ -134,9 +134,8 @@ function VideoSheet({ taskText, region, onClose }) {
     setState('loading');
     setError('');
     try {
-      const q = buildSearchQuery(taskText, region);
+      const { query: q, results: res } = await searchYouTube(taskText, region, PROXY_BASE);
       setQuery(q);
-      const res = await searchYouTube(taskText, region, PROXY_BASE);
       if (!res.length) throw new Error('No results found — try a different search');
       setResults(res);
       setState('results');
