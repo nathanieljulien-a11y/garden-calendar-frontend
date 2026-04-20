@@ -56,8 +56,9 @@ const ROUTINE_PATTERNS = [
 
 const TECHNIQUE_PATTERNS = [
   /\bprun/i, /\bcutting/i, /\bgraft/i, /\bdivid/i,
-  /\blayer/i, /\bpropagat/i, /\bsow\b/i, /\bsowing\b/i,
-  /\btransplant/i, /\bpot\s+(up|on)\b/i,
+  /\blayer\s+(shrub|climber|stem)/i, /\bpropagat/i,
+  /\bsow\b/i, /\bsowing\b/i, /\btransplant/i,
+  /\bpot\s+(up|on)\b/i, /\brepot/i,
   /\bplant\s+(out|bare|bulb)/i, /\bbare.?root/i,
   /\bsoftwood/i, /\bhardwood/i, /\bsemi.?hardwood/i,
   /\bearth\s+up/i, /\bchit\b/i, /\bscarif/i,
@@ -65,6 +66,7 @@ const TECHNIQUE_PATTERNS = [
   /\bespalier/i, /\bspur.?prun/i, /\bwisteria/i,
   /\bgrapevine/i, /\braspberr/i, /\bcurrant/i,
   /\bgooseberr/i, /\bnematode/i, /\bvine\s+weevil/i,
+  /\bmulch/i,
 ];
 
 export function taskNeedsVideo(taskText) {
@@ -96,12 +98,16 @@ const ACTION_MAP = [
   [/\bscarif/i,                   'scarify lawn'],
   [/\boverseed/i,                 'overseed lawn'],
   [/\baerat/i,                    'aerate lawn'],
+  [/\bmulch/i,                    'mulch'],   // before layer — avoids "layer of compost" false positive
   [/\btrain\b/i,                  'train'],
   [/\bpropagat/i,                 'propagate'],
-  [/\blayer\b/i,                  'layer'],
+  [/\blayer\s+(shrub|climber|stem)/i, 'layer'], // only match "layer" as a propagation verb, not "layer of"
   [/\bgraft/i,                    'graft'],
   [/\bsow\b/i,                    'sow'],
   [/\bsowing\b/i,                 'sow'],
+  [/\brepot/i,                    'repot'],
+  [/\btie\s+in/i,                 'tie in'],
+  [/\bstake/i,                    'stake'],
 ];
 
 // ─── Plant extraction ─────────────────────────────────────────────────────────
@@ -109,29 +115,45 @@ const ACTION_MAP = [
 const PLANTS = [
   // Roses
   'climbing rose', 'rambling rose', 'shrub rose', 'hybrid tea rose', 'rose',
-  // Woody ornamentals
-  'hydrangea', 'wisteria', 'camellia', 'forsythia', 'buddleja', 'buddleia',
-  'photinia', 'viburnum', 'pyracantha', 'magnolia', 'lilac', 'rhododendron',
-  'azalea', 'clematis', 'jasmine', 'honeysuckle', 'virginia creeper',
-  'lavender', 'rosemary', 'sage', 'thyme', 'hebe',
-  // Fruit trees & bushes
+  // Climbers & wall shrubs
+  'wisteria', 'clematis', 'jasmine', 'honeysuckle', 'virginia creeper',
+  'passion flower', 'pyracantha', 'ceanothus', 'cotoneaster',
+  // Flowering shrubs
+  'hydrangea', 'camellia', 'forsythia', 'buddleja', 'buddleia',
+  'photinia', 'viburnum', 'magnolia', 'lilac', 'rhododendron', 'azalea',
+  'hebe', 'escallonia', 'pittosporum', 'choisya', 'Mexican orange blossom',
+  'weigela', 'deutzia', 'philadelphus', 'mock orange',
+  'cornus', 'dogwood', 'sambucus', 'elder',
+  // Mediterranean / structural shrubs
+  'lavender', 'rosemary', 'sage', 'thyme', 'cistus', 'rock rose',
+  'oleander', 'myrtle', 'olive',
+  // Perennials — this was the main gap
+  'heuchera', 'hosta', 'agapanthus', 'crocosmia', 'echinacea', 'rudbeckia',
+  'astrantia', 'geranium', 'hardy geranium', 'salvia', 'nepeta', 'catmint',
+  'lupin', 'delphinium', 'achillea', 'yarrow', 'kniphofia', 'red hot poker',
+  'penstemon', 'sedum', 'sedums', 'verbena', 'gaillardia', 'coreopsis',
+  'campanula', 'aquilegia', 'bergenia', 'pulmonaria', 'hellebore',
+  'digitalis', 'foxglove', 'alchemilla', 'lady\'s mantle',
+  'euphorbia', 'ornamental grass', 'miscanthus', 'stipa', 'pampas grass',
+  // Bulbs & tubers
+  'dahlia', 'peony', 'iris', 'tulip', 'allium', 'snowdrop', 'daffodil',
+  'sweet pea', 'gladiolus', 'crocosmia', 'anemone', 'ranunculus',
+  // Bedding & tender
+  'pelargonium', 'fuchsia', 'begonia', 'impatiens', 'busy lizzie',
+  // Fruit trees
   'apple tree', 'pear tree', 'plum tree', 'cherry tree', 'peach tree',
   'apple', 'pear', 'plum', 'cherry', 'fig', 'peach', 'apricot', 'quince',
+  'grape vine', 'grapevine',
+  // Soft fruit
   'raspberry', 'blackcurrant', 'redcurrant', 'whitecurrant', 'gooseberry',
-  'strawberry', 'blackberry', 'blueberry', 'grape vine', 'grapevine',
+  'strawberry', 'blackberry', 'blueberry',
   // Vegetables
-  'tomato', 'courgette', 'zucchini', 'cucumber', 'pepper', 'chilli',
-  'aubergine', 'eggplant', 'potato', 'sweet potato',
-  'runner bean', 'french bean', 'broad bean', 'pea',
+  'tomato', 'courgette', 'cucumber', 'pepper', 'chilli', 'aubergine',
+  'potato', 'sweet potato', 'runner bean', 'french bean', 'broad bean', 'pea',
   'leek', 'onion', 'garlic', 'carrot', 'parsnip', 'beetroot',
-  'brassica', 'cabbage', 'kale', 'broccoli', 'cauliflower',
-  'lettuce', 'spinach', 'chard', 'celery',
+  'kale', 'broccoli', 'cauliflower', 'cabbage', 'lettuce', 'spinach', 'chard',
   // Herbs
   'mint', 'basil', 'parsley', 'chives', 'dill', 'fennel', 'tarragon',
-  // Flowers & bulbs
-  'peony', 'dahlia', 'tulip', 'allium', 'snowdrop', 'daffodil',
-  'sweet pea', 'pelargonium', 'geranium', 'fuchsia', 'begonia',
-  'agapanthus', 'iris', 'lupin', 'delphinium', 'salvia',
   // Lawn
   'lawn', 'grass',
 ];
