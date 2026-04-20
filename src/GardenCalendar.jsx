@@ -278,6 +278,34 @@ const styles = `
   .inspo-detail { color:var(--sage); font-size:.82rem; margin-top:.15rem; }
   .inspo-text   { margin-top:.3rem; font-size:.84rem; color:var(--parchment); line-height:1.45; }
 
+  /* ── Year-Round Interest Timeline ── */
+  .timeline-panel { background:rgba(30,18,8,.7); border:1px solid rgba(200,169,110,.15); border-radius:2px; padding:1rem 1.5rem; margin-bottom:2rem; animation:fadeIn .4s ease; }
+  .timeline-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; }
+  .timeline-title  { font-size:.75rem; text-transform:uppercase; letter-spacing:.1em; color:var(--sage); display:flex; align-items:center; gap:.5rem; }
+  .timeline-body   { margin-top:1.1rem; overflow-x:auto; }
+  .timeline-legend { display:flex; gap:1.25rem; margin-bottom:.9rem; flex-wrap:wrap; }
+  .tl-leg-item { display:flex; align-items:center; gap:.35rem; font-size:.72rem; color:var(--sage); letter-spacing:.04em; }
+  .tl-leg-swatch { width:12px; height:12px; border-radius:2px; flex-shrink:0; }
+  .tl-grid { display:table; width:100%; border-collapse:collapse; min-width:520px; }
+  .tl-row  { display:table-row; }
+  .tl-row:last-child .tl-cell { border-bottom:none; }
+  .tl-label { display:table-cell; vertical-align:middle; font-size:.78rem; color:var(--parchment); padding:.3rem .7rem .3rem 0; white-space:nowrap; width:130px; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
+  .tl-label-cat { font-size:.62rem; color:var(--sage); opacity:.6; margin-left:.3rem; font-style:italic; }
+  .tl-months { display:table-cell; vertical-align:middle; padding:.25rem 0; }
+  .tl-months-inner { display:flex; gap:2px; }
+  .tl-cell { width:calc(100%/12); height:18px; border-radius:2px; flex-shrink:0; flex:1; transition:opacity .15s; }
+  .tl-cell:hover { opacity:.75; cursor:default; }
+  .tl-cell.flower  { background:var(--bloom); }
+  .tl-cell.fruit   { background:var(--warm); }
+  .tl-cell.foliage { background:var(--dew); opacity:.7; }
+  .tl-cell.none    { background:rgba(200,169,110,.07); }
+  .tl-month-labels { display:flex; gap:2px; margin-bottom:.2rem; padding-left:130px; }
+  .tl-month-lbl { flex:1; text-align:center; font-size:.58rem; color:rgba(180,180,160,.35); letter-spacing:.02em; text-transform:uppercase; }
+  .tl-category-row { display:table-row; }
+  .tl-cat-heading  { display:table-cell; padding:.5rem 0 .15rem; font-size:.65rem; text-transform:uppercase; letter-spacing:.09em; color:var(--straw); opacity:.55; colspan:2; }
+  .tl-divider { height:1px; background:rgba(200,169,110,.08); margin:.3rem 0; }
+  .tl-empty { font-size:.83rem; color:var(--sage); font-style:italic; padding:.5rem 0; }
+
   .page-dots { display:flex; justify-content:center; gap:.5rem; margin-bottom:2rem; }
   .pdot { width:8px; height:8px; border-radius:50%; background:var(--bark2); border:1px solid rgba(200,169,110,.22); cursor:pointer; transition:all .2s; }
   .pdot.active   { background:var(--straw); border-color:var(--straw); }
@@ -2002,6 +2030,106 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, to
   );
 }
 
+// ─── InterestTimeline ─────────────────────────────────────────────────────────
+const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const CAT_LABELS = { trees:"Tree", shrubs:"Shrub", flowers:"Flower", vegetables:"Veg", fruit:"Fruit", herbs:"Herb" };
+const CAT_ORDER  = ["trees","shrubs","flowers","fruit","vegetables","herbs"];
+
+function InterestTimeline({ plants, timelineData, timelineState, onFetch, stream1Done }) {
+  const [open, setOpen] = useState(false);
+  const canUnlock = stream1Done && Object.values(plants).flat().length > 0;
+
+  const handleUnlock = () => { setOpen(true); if (timelineState === "idle") onFetch(); };
+
+  // Build ordered rows grouped by category
+  const rows = [];
+  if (timelineData) {
+    CAT_ORDER.forEach(cat => {
+      const ps = (plants[cat] || []).filter(p => timelineData[p]);
+      if (!ps.length) return;
+      ps.forEach(p => {
+        const d = timelineData[p] || {};
+        const flowerSet  = new Set(d.flower  || []);
+        const fruitSet   = new Set(d.fruit   || []);
+        const foliageSet = new Set(d.foliage || []);
+        const cells = Array.from({length:12}, (_,i) => {
+          if (flowerSet.has(i))  return "flower";
+          if (fruitSet.has(i))   return "fruit";
+          if (foliageSet.has(i)) return "foliage";
+          return "none";
+        });
+        rows.push({ name: p, cat, cells });
+      });
+    });
+  }
+
+  return (
+    <div className="timeline-panel">
+      <div className="timeline-header">
+        <span className="timeline-title">🗓 Year-round interest</span>
+        {!open ? (
+          <button className="btn-unlock" onClick={handleUnlock} disabled={!canUnlock}
+            title={!canUnlock ? "Available once calendar is generated" : ""}>
+            {canUnlock ? "Show timeline" : "Available after generating"}
+          </button>
+        ) : (
+          <button className="btn-unlock" onClick={onFetch}
+            disabled={timelineState === "loading"} style={{fontSize:".78rem"}}>
+            {timelineState === "loading" ? "Thinking…" : "↺ Refresh"}
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="timeline-body">
+          {timelineState === "loading" && <div style={{padding:".5rem 0"}}><Shimmer lines={3}/></div>}
+          {timelineState === "error" && (
+            <div style={{fontSize:".85rem",color:"var(--bloom)",fontStyle:"italic",padding:".4rem 0"}}>
+              Couldn't load timeline — try refreshing.
+            </div>
+          )}
+          {timelineState === "done" && (
+            <>
+              <div className="timeline-legend">
+                <div className="tl-leg-item"><div className="tl-leg-swatch" style={{background:"var(--bloom)"}}/>Flower</div>
+                <div className="tl-leg-item"><div className="tl-leg-swatch" style={{background:"var(--warm)"}}/>Fruit</div>
+                <div className="tl-leg-item"><div className="tl-leg-swatch" style={{background:"var(--dew)",opacity:.7}}/>Foliage</div>
+              </div>
+              <div className="tl-month-labels">
+                {MONTH_ABBR.map(m => <div key={m} className="tl-month-lbl">{m}</div>)}
+              </div>
+              {rows.length === 0 ? (
+                <div className="tl-empty">No interest data available for your plants.</div>
+              ) : (
+                <div className="tl-grid">
+                  {rows.map((row, i) => (
+                    <div key={i} className="tl-row">
+                      <div className="tl-label" title={row.name}>
+                        {row.name}
+                        <span className="tl-label-cat">{CAT_LABELS[row.cat]}</span>
+                      </div>
+                      <div className="tl-months">
+                        <div className="tl-months-inner">
+                          {row.cells.map((type, mi) => (
+                            <div key={mi} className={`tl-cell ${type}`} title={`${MONTH_ABBR[mi]}: ${type === "none" ? "no interest" : type}`}/>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{fontSize:".68rem",color:"rgba(180,180,160,.35)",marginTop:".9rem",fontStyle:"italic",lineHeight:"1.5"}}>
+                Approximate interest windows for your climate. Exact timing varies by variety and season.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function GardenCalendar() {
   const [apiKey,setApiKey]   = useState("");
@@ -2129,6 +2257,8 @@ useEffect(() => {
   // Per-month inspiration: { "January": { state:"idle"|"loading"|"done"|"error", data:{...}|null } }
   const [inspos,setInspos]           = useState({});
   const [insights,setInsights]       = useState({state:"idle", items:[]});
+  const [timelineData,setTimelineData] = useState(null);
+  const [timelineState,setTimelineState] = useState("idle"); // idle | loading | done | error
   const [showArrow,setShowArrow]     = useState(false);
   const [chunkCount,setChunkCount]   = useState(0);  // live chunk counter for stall diagnosis
   const chunkCountRef                = useRef(0);
@@ -2383,7 +2513,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     setS1Done(false); setActiveMonth(null);
     unlockedPages.current = new Set();
     userNavigatedRef.current = false;
-    setInspos({}); setInsights({state:"idle", items:[]});
+    setInspos({}); setInsights({state:"idle", items:[]}); setTimelineData(null); setTimelineState("idle");
     setShowArrow(true);
     sowingLogRef.current = []; // reset sowing log for fresh generation
     setPlantMeta(prev => {
@@ -2887,7 +3017,7 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     if (uiIntervalRef.current) { clearInterval(uiIntervalRef.current); uiIntervalRef.current = null; }
     ++prefetchIdRef.current; ++submitIdRef.current;
     unlockedPages.current = new Set();
-    setStage("form"); setFormStep("location"); setShowHome(hasSavedGardens() && gardens.length > 0); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]});
+    setStage("form"); setFormStep("location"); setShowHome(hasSavedGardens() && gardens.length > 0); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]}); setTimelineData(null); setTimelineState("idle");
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
     setTodayGarden(null); setWeatherData(null); setWeatherSignals([]); setWeatherLoading(false); setWeatherError(null);
     setTodayTasks(null); setTodayTasksLoading(false); setTodayTasksError(null);
@@ -3241,6 +3371,60 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
       setInsights({state:"done", items:result.items||[], allLookingGood:result.allLookingGood, goodNewsLine:result.goodNewsLine});
     } catch(e) {
       setInsights({state:"error", items:[]});
+    }
+  };
+
+  // ── Year-round interest timeline ────────────────────────────────────────────
+  const fetchTimeline = async () => {
+    if (Object.values(plants).flat().length === 0) return;
+    // Cache key: stable hash of sorted plant list + gardenId
+    const allPlantsSorted = Object.values(plants).flat().slice().sort().join(",");
+    const cacheKey = `gc_timeline_${selectedGardenId || "anon"}_${btoa(allPlantsSorted).slice(0,24)}`;
+    const cached = (() => { try { const r = localStorage.getItem(cacheKey); return r ? JSON.parse(r) : null; } catch { return null; } })();
+    if (cached) { setTimelineData(cached); setTimelineState("done"); return; }
+
+    setTimelineState("loading");
+    const allPlants = Object.entries(plants)
+      .map(([k,v]) => v.length ? `${k}: ${v.join(", ")}` : null)
+      .filter(Boolean).join(" | ");
+    const metaCtx = meta
+      ? `Climate: ${meta.climate}. Zone: ${meta.zone}. Last frost: ${meta.lastFrost}. First frost: ${meta.firstFrost}.`
+      : "";
+    const hemCtx = meta?._derived?.hemisphere === "S" ? "Southern hemisphere — seasons are inverted." : "";
+
+    try {
+      const result = await callClaude(
+        `You are a horticultural expert. Given a garden's plant inventory and climate, return the months of peak interest for each plant.
+Location: ${city}. ${metaCtx} ${hemCtx}
+Plants: ${allPlants}
+
+For each plant return three arrays of 0-indexed month numbers (0=Jan … 11=Dec) representing:
+- "flower": months when it flowers or blooms visibly
+- "fruit": months when it produces harvestable fruit, berries, vegetables, or seed heads of interest
+- "foliage": months of notable foliage, bark, structural, or winter interest (e.g. evergreen, autumn colour, ornamental bark, dried seedheads)
+
+Rules:
+- A month can appear in at most ONE array — use priority: flower > fruit > foliage
+- Use the garden's actual climate and hemisphere for timing
+- If a plant has no meaningful interest in a category, return an empty array for that category
+- Include ALL plants listed even if you have low confidence — make your best estimate
+- Return ONLY valid JSON, no markdown, no preamble. Format:
+{
+  "PlantName": { "flower": [3,4,5], "fruit": [], "foliage": [10,11] },
+  ...
+}
+Plant names must match the input exactly.`,
+        1200, undefined, provider, userKey
+      );
+      if (result && typeof result === "object") {
+        try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch {}
+        setTimelineData(result);
+        setTimelineState("done");
+      } else {
+        setTimelineState("error");
+      }
+    } catch(e) {
+      setTimelineState("error");
     }
   };
 
@@ -4219,6 +4403,17 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
               stream1Done={stream1Done}
               totalPlantCount={totalPlants}
             />
+
+            {/* Year-round interest timeline */}
+            {stream1Done && (
+              <InterestTimeline
+                plants={plants}
+                timelineData={timelineData}
+                timelineState={timelineState}
+                onFetch={fetchTimeline}
+                stream1Done={stream1Done}
+              />
+            )}
 
             {/* Batch inspiration button — fetch 3 at once */}
             {stream1Done && (() => {
