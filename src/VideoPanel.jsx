@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react';
-import { searchYouTube, buildEmbedUrl } from './videoService.js';
+import { searchYouTube, buildEmbedUrl, buildSearchQuery } from './videoService.js';
 
 // PROXY_BASE is read from the same env var as the rest of the app
 const PROXY_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PROXY_URL)
@@ -124,7 +124,8 @@ export const VIDEO_PANEL_STYLES = `
 
 // ─── VideoSheet ───────────────────────────────────────────────────────────────
 function VideoSheet({ taskText, region, onClose }) {
-  const [state, setState]     = useState('idle'); // idle | loading | results | embed | error
+  const [state, setState]     = useState('idle');
+  const [query, setQuery]       = useState('');
   const [results, setResults] = useState([]);
   const [selected, setSelected] = useState(null);
   const [error, setError]     = useState('');
@@ -133,6 +134,8 @@ function VideoSheet({ taskText, region, onClose }) {
     setState('loading');
     setError('');
     try {
+      const q = buildSearchQuery(taskText, region);
+      setQuery(q);
       const res = await searchYouTube(taskText, region, PROXY_BASE);
       if (!res.length) throw new Error('No results found — try a different search');
       setResults(res);
@@ -175,13 +178,17 @@ function VideoSheet({ taskText, region, onClose }) {
         {state === 'error' && (
           <div>
             <div className="video-error">⚠ {error}</div>
+            {query && <div style={{fontSize:'.72rem',color:'var(--sage)',fontStyle:'italic',margin:'.3rem 0 .5rem'}}>searched: "{query}"</div>}
             <button className="video-retry" onClick={doSearch} type="button">↺ Try again</button>
           </div>
         )}
 
         {state === 'results' && (
           <>
-            <div className="video-sheet-label">Choose a video</div>
+            <div className="video-sheet-label">
+              Choose a video
+              {query && <span style={{fontStyle:'italic',textTransform:'none',letterSpacing:0,fontWeight:400,opacity:.6,marginLeft:'.5rem',fontSize:'.65rem'}}>searched: "{query}"</span>}
+            </div>
             <div className="video-results">
               {results.map((r, i) => (
                 <button key={i} className="video-result-card" onClick={() => pick(r)} type="button">
