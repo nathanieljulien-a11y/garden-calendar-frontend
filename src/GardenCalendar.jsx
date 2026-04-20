@@ -1958,9 +1958,9 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, vide
 }
 
 // ─── InsightsPanel ───────────────────────────────────────────────────────────
-function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, totalPlantCount}) {
+function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, loadedBatches, totalPlantCount}) {
   const [open, setOpen] = useState(false);
-  const canUnlock = stream1Done && hasPlants;
+  const canUnlock = stream1Done && loadedBatches >= 4 && hasPlants;
   const handleUnlock = () => { setOpen(true); onFetch(); };
 
   // Count how many plants have GBIF occurrence data loaded
@@ -1973,7 +1973,7 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, to
         {!open ? (
           <button className="btn-unlock" onClick={handleUnlock} disabled={!canUnlock}
             title={!canUnlock ? "Available once calendar is generated" : ""}>
-            {canUnlock ? "Unlock insights" : "Available after generating"}
+            {canUnlock ? "Unlock insights" : "Available after full year generated"}
           </button>
         ) : (
           <button className="btn-unlock" onClick={onFetch}
@@ -2035,9 +2035,9 @@ const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct",
 const CAT_LABELS = { trees:"Tree", shrubs:"Shrub", flowers:"Flower", vegetables:"Veg", fruit:"Fruit", herbs:"Herb" };
 const CAT_ORDER  = ["trees","shrubs","flowers","fruit","vegetables","herbs"];
 
-function InterestTimeline({ plants, timelineData, timelineState, onFetch, stream1Done }) {
+function InterestTimeline({ plants, timelineData, timelineState, onFetch, stream1Done, loadedBatches }) {
   const [open, setOpen] = useState(false);
-  const canUnlock = stream1Done && Object.values(plants).flat().length > 0;
+  const canUnlock = stream1Done && loadedBatches >= 4 && Object.values(plants).flat().length > 0;
 
   const handleUnlock = () => { setOpen(true); if (timelineState === "idle") onFetch(); };
 
@@ -2070,7 +2070,7 @@ function InterestTimeline({ plants, timelineData, timelineState, onFetch, stream
         {!open ? (
           <button className="btn-unlock" onClick={handleUnlock} disabled={!canUnlock}
             title={!canUnlock ? "Available once calendar is generated" : ""}>
-            {canUnlock ? "Show timeline" : "Available after generating"}
+            {canUnlock ? "Show timeline" : "Available after full year generated"}
           </button>
         ) : (
           <button className="btn-unlock" onClick={onFetch}
@@ -4401,6 +4401,7 @@ Plant names must match the input exactly.`,
               onFetch={fetchInsights}
               hasPlants={totalPlants > 0}
               stream1Done={stream1Done}
+              loadedBatches={loadedBatches}
               totalPlantCount={totalPlants}
             />
 
@@ -4412,6 +4413,7 @@ Plant names must match the input exactly.`,
                 timelineState={timelineState}
                 onFetch={fetchTimeline}
                 stream1Done={stream1Done}
+                loadedBatches={loadedBatches}
               />
             )}
 
