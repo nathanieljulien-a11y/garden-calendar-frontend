@@ -7,7 +7,7 @@
  *
  * Flow:
  *   1. taskNeedsVideo(taskText)     — should we show a button?
- *   2. buildSearchQuery(text,region) — "how to prune hydrangea UK"
+ *   2. searchYouTube(text,region) — proxy calls Claude for query, then searches YouTube
  *   3. searchYouTube(...)            — hits /api/youtube on proxy
  *   4. User picks result → embeds inline
  */
@@ -30,14 +30,6 @@ const CLIMATE_TO_REGION = {
   'arid':                          'mediterranean',
 };
 
-// Appended to search query to bias results geographically
-const REGION_TERM = {
-  'uk':            'UK',
-  'mediterranean': 'Mediterranean',
-  'australasian':  'Australia',
-  'north-american': '',
-};
-
 export function climateToRegion(climateType) {
   if (!climateType) return 'uk';
   return CLIMATE_TO_REGION[climateType.toLowerCase()] || 'uk';
@@ -55,18 +47,29 @@ const ROUTINE_PATTERNS = [
 ];
 
 const TECHNIQUE_PATTERNS = [
-  /\bprun/i, /\bcutting/i, /\bgraft/i, /\bdivid/i,
-  /\blayer\s+(shrub|climber|stem)/i, /\bpropagat/i,
-  /\bsow\b/i, /\bsowing\b/i, /\btransplant/i,
-  /\bpot\s+(up|on)\b/i, /\brepot/i,
-  /\bplant\s+(out|bare|bulb)/i, /\bbare.?root/i,
+  // Pruning — always technique-dependent
+  /\bprun/i,
+  /\bdeadhead\s+(rose|dahlia|peony|wisteria|camellia)/i,  // specific deadheading only
+  // Propagation — all forms involve real technique
+  /\bcutting/i, /\bgraft/i, /\bdivid/i,
+  /\bpropagat/i, /\blayer\s+(shrub|climber|stem)/i,
   /\bsoftwood/i, /\bhardwood/i, /\bsemi.?hardwood/i,
-  /\bearth\s+up/i, /\bchit\b/i, /\bscarif/i,
-  /\boverseed/i, /\baerat/i, /\btrain\b/i,
-  /\bespalier/i, /\bspur.?prun/i, /\bwisteria/i,
-  /\bgrapevine/i, /\braspberr/i, /\bcurrant/i,
-  /\bgooseberr/i, /\bnematode/i, /\bvine\s+weevil/i,
-  /\bmulch/i,
+  // Planting technique — depth/method matters
+  /\bbare.?root/i,
+  /\bplant\s+(out\s+)?(bare|bulb|dahlia|tuber)/i,
+  /\btransplant/i,
+  /\bpot\s+(up|on)\b/i, /\brepot/i,
+  /\bgraft/i,
+  /\bearth\s+up/i, /\bchit\b/i,
+  // Lawn care — equipment/timing dependent
+  /\bscarif/i, /\boverseed/i, /\baerat/i,
+  // Training — specialist
+  /\btrain\b.*\b(rose|wisteria|fruit|espalier|fan)/i,
+  /\bespalier/i,
+  // Pest/disease treatment — timing critical
+  /\bnematode/i, /\bvine\s+weevil/i,
+  // Specific plants where even basic tasks are technique-sensitive
+  /\bwisteria/i, /\braspberr/i, /\bcurrant/i, /\bgooseberr/i,
 ];
 
 export function taskNeedsVideo(taskText) {
@@ -103,112 +106,48 @@ const ACTION_MAP = [
   [/\bpropagat/i,                 'propagate'],
   [/\blayer\s+(shrub|climber|stem)/i, 'layer'], // only match "layer" as a propagation verb, not "layer of"
   [/\bgraft/i,                    'graft'],
-  [/\bsow\b/i,                    'sow'],
-  [/\bsowing\b/i,                 'sow'],
   [/\brepot/i,                    'repot'],
   [/\btie\s+in/i,                 'tie in'],
   [/\bstake/i,                    'stake'],
 ];
 
-// ─── Plant extraction ─────────────────────────────────────────────────────────
-// Ordered longest-first so "climbing rose" matches before "rose".
-const PLANTS = [
-  // Roses
-  'climbing rose', 'rambling rose', 'shrub rose', 'hybrid tea rose', 'rose',
-  // Climbers & wall shrubs
-  'wisteria', 'clematis', 'jasmine', 'honeysuckle', 'virginia creeper',
-  'passion flower', 'pyracantha', 'ceanothus', 'cotoneaster',
-  // Flowering shrubs
-  'hydrangea', 'camellia', 'forsythia', 'buddleja', 'buddleia',
-  'photinia', 'viburnum', 'magnolia', 'lilac', 'rhododendron', 'azalea',
-  'hebe', 'escallonia', 'pittosporum', 'choisya', 'Mexican orange blossom',
-  'weigela', 'deutzia', 'philadelphus', 'mock orange',
-  'cornus', 'dogwood', 'sambucus', 'elder',
-  // Mediterranean / structural shrubs
-  'lavender', 'rosemary', 'sage', 'thyme', 'cistus', 'rock rose',
-  'oleander', 'myrtle', 'olive',
-  // Perennials — this was the main gap
-  'heuchera', 'hosta', 'agapanthus', 'crocosmia', 'echinacea', 'rudbeckia',
-  'astrantia', 'geranium', 'hardy geranium', 'salvia', 'nepeta', 'catmint',
-  'lupin', 'delphinium', 'achillea', 'yarrow', 'kniphofia', 'red hot poker',
-  'penstemon', 'sedum', 'sedums', 'verbena', 'gaillardia', 'coreopsis',
-  'campanula', 'aquilegia', 'bergenia', 'pulmonaria', 'hellebore',
-  'digitalis', 'foxglove', 'alchemilla', 'lady\'s mantle',
-  'euphorbia', 'ornamental grass', 'miscanthus', 'stipa', 'pampas grass',
-  // Bulbs & tubers
-  'dahlia', 'peony', 'iris', 'tulip', 'allium', 'snowdrop', 'daffodil',
-  'sweet pea', 'gladiolus', 'crocosmia', 'anemone', 'ranunculus',
-  // Bedding & tender
-  'pelargonium', 'fuchsia', 'begonia', 'impatiens', 'busy lizzie',
-  // Fruit trees
-  'apple tree', 'pear tree', 'plum tree', 'cherry tree', 'peach tree',
-  'apple', 'pear', 'plum', 'cherry', 'fig', 'peach', 'apricot', 'quince',
-  'grape vine', 'grapevine',
-  // Soft fruit
-  'raspberry', 'blackcurrant', 'redcurrant', 'whitecurrant', 'gooseberry',
-  'strawberry', 'blackberry', 'blueberry',
-  // Vegetables
-  'tomato', 'courgette', 'cucumber', 'pepper', 'chilli', 'aubergine',
-  'potato', 'sweet potato', 'runner bean', 'french bean', 'broad bean', 'pea',
-  'leek', 'onion', 'garlic', 'carrot', 'parsnip', 'beetroot',
-  'kale', 'broccoli', 'cauliflower', 'cabbage', 'lettuce', 'spinach', 'chard',
-  // Herbs
-  'mint', 'basil', 'parsley', 'chives', 'dill', 'fennel', 'tarragon',
-  // Lawn
-  'lawn', 'grass',
-];
-
-function extractAction(taskText) {
-  for (const [pattern, label] of ACTION_MAP) {
-    if (pattern.test(taskText)) return label;
-  }
-  // Fallback: lowercase first word
-  return taskText.trim().split(/\s+/)[0].toLowerCase();
-}
-
-function extractPlant(taskText) {
-  const lower = taskText.toLowerCase();
-  for (const plant of PLANTS) {
-    // Word-boundary aware match
-    const re = new RegExp('\\b' + plant.replace(/\s+/g, '\\s+') + 's?\\b', 'i');
-    if (re.test(lower)) return plant;
-  }
-  return null;
-}
-
-// ─── Search query builder ─────────────────────────────────────────────────────
+// ─── AI-powered search query + YouTube search ─────────────────────────────────
 /**
- * Build a short, YouTube-friendly search query from a task string.
- * e.g. "Prune hydrangeas back to first pair of fat buds..."
- *   → "how to prune hydrangea UK"
+ * Calls the proxy to:
+ *   1. Ask Claude to distil the task into a clean YouTube search query
+ *   2. Search YouTube with that query
+ *
+ * Returns { query, results } so the UI can show what was searched.
+ *
+ * The proxy handles both steps server-side — one round trip from the browser.
+ * Proxy endpoint: POST /api/youtube-search
+ *   body: { task, region }
+ *   returns: { query, results: [{ videoId, title, channel, thumbnailUrl }] }
  */
-export function buildSearchQuery(taskText, region = 'uk') {
-  const action = extractAction(taskText);
-  const plant  = extractPlant(taskText);
-  const regionSuffix = REGION_TERM[region] || '';
-
-  const parts = ['how to', action, plant, regionSuffix].filter(Boolean);
-  return parts.join(' ');
-}
-
-// ─── YouTube search via proxy ─────────────────────────────────────────────────
 export async function searchYouTube(taskText, region = 'uk', proxyBase = '') {
-  const query = buildSearchQuery(taskText, region);
-  const params = new URLSearchParams({ q: query, maxResults: 3 });
-  const url = proxyBase ? `${proxyBase}/api/youtube?${params}` : null;
-  if (!url) throw new Error('Proxy not configured — YouTube search unavailable');
-  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  if (!proxyBase) throw new Error('Proxy not configured — YouTube search unavailable');
+
+  const res = await fetch(`${proxyBase}/api/youtube-search`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body:    JSON.stringify({ task: taskText, region }),
+  });
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `YouTube search failed (${res.status})`);
+    throw new Error(err.message || `Search failed (${res.status})`);
   }
+
   const data = await res.json();
-  return (data.results || []).map(r => ({
-    videoId:      r.videoId,
-    title:        r.title,
-    channel:      r.channel,
-    thumbnailUrl: r.thumbnailUrl || `https://img.youtube.com/vi/${r.videoId}/mqdefault.jpg`,
-  }));
+  return {
+    query:   data.query || '',
+    results: (data.results || []).map(r => ({
+      videoId:      r.videoId,
+      title:        r.title,
+      channel:      r.channel,
+      thumbnailUrl: r.thumbnailUrl || `https://img.youtube.com/vi/${r.videoId}/mqdefault.jpg`,
+    })),
+  };
 }
 
 // ─── Embed URL ────────────────────────────────────────────────────────────────
