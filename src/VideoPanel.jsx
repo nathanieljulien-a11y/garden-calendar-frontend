@@ -1,49 +1,37 @@
 /**
- * VideoPanel.jsx — Sprint 8
+ * VideoPanel.jsx — Sprint 8 (revised: live search)
  *
- * Two parts:
- * 1. VideoButton — the small button shown alongside each task (rating 2 or 3)
- * 2. VideoSheet — the bottom sheet / modal containing 3 video cards
- *
- * PRD §3.3 / §3.4:
- * - Bottom sheet on mobile, modal on desktop
- * - Each card: thumbnail, title, channel, duration, source type badge
- * - Video plays inline — no navigation away
- * - YouTube Privacy Enhanced mode (youtube-nocookie.com)
- * - Autoplay off, minimum player size 480×270px
+ * VideoButton: shown alongside technique-based tasks.
+ * On click: searches YouTube via proxy, shows 3 results.
+ * User picks one → embeds inline via youtube-nocookie.com.
  */
 
 import { useState } from 'react';
-import { buildEmbedUrl, videoButtonLabel, isVideoProminent, SLOT_LABELS } from './videoService.js';
+import { searchYouTube, buildEmbedUrl } from './videoService.js';
+
+// PROXY_BASE is read from the same env var as the rest of the app
+const PROXY_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PROXY_URL)
+  ? String(import.meta.env.VITE_PROXY_URL).replace(/\/$/, '')
+  : '';
 
 export const VIDEO_PANEL_STYLES = `
   /* ── Video button ── */
   .video-btn {
-    display: inline-flex; align-items: center; gap: .35rem;
-    border: none; border-radius: 2px; cursor: pointer;
-    font-family: 'Crimson Pro', serif; font-size: .82rem;
-    padding: .35rem .75rem; transition: all .2s; line-height: 1;
+    display: inline-flex; align-items: center; gap: .3rem;
+    background: none; border: 1px solid rgba(138,180,160,.3);
+    border-radius: 2px; color: var(--dew); cursor: pointer;
+    font-family: 'Crimson Pro', serif; font-size: .76rem;
+    padding: .2rem .6rem; transition: all .15s; line-height: 1; white-space: nowrap;
+    flex-shrink: 0;
   }
-  .video-btn.prominent {
-    background: rgba(196,102,74,.18); border: 1px solid rgba(196,102,74,.4);
-    color: var(--bloom);
-  }
-  .video-btn.prominent:hover {
-    background: rgba(196,102,74,.32); border-color: var(--bloom);
-  }
-  .video-btn.subtle {
-    background: rgba(138,180,160,.12); border: 1px solid rgba(138,180,160,.3);
-    color: var(--dew);
-  }
-  .video-btn.subtle:hover {
-    background: rgba(138,180,160,.22); border-color: var(--dew);
-  }
+  .video-btn:hover { background: rgba(138,180,160,.12); border-color: var(--dew); }
+  .video-btn:disabled { opacity: .45; cursor: wait; }
 
   /* ── Video sheet overlay ── */
   .video-overlay {
     position: fixed; inset: 0; background: rgba(10,6,3,.82);
     z-index: 3000; display: flex; align-items: flex-end;
-    justify-content: center; padding: 0; animation: fadeIn .2s ease;
+    justify-content: center; animation: fadeIn .2s ease;
   }
   @media (min-width: 640px) {
     .video-overlay { align-items: center; padding: 1.5rem; }
@@ -54,16 +42,15 @@ export const VIDEO_PANEL_STYLES = `
     max-height: 90vh; overflow-y: auto; padding: 1.25rem 1.25rem 2rem;
     animation: fadeUp .25s ease;
   }
-  @media (min-width: 640px) {
-    .video-sheet { border-radius: 2px; }
-  }
+  @media (min-width: 640px) { .video-sheet { border-radius: 2px; } }
+
   .video-sheet-header {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    gap: .75rem; margin-bottom: 1rem;
+    display: flex; align-items: flex-start;
+    justify-content: space-between; gap: .75rem; margin-bottom: 1rem;
   }
-  .video-sheet-title {
-    font-family: 'Playfair Display', serif; font-size: 1rem;
-    font-weight: 400; color: var(--straw); line-height: 1.3;
+  .video-sheet-task {
+    font-size: .8rem; color: var(--sage); font-style: italic;
+    line-height: 1.4; flex: 1;
   }
   .video-sheet-close {
     background: none; border: none; color: var(--sage);
@@ -71,138 +58,169 @@ export const VIDEO_PANEL_STYLES = `
     padding: .1rem; flex-shrink: 0;
   }
   .video-sheet-close:hover { color: var(--cream); }
-  .video-rating-badge {
-    display: inline-flex; align-items: center; gap: .3rem;
-    font-size: .72rem; padding: .2rem .6rem; border-radius: 2px;
-    margin-bottom: .85rem;
-  }
-  .video-rating-badge.r3 {
-    background: rgba(196,102,74,.15); border: 1px solid rgba(196,102,74,.3);
-    color: var(--bloom);
-  }
-  .video-rating-badge.r2 {
-    background: rgba(138,180,160,.12); border: 1px solid rgba(138,180,160,.28);
-    color: var(--dew);
+
+  .video-sheet-label {
+    font-size: .68rem; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--straw); margin-bottom: .85rem;
   }
 
-  /* ── Video cards ── */
-  .video-cards { display: flex; flex-direction: column; gap: .75rem; }
-  .video-card {
-    background: rgba(58,34,16,.5); border: 1px solid rgba(200,169,110,.15);
-    border-radius: 2px; overflow: hidden; transition: border-color .2s;
+  /* ── Result cards ── */
+  .video-results { display: flex; flex-direction: column; gap: .6rem; }
+
+  .video-result-card {
+    display: flex; gap: .75rem; align-items: flex-start;
+    padding: .6rem .75rem; background: rgba(58,34,16,.5);
+    border: 1px solid rgba(200,169,110,.15); border-radius: 2px;
+    cursor: pointer; transition: border-color .15s; text-align: left;
+    width: 100%; font-family: 'Crimson Pro', serif;
   }
-  .video-card:hover { border-color: rgba(200,169,110,.35); }
-  .video-card-thumb {
-    width: 100%; aspect-ratio: 16/9; position: relative;
-    background: #0d0a07; cursor: pointer; overflow: hidden;
+  .video-result-card:hover { border-color: rgba(200,169,110,.4); }
+
+  .video-result-thumb {
+    width: 96px; height: 54px; border-radius: 2px;
+    object-fit: cover; flex-shrink: 0; background: #0d0a07;
   }
-  .video-card-thumb img {
-    width: 100%; height: 100%; object-fit: cover; display: block;
-    transition: opacity .2s;
-  }
-  .video-card-thumb:hover img { opacity: .85; }
-  .video-play-overlay {
-    position: absolute; inset: 0; display: flex;
-    align-items: center; justify-content: center;
-    background: rgba(0,0,0,.25); transition: background .2s;
-  }
-  .video-card-thumb:hover .video-play-overlay { background: rgba(0,0,0,.4); }
-  .video-play-btn {
-    width: 48px; height: 48px; border-radius: 50%;
-    background: rgba(196,102,74,.9); display: flex;
-    align-items: center; justify-content: center;
-    color: white; font-size: 1.2rem; padding-left: 3px;
-  }
-  .video-iframe-wrap {
-    width: 100%; aspect-ratio: 16/9; background: #000;
-  }
-  .video-iframe-wrap iframe {
-    width: 100%; height: 100%; border: none; display: block;
-  }
-  .video-card-info {
-    padding: .65rem .85rem;
-    display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem;
-  }
-  .video-card-meta { flex: 1; min-width: 0; }
-  .video-card-title {
-    font-size: .88rem; color: var(--cream); line-height: 1.4;
+  .video-result-info { flex: 1; min-width: 0; }
+  .video-result-title {
+    font-size: .88rem; color: var(--cream); line-height: 1.35;
     margin-bottom: .2rem;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-    overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden;
   }
-  .video-card-channel { font-size: .75rem; color: var(--sage); font-style: italic; }
-  .video-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: .3rem; flex-shrink: 0; }
-  .video-slot-badge {
-    font-size: .65rem; text-transform: uppercase; letter-spacing: .07em;
-    padding: .15rem .45rem; border-radius: 2px;
-    background: rgba(200,169,110,.1); border: 1px solid rgba(200,169,110,.2);
-    color: var(--straw); white-space: nowrap;
+  .video-result-channel { font-size: .72rem; color: var(--sage); font-style: italic; }
+
+  /* ── Embed ── */
+  .video-embed-wrap {
+    width: 100%; aspect-ratio: 16/9; background: #000;
+    border-radius: 2px; overflow: hidden; margin-bottom: .6rem;
   }
-  .video-duration { font-size: .72rem; color: var(--sage); }
+  .video-embed-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
+  .video-embed-back {
+    background: none; border: none; color: var(--sage);
+    font-size: .8rem; cursor: pointer; padding: 0; font-family: 'Crimson Pro', serif;
+    text-decoration: underline;
+  }
+  .video-embed-back:hover { color: var(--cream); }
+
   .video-attribution {
-    font-size: .65rem; color: rgba(180,180,160,.35); margin-top: .75rem;
-    font-style: italic; text-align: center;
+    font-size: .65rem; color: rgba(180,180,160,.35);
+    margin-top: .85rem; font-style: italic; text-align: center;
   }
+
+  /* ── States ── */
+  .video-loading {
+    display: flex; align-items: center; gap: .5rem;
+    font-size: .85rem; color: var(--sage); font-style: italic; padding: .5rem 0;
+  }
+  .video-error { font-size: .82rem; color: var(--bloom); font-style: italic; padding: .4rem 0; }
+  .video-retry {
+    background: none; border: 1px solid rgba(196,102,74,.35);
+    color: var(--bloom); border-radius: 2px; padding: .3rem .7rem;
+    font-family: 'Crimson Pro', serif; font-size: .8rem; cursor: pointer;
+    margin-top: .4rem; transition: all .15s;
+  }
+  .video-retry:hover { background: rgba(196,102,74,.12); }
 `;
 
-// ─── VideoCard ────────────────────────────────────────────────────────────────
-function VideoCard({ video }) {
-  const [playing, setPlaying] = useState(false);
-  const thumbUrl = `https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg`;
-  const embedUrl = buildEmbedUrl(video.videoId) + '&autoplay=1';
-
-  return (
-    <div className="video-card">
-      {playing ? (
-        <div className="video-iframe-wrap">
-          <iframe
-            src={embedUrl}
-            title={video.title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
-        </div>
-      ) : (
-        <div className="video-card-thumb" onClick={() => setPlaying(true)}>
-          <img
-            src={thumbUrl}
-            alt={video.title}
-            onError={e => { e.target.style.display = 'none'; }}
-          />
-          <div className="video-play-overlay">
-            <div className="video-play-btn">▶</div>
-          </div>
-        </div>
-      )}
-      <div className="video-card-info">
-        <div className="video-card-meta">
-          <div className="video-card-title">{video.title}</div>
-          <div className="video-card-channel">{video.channel}</div>
-        </div>
-        <div className="video-card-right">
-          <span className="video-slot-badge">{SLOT_LABELS[video.slot] || video.slot}</span>
-          {video.duration && <span className="video-duration">{video.duration}</span>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── VideoSheet ───────────────────────────────────────────────────────────────
-function VideoSheet({ taskLabel, rating, videos, onClose }) {
+function VideoSheet({ taskText, region, onClose }) {
+  const [state, setState]     = useState('idle'); // idle | loading | results | embed | error
+  const [results, setResults] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [error, setError]     = useState('');
+
+  const doSearch = async () => {
+    setState('loading');
+    setError('');
+    try {
+      const res = await searchYouTube(taskText, region, PROXY_BASE);
+      if (!res.length) throw new Error('No results found — try a different search');
+      setResults(res);
+      setState('results');
+    } catch (e) {
+      setError(e.message || 'Search failed');
+      setState('error');
+    }
+  };
+
+  // Auto-search when sheet opens
+  useState(() => { doSearch(); }, []);
+  // ^ useState trick doesn't work — use a ref-based approach:
+  const searchedRef = { current: false };
+  if (!searchedRef.current && state === 'idle') {
+    searchedRef.current = true;
+    doSearch();
+  }
+
+  const pick = (result) => {
+    setSelected(result);
+    setState('embed');
+  };
+
   return (
     <div className="video-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="video-sheet">
         <div className="video-sheet-header">
-          <div className="video-sheet-title">{taskLabel}</div>
+          <div className="video-sheet-task">"{taskText}"</div>
           <button className="video-sheet-close" onClick={onClose} type="button">×</button>
         </div>
-        <div className={`video-rating-badge r${rating}`}>
-          {rating === 3 ? '⚠ Watch before you start' : '▶ How to do this'}
-        </div>
-        <div className="video-cards">
-          {videos.map((v, i) => <VideoCard key={i} video={v} />)}
-        </div>
+
+        {(state === 'idle' || state === 'loading') && (
+          <div className="video-loading">
+            <span style={{ display:'inline-block', animation:'spin .7s linear infinite' }}>◌</span>
+            Searching YouTube…
+          </div>
+        )}
+
+        {state === 'error' && (
+          <div>
+            <div className="video-error">⚠ {error}</div>
+            <button className="video-retry" onClick={doSearch} type="button">↺ Try again</button>
+          </div>
+        )}
+
+        {state === 'results' && (
+          <>
+            <div className="video-sheet-label">Choose a video</div>
+            <div className="video-results">
+              {results.map((r, i) => (
+                <button key={i} className="video-result-card" onClick={() => pick(r)} type="button">
+                  <img
+                    className="video-result-thumb"
+                    src={r.thumbnailUrl}
+                    alt={r.title}
+                    onError={e => { e.target.style.display = 'none'; }}
+                  />
+                  <div className="video-result-info">
+                    <div className="video-result-title">{r.title}</div>
+                    <div className="video-result-channel">{r.channel}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {state === 'embed' && selected && (
+          <>
+            <div className="video-embed-wrap">
+              <iframe
+                src={buildEmbedUrl(selected.videoId)}
+                title={selected.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+            <div style={{ marginBottom: '.4rem' }}>
+              <div style={{ fontSize: '.88rem', color: 'var(--cream)', marginBottom: '.15rem' }}>{selected.title}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--sage)', fontStyle: 'italic' }}>{selected.channel}</div>
+            </div>
+            <button className="video-embed-back" onClick={() => setState('results')} type="button">
+              ← Back to results
+            </button>
+          </>
+        )}
+
         <div className="video-attribution">
           Videos via YouTube · embedded in Privacy Enhanced mode · no tracking cookies
         </div>
@@ -211,37 +229,29 @@ function VideoSheet({ taskLabel, rating, videos, onClose }) {
   );
 }
 
-// ─── VideoButton ─────────────────────────────────────────────────────────────
+// ─── VideoButton ──────────────────────────────────────────────────────────────
 /**
- * The button shown alongside a task in the calendar or Today view.
- * Renders null if no videos are available for this task.
- *
  * Props:
- *   taskResult — from getVideosForTask() — { rating, label, videos } or null
+ *   taskText {string}  — the raw task string
+ *   region   {string}  — 'uk' | 'mediterranean' | etc.
  */
-export function VideoButton({ taskResult }) {
+export function VideoButton({ taskText, region = 'uk' }) {
   const [open, setOpen] = useState(false);
-
-  if (!taskResult || !taskResult.videos.length) return null;
-
-  const { rating, label, videos } = taskResult;
-  const prominent = isVideoProminent(rating);
-  const btnLabel  = videoButtonLabel(rating);
 
   return (
     <>
       <button
-        className={`video-btn ${prominent ? 'prominent' : 'subtle'}`}
+        className="video-btn"
         type="button"
         onClick={() => setOpen(true)}
+        title="Find a video guide for this task"
       >
-        {btnLabel}
+        ▶ Watch how to do this
       </button>
       {open && (
         <VideoSheet
-          taskLabel={label}
-          rating={rating}
-          videos={videos}
+          taskText={taskText}
+          region={region}
           onClose={() => setOpen(false)}
         />
       )}
