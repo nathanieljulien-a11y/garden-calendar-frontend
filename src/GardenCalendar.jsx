@@ -5,7 +5,7 @@ import { fetchWeatherForecast, computeUrgencySignals, readWeatherCache, writeWea
 import { WeatherSummary, WEATHER_SUMMARY_STYLES } from './WeatherSummary.jsx';
 import { buildTodayPrompt, validateTodayResponse, readTodayCache, writeTodayCache } from './todayTasks.js';
 import { fetchNearbyObservations, normaliseInatObservations, readInatCache, writeInatCache, relativeDate } from './nearbyObservations.js';
-import { getVideosForTask, climateToRegion } from './videoService.js';
+import { climateToRegion, taskNeedsVideo } from './videoService.js';
 import { VideoButton, VIDEO_PANEL_STYLES } from './VideoPanel.jsx';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
@@ -1819,33 +1819,6 @@ function StreamBar({months, stream1Done, activeMonth, chunkCount}) {
 
 function orientationShort(o) { return o?o.split(" (")[0]:""; }
 
-// ─── Video keyword → category key map ────────────────────────────────────────
-// Maps substrings in calendar task text to videoLibrary.json category keys.
-// Used by MonthPanel to look up curated videos for each task.
-const TASK_KEYWORD_TO_CATEGORY = {
-  'prune roses':           'hard-prune-roses',
-  'prune rose':            'hard-prune-roses',
-  'hard prune roses':      'hard-prune-roses',
-  'hard prune rose':       'hard-prune-roses',
-  'prune hybrid tea':      'hard-prune-roses',
-  'wisteria':              'prune-wisteria-summer',
-  'softwood cutting':      'take-softwood-cuttings',
-  'bare-root tree':        'plant-bare-root-trees',
-  'bare root tree':        'plant-bare-root-trees',
-  'bare-root hedg':        'plant-bare-root-trees',
-  'bare root hedg':        'plant-bare-root-trees',
-  'plant bare-root rose':  'plant-bare-root-trees',
-  'plant bare root rose':  'plant-bare-root-trees',
-};
-
-function taskTextToCategory(taskText) {
-  const lower = taskText.toLowerCase();
-  for (const [keyword, category] of Object.entries(TASK_KEYWORD_TO_CATEGORY)) {
-    if (lower.includes(keyword)) return category;
-  }
-  return null;
-}
-
 // ─── MonthPanel ───────────────────────────────────────────────────────────────
 function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, videoRegion}) {
   if (!m || m._state==="pending") {
@@ -1877,17 +1850,15 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, vide
         <div className="mp-section-label tasks-lbl">Things to do</div>
         {m.tasks.length > 0 || m._taskPartial ? (
           <ul className="mp-list">
-            {m.tasks.map((task,j) => {
-              const categoryKey = taskTextToCategory(task);
-              const videoResult = categoryKey ? getVideosForTask(categoryKey, videoRegion || 'uk') : null;
-              return (
-                <li key={j}>
-                  <span className="bullet-task">›</span>
-                  <span style={{flex:1}}>{task}</span>
-                  {videoResult && <VideoButton taskResult={videoResult}/>}
-                </li>
-              );
-            })}
+            {m.tasks.map((task,j) => (
+              <li key={j}>
+                <span className="bullet-task">›</span>
+                <span style={{flex:1}}>{task}</span>
+                {taskNeedsVideo(task) && (
+                  <VideoButton taskText={task} region={videoRegion || 'uk'}/>
+                )}
+              </li>
+            ))}
             {m._taskPartial && isActive && (
               <li key="tp"><span className="bullet-task">›</span><span className="typing-cursor">{m._taskPartial}</span></li>
             )}
@@ -4046,10 +4017,9 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
                           const todayRegion = todayGarden?.climateData?._derived?.climateType
                             ? climateToRegion(todayGarden.climateData._derived.climateType)
                             : 'uk';
-                          const videoResult = task.category ? getVideosForTask(task.category, todayRegion) : null;
-                          return videoResult ? (
+                          return taskNeedsVideo(task.question) ? (
                             <div style={{marginTop:'.4rem'}}>
-                              <VideoButton taskResult={videoResult}/>
+                              <VideoButton taskText={task.question} region={todayRegion}/>
                             </div>
                           ) : null;
                         })()}
@@ -4414,4 +4384,3 @@ Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
     </>
   );
 }
-   
