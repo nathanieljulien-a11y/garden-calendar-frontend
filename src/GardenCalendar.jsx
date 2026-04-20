@@ -305,6 +305,25 @@ const styles = `
   .tl-cat-heading  { display:table-cell; padding:.5rem 0 .15rem; font-size:.65rem; text-transform:uppercase; letter-spacing:.09em; color:var(--straw); opacity:.55; colspan:2; }
   .tl-divider { height:1px; background:rgba(200,169,110,.08); margin:.3rem 0; }
   .tl-empty { font-size:.83rem; color:var(--sage); font-style:italic; padding:.5rem 0; }
+  .gap-section { margin-top:1.1rem; padding-top:1rem; border-top:1px solid rgba(200,169,110,.1); }
+  .gap-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:.7rem; }
+  .gap-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.09em; color:var(--sage); }
+  .gap-item { margin-bottom:.75rem; animation:lineIn .2s ease; }
+  .gap-months { font-family:'Playfair Display',serif; font-size:.88rem; color:var(--straw); margin-bottom:.25rem; }
+  .gap-suggestions { display:flex; flex-wrap:wrap; gap:.35rem; }
+  .gap-pill { font-size:.75rem; color:var(--parchment); background:rgba(200,169,110,.1); border:1px solid rgba(200,169,110,.2); border-radius:2px; padding:.15rem .55rem; }
+  .gap-none { font-size:.83rem; color:var(--fern); font-style:italic; }
+
+  /* ── Companion planting (inside Insights panel) ── */
+  .companion-section { margin-top:.9rem; padding-top:.9rem; border-top:1px solid rgba(200,169,110,.08); }
+  .companion-title { font-size:.7rem; text-transform:uppercase; letter-spacing:.09em; color:var(--sage); margin-bottom:.55rem; }
+  .companion-item { display:flex; align-items:baseline; gap:.5rem; padding:.3rem 0; border-bottom:1px solid rgba(200,169,110,.06); font-size:.83rem; line-height:1.45; }
+  .companion-item:last-child { border-bottom:none; }
+  .companion-badge { flex-shrink:0; font-size:.68rem; padding:.1rem .4rem; border-radius:2px; font-weight:600; letter-spacing:.04em; }
+  .companion-badge.good { background:rgba(92,122,74,.25); color:var(--fern); border:1px solid rgba(92,122,74,.35); }
+  .companion-badge.warn { background:rgba(196,102,74,.2); color:var(--bloom); border:1px solid rgba(196,102,74,.3); }
+  .companion-pair { color:var(--cream); }
+  .companion-reason { color:var(--sage); font-style:italic; }
 
   .page-dots { display:flex; justify-content:center; gap:.5rem; margin-bottom:2rem; }
   .pdot { width:8px; height:8px; border-radius:50%; background:var(--bark2); border:1px solid rgba(200,169,110,.22); cursor:pointer; transition:all .2s; }
@@ -2019,6 +2038,22 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, lo
               {" · "}{gbifCount} of {totalPlantCount} plants checked
             </div>
           )}
+          {insights.state === "done" && (insights.companions||[]).length > 0 && (
+            <div className="companion-section">
+              <div className="companion-title">🤝 Companion planting notes</div>
+              {(insights.companions||[]).map((c,i) => (
+                <div key={i} className="companion-item">
+                  <span className={`companion-badge ${c.type === "good" ? "good" : "warn"}`}>
+                    {c.type === "good" ? "✓ Good" : "✗ Avoid"}
+                  </span>
+                  <span>
+                    <span className="companion-pair">{c.pair}</span>
+                    {c.reason && <span className="companion-reason"> — {c.reason}</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {insights.state === "done" && (
             <div style={{fontSize:".68rem",color:"rgba(180,180,160,.35)",marginTop:".6rem",fontStyle:"italic",lineHeight:"1.5"}}>
               Based on GBIF occurrence data and general horticultural knowledge. Verify suitability with your local nursery or national horticultural society.
@@ -2035,9 +2070,13 @@ const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct",
 const CAT_LABELS = { trees:"Tree", shrubs:"Shrub", flowers:"Flower", vegetables:"Veg", fruit:"Fruit", herbs:"Herb" };
 const CAT_ORDER  = ["trees","shrubs","flowers","fruit","vegetables","herbs"];
 
-function InterestTimeline({ plants, timelineData, timelineState, onFetch, stream1Done, loadedBatches }) {
+function InterestTimeline({ plants, timelineData, timelineState, onFetch, stream1Done, loadedBatches, meta, city, selectedGardenId, provider, userKey }) {
   const [open, setOpen] = useState(false);
   const canUnlock = stream1Done && loadedBatches >= 4 && Object.values(plants).flat().length > 0;
+
+  // Gap analysis state (local — self-contained)
+  const [gapState, setGapState] = useState("idle"); // idle | loading | done | error
+  const [gapData, setGapData]   = useState(null);   // [{ months:[], suggestions:[] }]
 
   const handleUnlock = () => { setOpen(true); if (timelineState === "idle") onFetch(); };
 
@@ -2062,6 +2101,79 @@ function InterestTimeline({ plants, timelineData, timelineState, onFetch, stream
       });
     });
   }
+
+  // Compute gap months from timelineData — months with no flower or fruit across ALL plants
+  const gapMonths = (() => {
+    if (!timelineData) return [];
+    const allPlantList = Object.values(plants).flat();
+    return Array.from({length:12}, (_,i) => {
+      const hasInterest = allPlantList.some(p => {
+        const d = timelineData[p];
+        if (!d) return false;
+        return (d.flower||[]).includes(i) || (d.fruit||[]).includes(i);
+      });
+      return hasInterest ? null : i;
+    }).filter(i => i !== null);
+  })();
+
+  // Group consecutive gap months into clusters e.g. [0,1,11] → ["Nov–Jan"]
+  const gapClusters = (() => {
+    if (!gapMonths.length) return [];
+    // Sort and group into contiguous runs (wrapping aware)
+    const sorted = [...gapMonths].sort((a,b)=>a-b);
+    const runs = [];
+    let run = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] === sorted[i-1] + 1) { run.push(sorted[i]); }
+      else { runs.push(run); run = [sorted[i]]; }
+    }
+    runs.push(run);
+    return runs.map(r => ({
+      indices: r,
+      label: r.length === 1
+        ? MONTH_ABBR[r[0]]
+        : `${MONTH_ABBR[r[0]]}–${MONTH_ABBR[r[r.length-1]]}`
+    }));
+  })();
+
+  const fetchGapSuggestions = async () => {
+    if (!gapClusters.length || !timelineData) return;
+    const cacheKey = `gc_gap_${selectedGardenId||"anon"}_${btoa(Object.values(plants).flat().slice().sort().join(",")).slice(0,20)}`;
+    const cached = (() => { try { const r = localStorage.getItem(cacheKey); return r ? JSON.parse(r) : null; } catch { return null; } })();
+    if (cached) { setGapData(cached); setGapState("done"); return; }
+
+    setGapState("loading");
+    const existingList = Object.values(plants).flat().join(", ");
+    const metaCtx = meta ? `Climate: ${meta.climate}. Zone: ${meta.zone}.` : "";
+    const gapDesc = gapClusters.map(c => c.label).join(", ");
+
+    try {
+      const result = await callClaude(
+        `You are a helpful gardening advisor. A garden in ${city} has gaps in colour and interest during: ${gapDesc}.
+${metaCtx}
+Existing plants: ${existingList}.
+
+Suggest plants to fill each gap period. Return ONLY valid JSON, no markdown:
+[
+  {
+    "months": "<e.g. Nov–Jan>",
+    "suggestions": ["<plant 1>", "<plant 2>", "<plant 3>"]
+  }
+]
+Rules:
+- 2–3 suggestions per gap period, climate-appropriate, not already in the existing plant list
+- Common, nursery-available plants only
+- Keep suggestion names concise (common name only)
+- Return one entry per gap period listed above, in the same order`,
+        600, undefined, provider, userKey
+      );
+      if (Array.isArray(result)) {
+        try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch {}
+        setGapData(result);
+        setGapState("done");
+      } else { setGapState("error"); }
+    } catch { setGapState("error"); }
+  };
 
   return (
     <div className="timeline-panel">
@@ -2121,6 +2233,45 @@ function InterestTimeline({ plants, timelineData, timelineState, onFetch, stream
               )}
               <div style={{fontSize:".68rem",color:"rgba(180,180,160,.35)",marginTop:".9rem",fontStyle:"italic",lineHeight:"1.5"}}>
                 Approximate interest windows for your climate. Exact timing varies by variety and season.
+              </div>
+
+              {/* ── Gap Analysis ── */}
+              <div className="gap-section">
+                <div className="gap-header">
+                  <span className="gap-title">🌱 Gap analysis</span>
+                  {gapState === "idle" && gapClusters.length > 0 && (
+                    <button className="btn-unlock" style={{fontSize:".75rem"}} onClick={fetchGapSuggestions}>
+                      Suggest plants
+                    </button>
+                  )}
+                  {gapState === "done" && (
+                    <button className="btn-unlock" style={{fontSize:".72rem"}} onClick={() => { setGapData(null); setGapState("idle"); try { localStorage.removeItem(`gc_gap_${selectedGardenId||"anon"}_${btoa(Object.values(plants).flat().slice().sort().join(",")).slice(0,20)}`); } catch {} }}>
+                      ↺ Refresh
+                    </button>
+                  )}
+                </div>
+                {gapClusters.length === 0 && (
+                  <div className="gap-none">✓ No major gaps — your garden has colour or interest all year.</div>
+                )}
+                {gapClusters.length > 0 && gapState === "idle" && (
+                  <div style={{fontSize:".8rem",color:"var(--sage)",fontStyle:"italic"}}>
+                    Gaps detected: {gapClusters.map(c=>c.label).join(", ")}. Click "Suggest plants" to get recommendations.
+                  </div>
+                )}
+                {gapState === "loading" && <div style={{padding:".3rem 0"}}><Shimmer lines={2}/></div>}
+                {gapState === "error" && (
+                  <div style={{fontSize:".83rem",color:"var(--bloom)",fontStyle:"italic"}}>Couldn't load suggestions — try refreshing.</div>
+                )}
+                {gapState === "done" && gapData && gapData.map((cluster, i) => (
+                  <div key={i} className="gap-item">
+                    <div className="gap-months">{cluster.months}</div>
+                    <div className="gap-suggestions">
+                      {(cluster.suggestions||[]).map((s,j) => (
+                        <span key={j} className="gap-pill">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </>
           )}
@@ -3321,14 +3472,14 @@ Respond entirely in ${langName()}.`,
       }
     }
   };
-  // ── Garden insights — climate suitability analysis ────────────────────────
+  // ── Garden insights — climate suitability analysis + companion planting ─────
   const fetchInsights = async () => {
     if (totalPlants === 0) return;
     setInsights({state:"loading", items:[]});
     const allPlants = Object.entries(plants).map(([k,v])=>v.length?`${k}: ${v.join(", ")}`:null).filter(Boolean).join(" | ");
     const featuresCtx = features.length ? ` Garden features: ${features.join(", ")}.` : "";
     const metaCtx = meta ? `Zone: ${meta.zone}. Climate: ${meta.climate}. Last frost: ${meta.lastFrost}. First frost: ${meta.firstFrost}.` : "";
-    // Build GBIF occurrence context string for the prompt
+    const hasVegOrHerbs = [...(plants.vegetables||[]), ...(plants.herbs||[])].length > 0;
     const occurrenceCtx = Object.entries(plantMeta)
       .filter(([,m]) => m?.occurrence != null && m?.scientificName && m.occurrence.count < 1000000)
       .map(([name, m]) => {
@@ -3341,8 +3492,18 @@ Respond entirely in ${langName()}.`,
         return `${name} (${m.scientificName}): ${level}`;
       }).join("\n");
 
+    const companionsSchema = hasVegOrHerbs ? `,
+  "companions": [
+    {
+      "type": "good",
+      "pair": "<Plant A + Plant B>",
+      "reason": "<one short phrase, e.g. basil repels aphids from tomatoes>"
+    }
+  ]` : "";
+    const companionsRule = hasVegOrHerbs ? `\n- companions: 2–4 entries covering only plants actually in this garden's vegetables/herbs lists. Mix good (beneficial) and warn (antagonistic) pairings. type must be "good" or "warn". reason under 10 words.` : "";
+
     try {
-      const result = await callClaude(`You are a knowledgeable, curious gardening friend — warm and non-alarmist in tone.
+      const prompt = `You are a knowledgeable, curious gardening friend — warm and non-alarmist in tone.
 Location: ${city}. Orientation: ${orientation}. ${metaCtx}
 Plants in this garden: ${allPlants}${featuresCtx}
 ${occurrenceCtx ? `\nRegional occurrence data from GBIF (citizen science records within ~50km):\n${occurrenceCtx}\n` : ""}
@@ -3355,20 +3516,21 @@ Return ONLY valid JSON, no markdown:
   "items": [
     {
       "plant": "<n>",
-      "question": "<curious non-alarming question e.g. \'How is your fig coping in colder winters?\'>",
+      "question": "<curious non-alarming question e.g. How is your fig coping in colder winters?>",
       "context": "<1 sentence: the specific climate challenge for this location>",
       "suggestion": "<1 concrete tip: hardier variety, microclimate advice, or protection>"
     }
-  ]
+  ]${companionsSchema}
 }
 Rules:
 - Max 4 items. Only flag genuine climate concerns — skip anything broadly suitable or commonly grown here.
 - Never flag roses, olive, photinia, lavender, hydrangea, or standard European garden plants as rare or unsuitable for a temperate European garden.
 - If everything suits the location, allLookingGood:true and empty items array.
 - Tone: curious and encouraging. Never alarming.
-- context + suggestion together under 35 words per item.
-Respond entirely in ${langName()}.`, 700, undefined, provider, userKey);
-      setInsights({state:"done", items:result.items||[], allLookingGood:result.allLookingGood, goodNewsLine:result.goodNewsLine});
+- context + suggestion together under 35 words per item.${companionsRule}
+Respond entirely in ${langName()}.`;
+      const result = await callClaude(prompt, 900, undefined, provider, userKey);
+      setInsights({state:"done", items:result.items||[], allLookingGood:result.allLookingGood, goodNewsLine:result.goodNewsLine, companions:result.companions||[]});
     } catch(e) {
       setInsights({state:"error", items:[]});
     }
@@ -4414,6 +4576,11 @@ Plant names must match the input exactly.`,
                 onFetch={fetchTimeline}
                 stream1Done={stream1Done}
                 loadedBatches={loadedBatches}
+                meta={meta}
+                city={city}
+                selectedGardenId={selectedGardenId}
+                provider={provider}
+                userKey={userKey}
               />
             )}
 
