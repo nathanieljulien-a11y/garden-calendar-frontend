@@ -299,15 +299,15 @@ const styles = `
   .lens-desc { font-size:.72rem; color:var(--sage); font-style:italic; margin-left:.35rem; }
   .lens-chevron { font-size:.7rem; color:var(--sage); transition:transform .2s; }
   .lens-chevron.open { transform:rotate(180deg); }
-  .lens-body { padding:.75rem .9rem 1rem; border-top:1px solid rgba(200,169,110,.1); overflow-x:auto; }
+  .lens-body { padding:.75rem .9rem 1rem; border-top:1px solid rgba(200,169,110,.1); overflow-x:auto; overflow-y:visible; }
   .tl-month-labels { display:flex; gap:2px; margin-bottom:.35rem; padding-left:120px; }
   .tl-month-lbl { flex:1; text-align:center; font-size:.58rem; color:rgba(180,180,160,.35); letter-spacing:.02em; text-transform:uppercase; }
   .tl-grid { display:table; width:100%; border-collapse:collapse; min-width:440px; }
   .tl-row  { display:table-row; }
   .tl-label { display:table-cell; vertical-align:middle; font-size:.75rem; color:var(--parchment); padding:.25rem .5rem .25rem 0; white-space:nowrap; width:120px; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
   .tl-label-cat { font-size:.6rem; color:var(--sage); opacity:.55; margin-left:.3rem; font-style:italic; }
-  .tl-months { display:table-cell; vertical-align:bottom; padding:.2rem 0; }
-  .tl-months-inner { display:flex; gap:2px; align-items:flex-end; height:28px; }
+  .tl-months { display:table-cell; vertical-align:bottom; padding:.2rem 0; overflow:visible; }
+  .tl-months-inner { display:flex; gap:2px; align-items:flex-end; height:28px; overflow:visible; }
   .tl-bar { flex:1; border-radius:2px 2px 0 0; transition:opacity .15s; min-height:2px; }
   .tl-bar:hover { opacity:.75; cursor:default; }
   .tl-bar.none { background:rgba(200,169,110,.07); height:3px; border-radius:2px; }
@@ -1768,6 +1768,73 @@ function exportICS(months, city, gardenUrl) {
   triggerDownload(lines.join("\r\n"), "garden-calendar.ics", "text/calendar");
 }
 
+function exportInsightsHTML(garden, meta, insights, lensData, plants) {
+  const city = garden?.city || "Your garden";
+  const name = garden?.name || city;
+  const allPlants = Object.values(plants).flat();
+  const MONTH_ABBR_FULL = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  // Build lens interest table rows
+  const lensRows = LENSES.map(lens => {
+    const data = lensData[lens.id];
+    if (!data) return "";
+    const plantRows = allPlants.map(p => {
+      const d = data[p];
+      if (!d || !d.months) return "";
+      const peak = Math.max(...d.months);
+      if (peak === 0) return "";
+      const bars = d.months.map((v,i) => {
+        const shade = ["#eee","#c8a96e88","#c8a96e","#c4664a"][Math.min(v,3)];
+        return `<td style="background:${shade};width:24px;height:16px;border-radius:2px;"></td>`;
+      }).join("");
+      return `<tr><td style="padding:.2rem .4rem;font-size:.8rem;white-space:nowrap">${p}</td>${bars}<td style="padding:.2rem .4rem;font-size:.75rem;color:#666;font-style:italic">${d.descriptor||""}</td></tr>`;
+    }).filter(Boolean).join("");
+    if (!plantRows) return "";
+    return `<h3 style="margin:1.2rem 0 .4rem;font-size:.95rem;color:#3A2210">${lens.emoji} ${lens.name}</h3>
+<table style="border-collapse:collapse;width:100%;margin-bottom:.5rem">
+<tr><th style="text-align:left;font-size:.7rem;padding:.2rem .4rem;color:#888">Plant</th>
+${MONTH_ABBR_FULL.map(m=>`<th style="font-size:.6rem;color:#888;width:24px;text-align:center">${m}</th>`).join("")}
+<th style="text-align:left;font-size:.7rem;padding:.2rem .4rem;color:#888">Notes</th></tr>
+${plantRows}</table>`;
+  }).join("");
+
+  const insightItems = (insights.items||[]).map(item => `
+    <div style="margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid #eee">
+      <div style="font-weight:600;margin-bottom:.25rem">${item.plant}</div>
+      <div style="font-style:italic;margin-bottom:.2rem;color:#3A2210">${item.question}</div>
+      <div style="font-size:.88rem;color:#555;margin-bottom:.15rem">${item.context}</div>
+      <div style="font-size:.88rem;color:#4a7c59">→ ${item.suggestion}</div>
+    </div>`).join("");
+
+  const companions = (insights.companions||[]).length ? `
+    <h2 style="font-size:1rem;margin:1.5rem 0 .75rem">Companion Planting Notes</h2>
+    ${(insights.companions||[]).map(c=>`
+    <div style="display:flex;gap:.5rem;margin-bottom:.5rem;font-size:.88rem">
+      <span style="padding:.1rem .4rem;border-radius:2px;font-size:.72rem;font-weight:600;background:${c.type==="good"?"#d4edda":"#f8d7da"};color:${c.type==="good"?"#155724":"#721c24"}">${c.type==="good"?"✓ Good":"✗ Avoid"}</span>
+      <span><strong>${c.pair}</strong>${c.reason?` — ${c.reason}`:""}</span>
+    </div>`).join("")}` : "";
+
+  const metaLine = meta ? `${meta.climate} · Zone ${meta.zone} · Last frost ${meta.lastFrost}` : "";
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Garden Insights — ${name}</title>
+<style>body{font-family:Georgia,serif;max-width:680px;margin:0 auto;padding:2rem;color:#2C1A0A}h1{font-size:1.4rem;margin-bottom:.2rem}@media print{body{padding:1rem}}</style>
+</head><body>
+<h1>${name}</h1>
+${metaLine ? `<p style="color:#7A8C6A;font-style:italic;margin:.2rem 0 1.5rem;font-size:.9rem">${metaLine}</p>` : ""}
+${insightItems ? `<h2 style="font-size:1rem;margin:0 0 .75rem">Garden Insights</h2>${insightItems}` : ""}
+${companions}
+${lensRows ? `<h2 style="font-size:1rem;margin:1.5rem 0 .5rem">Year-Round Interest</h2>${lensRows}` : ""}
+<p style="font-size:.7rem;color:#aaa;margin-top:2rem;border-top:1px solid #eee;padding-top:.75rem">Generated by The Garden Calendar · ${new Date().toLocaleDateString()}</p>
+</body></html>`;
+
+  const blob = new Blob([html], { type:"text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `garden-insights-${city.toLowerCase().replace(/\s+/g,"-")}.html`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
 function exportPDF(months, city, meta, gardenUrl) {
   const year = new Date().getFullYear();
   const thisMonth = new Date().getMonth();
@@ -2133,6 +2200,43 @@ const BAR_HEIGHTS = [0, 9, 18, 28]; // px heights for intensity 0–3
 
 const EDIBLE_CATS = new Set(["fruit","vegetables"]);
 const NOTEWORTHY_LENSES = new Set(["texture","form","scent"]);
+const INTENSITY_LABELS = ["none","low","medium","high"];
+
+// Tap-to-reveal tooltip for mobile; hover title on desktop
+function BarWithTooltip({ intensity, monthName, descriptor, barColor, barHeight, opacity }) {
+  const [tipVisible, setTipVisible] = useState(false);
+  const label = INTENSITY_LABELS[Math.min(intensity, 3)];
+  const tipText = `${monthName}: ${label}${descriptor ? " · " + descriptor : ""}`;
+
+  if (intensity === 0) return <div className="tl-bar none"/>;
+
+  return (
+    <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:28}}>
+      {tipVisible && (
+        <div style={{
+          position:"absolute", bottom:"calc(100% + 4px)", left:"50%", transform:"translateX(-50%)",
+          background:"rgba(20,12,4,.95)", border:"1px solid rgba(200,169,110,.3)", borderRadius:"3px",
+          padding:".25rem .5rem", fontSize:".65rem", color:"var(--cream)", whiteSpace:"nowrap",
+          zIndex:100, pointerEvents:"none", lineHeight:1.4,
+          boxShadow:"0 2px 8px rgba(0,0,0,.4)"
+        }}>
+          {tipText}
+        </div>
+      )}
+      <div
+        className="tl-bar"
+        style={{ background: barColor, height: barHeight, opacity, width:"100%", position:"relative" }}
+        title={tipText}
+        onMouseEnter={() => setTipVisible(true)}
+        onMouseLeave={() => setTipVisible(false)}
+        onTouchStart={(e) => { e.preventDefault(); setTipVisible(v => !v); }}
+        onClick={() => setTipVisible(v => !v)}
+      />
+    </div>
+  );
+}
+
+
 const QUARTERS = [
   { label:"Dec–Feb", months:[11,0,1]  },
   { label:"Mar–May", months:[2,3,4]   },
@@ -2150,7 +2254,7 @@ function currentQuarterIdx() {
 
 function LensGrid({ lensId, lensData, plants, lensColor }) {
   const [qIdx, setQIdx] = useState(() => currentQuarterIdx());
-  const [filters, setFilters] = useState(new Set()); // "high","medium","low"
+  const [filters, setFilters] = useState(new Set(["high"])); // default to high impact
 
   if (!lensData) return <div className="tl-empty">No data available.</div>;
 
@@ -2245,13 +2349,14 @@ function LensGrid({ lensId, lensData, plants, lensColor }) {
                     {qMonths.map(mi => {
                       const intensity = row.months[mi];
                       return (
-                        <div key={mi} className={`tl-bar${intensity === 0 ? " none" : ""}`}
-                          style={intensity > 0 ? {
-                            background: barColor,
-                            height: BAR_HEIGHTS[Math.min(intensity,3)],
-                            opacity: [0,0.5,0.75,1][Math.min(intensity,3)]
-                          } : {}}
-                          title={`${MONTH_ABBR[mi]}: ${["none","low","medium","high"][Math.min(intensity,3)]}${row.descriptor ? " · " + row.descriptor : ""}`}
+                        <BarWithTooltip
+                          key={mi}
+                          intensity={intensity}
+                          monthName={MONTH_ABBR[mi]}
+                          descriptor={row.descriptor}
+                          barColor={barColor}
+                          barHeight={BAR_HEIGHTS[Math.min(intensity,3)]}
+                          opacity={[0,0.5,0.75,1][Math.min(intensity,3)]}
                         />
                       );
                     })}
@@ -2534,18 +2639,13 @@ function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensD
         userKey={userKey}
       />
 
-      {/* Download options */}
-      {garden && (
-        <div style={{display:"flex",gap:".75rem",justifyContent:"center",margin:"1rem 0 .5rem",flexWrap:"wrap"}}>
+      {/* Download insights */}
+      {garden && insights.state === "done" && (
+        <div style={{display:"flex",justifyContent:"center",margin:"1rem 0 .5rem"}}>
           <button
-            onClick={() => exportPDF(months, garden.city, meta, gardenUrl)}
-            style={{background:"#2C1A0A",color:"#F5EDD8",border:"none",borderRadius:"6px",padding:".55rem 1.2rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
-            📄 Export for Print
-          </button>
-          <button
-            onClick={() => exportICS(months, garden.city, gardenUrl)}
-            style={{background:"#4a7c59",color:"#fff",border:"none",borderRadius:"6px",padding:".55rem 1.2rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
-            📅 Export to Calendar
+            onClick={() => exportInsightsHTML(garden, meta, insights, lensData, plants)}
+            style={{background:"#2C1A0A",color:"#F5EDD8",border:"none",borderRadius:"6px",padding:".55rem 1.4rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
+            📄 Download
           </button>
         </div>
       )}
@@ -3733,6 +3833,12 @@ Return tasks for: ${batch.join(', ')}`;
     }
     setActiveTab(tab);
 
+    // Home — always show home screen
+    if (tab === "garden") {
+      setStage("form");
+      setShowHome(true);
+    }
+
     // This Week — load the selected garden and fire data fetches
     if (tab === "week") {
       setStage("today");
@@ -4269,82 +4375,91 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
           </div>
         )}
 
-        {/* ── FORM: LOCATION STEP ── */}
+        {/* ── HOME SCREEN ── */}
         {activeTab !== "about" && showHome && stage === "form" && (
-  <div className="form-card" style={{ maxWidth: 600, margin: '0 auto' }}>
-    <div className="form-title" style={{ marginBottom: '.35rem' }}>Welcome back</div>
-    <p className="form-hint" style={{ marginBottom: '1.75rem' }}>
-      Pick up where you left off, or start a new garden.
-    </p>
-    <HomeScreen
-      gardens={gardens}
-      selectedId={selectedGardenId}
-      onSelectGarden={(id) => {
-        const g = gardens.find(g => g.id === id);
-        if (!g) return;
-        touchGarden(id);
-        setSelectedGardenId(id);
-        setGardens(readGardens());
-        if (g.city)        setCity(g.city);
-        if (g.orientation) setOri(g.orientation);
-        if (g.features)    setFeatures(g.features);
-        if (g.plants)      setPlants(g.plants);
-        if (g.plantTraits) setPlantTraits(g.plantTraits);
-      }}
-      onCreateEdit={() => {
-        const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : null;
-        if (g) {
-          if (g.city)        setCity(g.city);
-          if (g.orientation) setOri(g.orientation);
-          if (g.features)    setFeatures(g.features);
-          if (g.plants)      setPlants(g.plants);
-          if (g.plantTraits) setPlantTraits(g.plantTraits);
-        }
-        setShowHome(false);
-        setFormStep('location');
-        setActiveTab('edit');
-      }}
-      onCreateNew={() => {
-        setCity('');
-        setOri('');
-        setFeatures([]);
-        setPlants({ trees:[], shrubs:[], flowers:[], vegetables:[], fruit:[], herbs:[] });
-        setSelectedGardenId(null);
-        setShowHome(false);
-        setFormStep('location');
-        setActiveTab('edit');
-      }}
-      onToday={() => {
-        const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
-        if (!g) return;
-        setTodayGarden(g);
-        setTodayTasks(null);
-        setTodayTasksError(null);
-        setInatData(null);
-        setInatError(null);
-        setStage('today');
-        setActiveTab('week');
-        const weatherPromise = fetchTodayWeather(g);
-        fetchNearbyObs(g);
-        weatherPromise.then(() => {
-          fetchTodayTasks(g, readWeatherCache(g.id), computeUrgencySignals(readWeatherCache(g.id)));
-        });
-      }}
-      onRenameGarden={(id, newName) => {
-        const updated = renameGarden(id, newName);
-        if (updated) setGardens(updated);
-      }}
-      onDeleteGarden={(id) => {
-        const updated = deleteGarden(id);
-        setGardens(updated);
-        if (!updated.length) {
-          setShowHome(false);
-          setSelectedGardenId(null);
-        } else {
-          setSelectedGardenId(updated[0].id);
-        }
-      }}
-    />
+  <div style={{maxWidth:560, margin:"0 auto"}}>
+    {/* Saved gardens */}
+    {gardens.length > 0 && (
+      <div style={{marginBottom:"1.5rem"}}>
+        {gardens.map(g => (
+          <div key={g.id} style={{
+            display:"flex", alignItems:"center", justifyContent:"space-between",
+            background:"rgba(58,34,16,.55)", border:"1px solid rgba(200,169,110,.2)",
+            borderRadius:"2px", padding:".75rem 1rem", marginBottom:".5rem",
+            cursor:"pointer", transition:"background .15s"
+          }}
+            onClick={() => {
+              touchGarden(g.id); setSelectedGardenId(g.id); setGardens(readGardens());
+              if (g.city)        setCity(g.city);
+              if (g.orientation) setOri(g.orientation);
+              if (g.features)    setFeatures(g.features);
+              if (g.plants)      setPlants(g.plants);
+              if (g.plantTraits) setPlantTraits(g.plantTraits);
+            }}>
+            <div>
+              <div style={{fontFamily:"'Playfair Display',serif",color:"var(--cream)",fontSize:"1rem"}}>{g.name||g.city}</div>
+              <div style={{fontSize:".78rem",color:"var(--sage)",marginTop:".15rem"}}>
+                {g.city}{g.plants ? ` · ${Object.values(g.plants).flat().length} plants` : ""}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:".4rem",flexShrink:0}}>
+              <button style={{background:"rgba(200,169,110,.12)",border:"1px solid rgba(200,169,110,.2)",borderRadius:"2px",color:"var(--straw)",padding:".3rem .6rem",fontSize:".78rem",cursor:"pointer",fontFamily:"'Crimson Pro',serif"}}
+                onClick={e => {
+                  e.stopPropagation();
+                  if (g.city)        setCity(g.city);
+                  if (g.orientation) setOri(g.orientation);
+                  if (g.features)    setFeatures(g.features);
+                  if (g.plants)      setPlants(g.plants);
+                  if (g.plantTraits) setPlantTraits(g.plantTraits);
+                  setSelectedGardenId(g.id);
+                  setShowHome(false); setFormStep("location"); setActiveTab("edit");
+                }}>✎ Edit</button>
+              <button style={{background:"none",border:"1px solid rgba(196,102,74,.25)",borderRadius:"2px",color:"var(--bloom)",padding:".3rem .5rem",fontSize:".78rem",cursor:"pointer"}}
+                onClick={e => {
+                  e.stopPropagation();
+                  const updated = deleteGarden(g.id); setGardens(updated);
+                  if (!updated.length) { setShowHome(false); setSelectedGardenId(null); }
+                  else setSelectedGardenId(updated[0].id);
+                }}>×</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+
+    {/* Create new */}
+    <button className="btn-ghost" style={{width:"100%",marginBottom:"2rem",textAlign:"center",padding:".65rem"}}
+      onClick={() => {
+        setCity(""); setOri(""); setFeatures([]);
+        setPlants({trees:[],shrubs:[],flowers:[],vegetables:[],fruit:[],herbs:[]});
+        setSelectedGardenId(null); setShowHome(false); setFormStep("location"); setActiveTab("edit");
+      }}>
+      + Create new garden
+    </button>
+
+    {/* Feature cards */}
+    <div style={{display:"flex",flexDirection:"column",gap:".75rem"}}>
+      {[
+        { icon:"📅", label:"This Week", desc:"Weather-aware tasks, what to enjoy, and local wildlife sightings for your garden today", tab:"week" },
+        { icon:"🗓", label:"My Garden Calendar", desc:"A full year of personalised growing, tending and harvesting tasks", tab:"calendar" },
+        { icon:"🌿", label:"Insights", desc:"Climate suitability, companion planting, and year-round interest across colour, scent, form and more", tab:"about" },
+      ].map(card => (
+        <div key={card.tab}
+          onClick={() => handleTabChange(card.tab)}
+          style={{
+            display:"flex", alignItems:"center", gap:"1rem",
+            background:"rgba(30,18,8,.6)", border:"1px solid rgba(200,169,110,.15)",
+            borderRadius:"2px", padding:".9rem 1.1rem", cursor:"pointer", transition:"background .15s"
+          }}>
+          <span style={{fontSize:"1.6rem",flexShrink:0}}>{card.icon}</span>
+          <div>
+            <div style={{fontFamily:"'Playfair Display',serif",color:"var(--straw)",fontSize:".95rem",marginBottom:".2rem"}}>{card.label}</div>
+            <div style={{fontSize:".8rem",color:"var(--sage)",lineHeight:1.45}}>{card.desc}</div>
+          </div>
+          <span style={{marginLeft:"auto",color:"var(--sage)",fontSize:".9rem",flexShrink:0}}>›</span>
+        </div>
+      ))}
+    </div>
   </div>
 )}
         {activeTab !== "about" && !showHome && stage==="form" && formStep==="location" && (
@@ -5082,7 +5197,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 <button
                   onClick={() => exportPDF(months, city, meta, buildGardenUrl(city, orientation, features, plants))}
                   style={{background:"#2C1A0A",color:"#F5EDD8",border:"none",borderRadius:"6px",padding:".55rem 1.2rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
-                  📄 Export for Print (HTML)
+                  📄 Download
                 </button>
                 <button
                   onClick={() => exportICS(months, city, buildGardenUrl(city, orientation, features, plants))}
