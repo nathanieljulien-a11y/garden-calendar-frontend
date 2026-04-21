@@ -302,12 +302,12 @@ const styles = `
   .lens-body { padding:.75rem .9rem 1rem; border-top:1px solid rgba(200,169,110,.1); overflow-x:auto; overflow-y:visible; }
   .tl-month-labels { display:flex; gap:2px; margin-bottom:.35rem; padding-left:120px; }
   .tl-month-lbl { flex:1; text-align:center; font-size:.58rem; color:rgba(180,180,160,.35); letter-spacing:.02em; text-transform:uppercase; }
-  .tl-grid { display:table; width:100%; border-collapse:collapse; min-width:440px; }
+  .tl-grid { display:table; width:100%; border-collapse:collapse; }
   .tl-row  { display:table-row; }
-  .tl-label { display:table-cell; vertical-align:middle; font-size:.75rem; color:var(--parchment); padding:.25rem .5rem .25rem 0; white-space:nowrap; width:120px; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+  .tl-label { display:table-cell; vertical-align:middle; font-size:.72rem; color:var(--parchment); padding:.25rem .4rem .25rem 0; white-space:nowrap; width:80px; max-width:80px; overflow:hidden; text-overflow:ellipsis; }
   .tl-label-cat { font-size:.6rem; color:var(--sage); opacity:.55; margin-left:.3rem; font-style:italic; }
   .tl-months { display:table-cell; vertical-align:bottom; padding:.2rem 0; overflow:visible; }
-  .tl-months-inner { display:flex; gap:2px; align-items:flex-end; height:28px; overflow:visible; }
+  .tl-months-inner { display:flex; gap:1px; align-items:flex-end; height:28px; overflow:visible; }
   .tl-bar { flex:1; border-radius:2px 2px 0 0; transition:opacity .15s; min-height:2px; }
   .tl-bar:hover { opacity:.75; cursor:default; }
   .tl-bar.none { background:rgba(200,169,110,.07); height:3px; border-radius:2px; }
@@ -2196,19 +2196,21 @@ const LENSES = [
   { id:"cropping", emoji:"🍓", name:"Cropping", desc:"harvest windows",                  color:"var(--warm)"  },
 ];
 
-const BAR_HEIGHTS = [0, 9, 18, 28]; // px heights for intensity 0–3
+const BAR_HEIGHTS = [0, 8, 17, 28]; // px heights for intensity 0–3
+const BAR_OPACITIES = [0, 0.35, 0.65, 1.0]; // shade by intensity — low is washed, high is full
 
 const EDIBLE_CATS = new Set(["fruit","vegetables"]);
 const NOTEWORTHY_LENSES = new Set(["texture","form","scent"]);
 const INTENSITY_LABELS = ["none","low","medium","high"];
 
 // Tap-to-reveal tooltip for mobile; hover title on desktop
-function BarWithTooltip({ intensity, monthName, descriptor, barColor, barHeight, opacity }) {
+function BarWithTooltip({ intensity, monthName, descriptor, barColor, barHeight }) {
   const [tipVisible, setTipVisible] = useState(false);
-  const label = INTENSITY_LABELS[Math.min(intensity, 3)];
-  const tipText = `${monthName}: ${label}${descriptor ? " · " + descriptor : ""}`;
+  // Tooltip: descriptor only if present, otherwise month name
+  const tipText = descriptor ? descriptor : monthName;
+  const opacity = BAR_OPACITIES[Math.min(intensity, 3)];
 
-  if (intensity === 0) return <div className="tl-bar none"/>;
+  if (intensity === 0) return <div style={{flex:1,height:28,display:"flex",alignItems:"flex-end"}}><div className="tl-bar none"/></div>;
 
   return (
     <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:28}}>
@@ -2216,9 +2218,10 @@ function BarWithTooltip({ intensity, monthName, descriptor, barColor, barHeight,
         <div style={{
           position:"absolute", bottom:"calc(100% + 4px)", left:"50%", transform:"translateX(-50%)",
           background:"rgba(20,12,4,.95)", border:"1px solid rgba(200,169,110,.3)", borderRadius:"3px",
-          padding:".25rem .5rem", fontSize:".65rem", color:"var(--cream)", whiteSpace:"nowrap",
+          padding:".2rem .45rem", fontSize:".63rem", color:"var(--cream)", whiteSpace:"nowrap",
           zIndex:100, pointerEvents:"none", lineHeight:1.4,
-          boxShadow:"0 2px 8px rgba(0,0,0,.4)"
+          boxShadow:"0 2px 8px rgba(0,0,0,.4)", maxWidth:160, textAlign:"center",
+          wordBreak:"break-word", whiteSpace:"normal"
         }}>
           {tipText}
         </div>
@@ -2307,15 +2310,21 @@ function LensGrid({ lensId, lensData, plants, lensColor }) {
             onClick={() => setQIdx(i => (i+1)%4)}>›</button>
         </div>
         <div style={{display:"flex",gap:".3rem"}}>
-          {["high","medium","low"].map(f => (
+          {[
+            { f:"high",   h:14, op:1.0  },
+            { f:"medium", h:9,  op:0.65 },
+            { f:"low",    h:5,  op:0.35 },
+          ].map(({ f, h, op }) => (
             <button key={f} onClick={() => toggleFilter(f)}
               style={{
+                display:"flex", alignItems:"center", gap:".3rem",
                 background: filters.has(f) ? "rgba(200,169,110,.2)" : "none",
                 border: `1px solid ${filters.has(f) ? "rgba(200,169,110,.5)" : "rgba(200,169,110,.2)"}`,
                 borderRadius:"20px", color: filters.has(f) ? "var(--straw)" : "var(--sage)",
                 padding:".15rem .55rem", fontSize:".7rem", cursor:"pointer",
                 fontFamily:"'Crimson Pro',serif", textTransform:"capitalize", transition:"all .15s"
               }}>
+              <span style={{display:"inline-block",width:4,height:h,background:"currentColor",opacity:op,borderRadius:"1px",flexShrink:0}}/>
               {f}
             </button>
           ))}
@@ -2323,7 +2332,7 @@ function LensGrid({ lensId, lensData, plants, lensColor }) {
       </div>
 
       {/* Month column headers */}
-      <div style={{display:"flex",marginBottom:".3rem",paddingLeft:110}}>
+      <div style={{display:"flex",marginBottom:".3rem",paddingLeft:80}}>
         {qMonths.map(mi => (
           <div key={mi} style={{flex:1,textAlign:"center",fontSize:".65rem",color:"rgba(180,180,160,.45)",textTransform:"uppercase",letterSpacing:".04em"}}>
             {MONTH_ABBR[mi]}
@@ -2356,7 +2365,6 @@ function LensGrid({ lensId, lensData, plants, lensColor }) {
                           descriptor={row.descriptor}
                           barColor={barColor}
                           barHeight={BAR_HEIGHTS[Math.min(intensity,3)]}
-                          opacity={[0,0.5,0.75,1][Math.min(intensity,3)]}
                         />
                       );
                     })}
