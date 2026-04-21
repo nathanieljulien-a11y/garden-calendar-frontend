@@ -3732,11 +3732,43 @@ Return tasks for: ${batch.join(', ')}`;
       saveCurrentGarden();
     }
     setActiveTab(tab);
-    // Sync stage for views that still use it
-    if (tab === "calendar") setStage("calendar");
-    else if (tab === "week")     setStage("today");
-    else if (tab === "edit")     setStage("form");
-  }, [activeTab, city, saveCurrentGarden]);
+
+    // This Week — load the selected garden and fire data fetches
+    if (tab === "week") {
+      setStage("today");
+      const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
+      if (g) {
+        setTodayGarden(g);
+        setTodayTasks(null);
+        setTodayTasksError(null);
+        setInatData(null);
+        setInatError(null);
+        const weatherPromise = fetchTodayWeather(g);
+        fetchNearbyObs(g);
+        weatherPromise.then(() => {
+          fetchTodayTasks(g, readWeatherCache(g.id), computeUrgencySignals(readWeatherCache(g.id)));
+        });
+      }
+    }
+    // Edit — load selected garden into form state and go straight to form (not home screen)
+    else if (tab === "edit") {
+      const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
+      if (g) {
+        if (g.city)        setCity(g.city);
+        if (g.orientation) setOri(g.orientation);
+        if (g.features)    setFeatures(g.features);
+        if (g.plants)      setPlants(g.plants);
+        if (g.plantTraits) setPlantTraits(g.plantTraits);
+      }
+      setStage("form");
+      setShowHome(false);
+      setFormStep("location");
+    }
+    // Calendar
+    else if (tab === "calendar") {
+      setStage("calendar");
+    }
+  }, [activeTab, city, saveCurrentGarden, selectedGardenId, gardens, fetchTodayWeather, fetchNearbyObs, fetchTodayTasks]);
 
   const handleSaveLink = () => {
     const url = buildGardenUrl(city, orientation, features, plants);
