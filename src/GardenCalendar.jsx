@@ -2206,34 +2206,74 @@ const INTENSITY_LABELS = ["none","low","medium","high"];
 // Tap-to-reveal tooltip for mobile; hover title on desktop
 function BarWithTooltip({ intensity, monthName, descriptor, barColor, barHeight }) {
   const [tipVisible, setTipVisible] = useState(false);
-  // Tooltip: descriptor only if present, otherwise month name
-  const tipText = descriptor ? descriptor : monthName;
+  const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
+  const timerRef = useRef(null);
+  const tipText = descriptor || monthName;
   const opacity = BAR_OPACITIES[Math.min(intensity, 3)];
 
-  if (intensity === 0) return <div style={{flex:1,height:28,display:"flex",alignItems:"flex-end"}}><div className="tl-bar none"/></div>;
+  const showTip = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTipPos({ x: rect.left + rect.width / 2, y: rect.top - 8 });
+    setTipVisible(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setTipVisible(false), 3000);
+  };
+
+  const hideTip = () => {
+    setTipVisible(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  if (intensity === 0) return (
+    <div style={{flex:1, height:28, display:"flex", alignItems:"flex-end"}}>
+      <div style={{width:"100%", height:3, background:"rgba(200,169,110,.07)", borderRadius:2}}/>
+    </div>
+  );
 
   return (
-    <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:28}}>
+    <div style={{flex:1, height:28, display:"flex", alignItems:"flex-end", position:"relative"}}>
+      {/* Fixed-position tooltip — escapes all parent clipping */}
       {tipVisible && (
         <div style={{
-          position:"absolute", bottom:"calc(100% + 4px)", left:"50%", transform:"translateX(-50%)",
-          background:"rgba(20,12,4,.95)", border:"1px solid rgba(200,169,110,.3)", borderRadius:"3px",
-          padding:".2rem .45rem", fontSize:".63rem", color:"var(--cream)", whiteSpace:"nowrap",
-          zIndex:100, pointerEvents:"none", lineHeight:1.4,
-          boxShadow:"0 2px 8px rgba(0,0,0,.4)", maxWidth:160, textAlign:"center",
-          wordBreak:"break-word", whiteSpace:"normal"
+          position:"fixed",
+          left: tipPos.x,
+          top: tipPos.y,
+          transform:"translateX(-50%) translateY(-100%)",
+          background:"rgba(20,12,4,.97)",
+          border:"1px solid rgba(200,169,110,.4)",
+          borderRadius:"4px",
+          padding:".3rem .6rem",
+          fontSize:".72rem",
+          color:"var(--cream)",
+          zIndex:9999,
+          pointerEvents:"none",
+          lineHeight:1.5,
+          maxWidth:200,
+          textAlign:"center",
+          boxShadow:"0 3px 12px rgba(0,0,0,.5)",
+          wordBreak:"break-word",
         }}>
           {tipText}
         </div>
       )}
       <div
-        className="tl-bar"
-        style={{ background: barColor, height: barHeight, opacity, width:"100%", position:"relative" }}
+        style={{
+          width:"100%",
+          height: barHeight,
+          background: barColor,
+          opacity,
+          borderRadius:"2px 2px 0 0",
+          flexShrink: 0,
+          cursor:"default",
+          transition:"opacity .15s",
+        }}
         title={tipText}
-        onMouseEnter={() => setTipVisible(true)}
-        onMouseLeave={() => setTipVisible(false)}
-        onTouchStart={(e) => { e.preventDefault(); setTipVisible(v => !v); }}
-        onClick={() => setTipVisible(v => !v)}
+        onMouseEnter={showTip}
+        onMouseLeave={hideTip}
+        onTouchStart={(e) => { e.preventDefault(); if (tipVisible) hideTip(); else showTip(e); }}
+        onClick={showTip}
       />
     </div>
   );
