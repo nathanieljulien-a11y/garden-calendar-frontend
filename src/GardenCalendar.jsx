@@ -25,7 +25,15 @@ const styles = `
   body { font-family:'Crimson Pro',Georgia,serif; background:var(--soil); color:var(--cream); min-height:100vh; }
   .grain { position:fixed; inset:0; pointer-events:none; z-index:9999; opacity:.45;
     background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E"); }
-  .app { max-width:980px; margin:0 auto; padding:2rem 1.5rem 5rem; }
+  .app { max-width:980px; margin:0 auto; padding:2rem 1.5rem 6rem; }
+
+  /* ── Bottom tab bar ── */
+  .tab-bar { position:fixed; bottom:0; left:0; right:0; z-index:500; display:flex; background:rgba(20,12,4,.96); border-top:1px solid rgba(200,169,110,.18); backdrop-filter:blur(10px); padding-bottom:env(safe-area-inset-bottom); }
+  .tab-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.2rem; padding:.6rem .25rem .5rem; background:none; border:none; cursor:pointer; transition:all .15s; color:var(--sage); font-family:'Crimson Pro',serif; -webkit-tap-highlight-color:transparent; }
+  .tab-btn:hover { color:var(--parchment); }
+  .tab-btn.active { color:var(--straw); }
+  .tab-icon { font-size:1.1rem; line-height:1; }
+  .tab-label { font-size:.58rem; text-transform:uppercase; letter-spacing:.07em; line-height:1; }
 
   header { text-align:center; padding:2.5rem 0 2rem; border-bottom:1px solid rgba(200,169,110,.25); margin-bottom:2.5rem; }
   .deco { font-size:1.5rem; letter-spacing:.6rem; opacity:.6; margin-bottom:.6rem; }
@@ -310,6 +318,14 @@ const styles = `
   .scent-btn { background:none; border:1px solid rgba(138,180,160,.3); border-radius:20px; color:var(--sage); padding:.15rem .6rem; font-family:"Crimson Pro",serif; font-size:.75rem; cursor:pointer; transition:all .15s; }
   .scent-btn:hover { border-color:var(--dew); color:var(--cream); }
   .scent-btn.selected { background:rgba(138,180,160,.2); border-color:var(--dew); color:var(--cream); }
+  .colour-prompt { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; margin-top:.3rem; padding:.45rem .6rem; background:rgba(196,102,74,.06); border:1px solid rgba(196,102,74,.2); border-radius:2px; animation:fadeIn .2s ease; }
+  .colour-prompt-label { font-size:.78rem; color:var(--sage); flex-shrink:0; }
+  .colour-prompt-input { background:rgba(30,18,8,.9); border:1px solid rgba(200,169,110,.25); border-radius:2px; color:var(--cream); padding:.25rem .6rem; font-family:'Crimson Pro',serif; font-size:.85rem; outline:none; width:120px; transition:border-color .2s; }
+  .colour-prompt-input:focus { border-color:var(--straw); }
+  .colour-prompt-confirm { background:rgba(92,122,74,.25); border:1px solid rgba(92,122,74,.4); border-radius:2px; color:var(--fern); padding:.25rem .65rem; font-family:'Crimson Pro',serif; font-size:.78rem; cursor:pointer; transition:all .15s; }
+  .colour-prompt-confirm:hover { background:rgba(92,122,74,.4); color:var(--cream); }
+  .colour-prompt-skip { background:none; border:none; color:var(--sage); font-size:.75rem; cursor:pointer; font-family:'Crimson Pro',serif; opacity:.6; }
+  .colour-prompt-skip:hover { opacity:1; color:var(--cream); }
   .gap-section { margin-top:1.1rem; padding-top:1rem; border-top:1px solid rgba(200,169,110,.1); }
   .gap-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:.7rem; }
   .gap-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.09em; color:var(--sage); }
@@ -591,16 +607,21 @@ const CLARIFICATION_RULES = [
   },
 ];
 
-// Plants where scent is a meaningful trait — triggers enrichment prompt in plant form
+// Plants where scent is genuinely ambiguous — some varieties scented, some not
 const SCENTED_PLANT_NAMES = new Set([
-  "rose","roses","lavender","sweet pea","sweet peas","jasmine","wisteria",
-  "lilac","hyacinth","hyacinths","narcissus","daffodil","daffodils","lily","lilies",
-  "honeysuckle","gardenia","freesia","stocks","stock","wallflower","wallflowers",
-  "phlox","pittosporum","philadelphus","mock orange","heliotrope","peony","peonies",
-  "buddleja","buddleia","butterfly bush","verbena","nicotiana","tobacco plant",
-  "dianthus","carnation","carnations","pink","pinks","viola","violet","violets",
-  "osmanthus","daphne","sarcococca","mahonia","witch hazel","hamamelis",
-  "thyme","rosemary","basil","mint","lemon balm","lemon verbena"
+  "rose","roses","sweet pea","sweet peas","jasmine","wisteria",
+  "lily","lilies","honeysuckle","gardenia","freesia","phlox",
+  "osmanthus","daphne"
+]);
+
+// Plants where flower colour materially varies and affects lens output
+const COLOUR_PROMPT_PLANTS = new Set([
+  "rose","roses","tulip","tulips","dahlia","dahlias","hydrangea","hydrangeas",
+  "iris","irises","daffodil","daffodils","narcissus","chrysanthemum","chrysanthemums",
+  "pansy","pansies","peony","peonies","snapdragon","snapdragons",
+  "sweet pea","sweet peas","lupin","lupins","foxglove","foxgloves",
+  "geranium","geraniums","allium","alliums","camellia","camellias",
+  "rhododendron","rhododendrons","azalea","azaleas"
 ]);
 
 // Common English name → scientific name / genus for GBIF lookup.
@@ -2101,53 +2122,61 @@ const CAT_LABELS = { trees:"Tree", shrubs:"Shrub", flowers:"Flower", vegetables:
 const CAT_ORDER  = ["flowers","trees","shrubs","fruit","vegetables","herbs"];
 
 const LENSES = [
-  { id:"colour",      emoji:"🎨", name:"Colour",      desc:"flower, foliage & fruit colour",   color:"var(--bloom)" },
-  { id:"texture",     emoji:"🍃", name:"Texture",     desc:"leaf, bark & seedhead texture",     color:"var(--sage)" },
-  { id:"form",        emoji:"🌳", name:"Form",        desc:"structure, habit & silhouette",     color:"var(--straw)" },
-  { id:"scent",       emoji:"🌸", name:"Scent",       desc:"fragrance presence & intensity",    color:"var(--dew)" },
-  { id:"cropping",    emoji:"🍓", name:"Cropping",    desc:"harvest windows",                   color:"var(--warm)" },
-  { id:"biodiversity",emoji:"🐝", name:"Biodiversity",desc:"pollinator, bird & wildlife value", color:"var(--fern)" },
+  { id:"colour",   emoji:"🎨", name:"Colour",   desc:"flower, foliage & fruit colour",  color:"var(--bloom)" },
+  { id:"texture",  emoji:"🍃", name:"Texture",  desc:"leaf, bark & seedhead texture",    color:"var(--sage)"  },
+  { id:"form",     emoji:"🌳", name:"Form",     desc:"structure, habit & silhouette",    color:"var(--straw)" },
+  { id:"scent",    emoji:"🌸", name:"Scent",    desc:"fragrance presence & intensity",   color:"var(--dew)"   },
+  { id:"cropping", emoji:"🍓", name:"Cropping", desc:"harvest windows",                  color:"var(--warm)"  },
 ];
 
 const BAR_HEIGHTS = [0, 9, 18, 28]; // px heights for intensity 0–3
 
-function LensGrid({ lensData, plants, lensColor }) {
+const EDIBLE_CATS = new Set(["fruit","vegetables"]);
+const NOTEWORTHY_LENSES = new Set(["texture","form","scent"]); // only show plants with peak intensity >= 2
+
+function LensGrid({ lensId, lensData, plants, lensColor }) {
   if (!lensData) return <div className="tl-empty">No data available.</div>;
   const rows = [];
   CAT_ORDER.forEach(cat => {
+    if (lensId === "cropping" && !EDIBLE_CATS.has(cat)) return;
     (plants[cat] || []).forEach(p => {
       const d = lensData[p];
       if (!d) return;
-      rows.push({ name: p, cat, months: d.months || Array(12).fill(0), descriptor: d.descriptor || "" });
+      const months = d.months || Array(12).fill(0);
+      if (NOTEWORTHY_LENSES.has(lensId) && Math.max(...months) < 2) return;
+      rows.push({ name: p, cat, months, descriptor: d.descriptor || "", colour: d.colour || null });
     });
   });
-  if (!rows.length) return <div className="tl-empty">No interest data for your plants in this lens.</div>;
+  if (!rows.length) return <div className="tl-empty">No notable interest for your plants in this lens.</div>;
   return (
     <>
       <div className="tl-month-labels">
         {MONTH_ABBR.map(m => <div key={m} className="tl-month-lbl">{m}</div>)}
       </div>
       <div className="tl-grid">
-        {rows.map((row, i) => (
-          <div key={i} className="tl-row">
-            <div className="tl-label" title={row.name}>
-              {row.name}
-              <span className="tl-label-cat">{CAT_LABELS[row.cat]}</span>
-            </div>
-            <div className="tl-months">
-              <div className="tl-months-inner">
-                {row.months.map((intensity, mi) => (
-                  <div
-                    key={mi}
-                    className={`tl-bar${intensity === 0 ? " none" : ""}`}
-                    style={intensity > 0 ? { background: lensColor, height: BAR_HEIGHTS[Math.min(intensity,3)] } : {}}
-                    title={`${MONTH_ABBR[mi]}: ${intensity === 0 ? "none" : intensity === 1 ? "low" : intensity === 2 ? "medium" : "high"}${row.descriptor ? " · " + row.descriptor : ""}`}
-                  />
-                ))}
+        {rows.map((row, i) => {
+          const barColor = (lensId === "colour" && row.colour) ? row.colour : lensColor;
+          return (
+            <div key={i} className="tl-row">
+              <div className="tl-label" title={row.name}>
+                {row.name}
+                <span className="tl-label-cat">{CAT_LABELS[row.cat]}</span>
+              </div>
+              <div className="tl-months">
+                <div className="tl-months-inner">
+                  {row.months.map((intensity, mi) => (
+                    <div
+                      key={mi}
+                      className={`tl-bar${intensity === 0 ? " none" : ""}`}
+                      style={intensity > 0 ? { background: barColor, height: BAR_HEIGHTS[Math.min(intensity,3)], opacity: 0.4 + (intensity * 0.2) } : {}}
+                      title={`${MONTH_ABBR[mi]}: ${intensity === 0 ? "none" : intensity === 1 ? "low" : intensity === 2 ? "medium" : "high"}${row.descriptor ? " · " + row.descriptor : ""}`}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div style={{fontSize:".65rem",color:"rgba(180,180,160,.3)",marginTop:".75rem",fontStyle:"italic"}}>
         Approximate — varies by variety and season.
@@ -2155,7 +2184,6 @@ function LensGrid({ lensData, plants, lensColor }) {
     </>
   );
 }
-
 function GapSection({ plants, lensData, selectedGardenId, meta, city, provider, userKey }) {
   const [gapState, setGapState] = useState("idle");
   const [gapData, setGapData]   = useState(null);
@@ -2311,7 +2339,7 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
                     )}
                     {state === "done"    && (
                       <>
-                        <LensGrid lensData={lensData[lens.id]} plants={plants} lensColor={lens.color}/>
+                        <LensGrid lensId={lens.id} lensData={lensData[lens.id]} plants={plants} lensColor={lens.color}/>
                         {lens.id === "colour" && (
                           <GapSection plants={plants} lensData={lensData.colour} selectedGardenId={selectedGardenId} meta={meta} city={city} provider={provider} userKey={userKey}/>
                         )}
@@ -2325,6 +2353,143 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
         </div>
       )}
     </div>
+  );
+}
+
+// ─── AboutView ────────────────────────────────────────────────────────────────
+function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensData, lensStates, fetchLens, plants, plantTraits, city, selectedGardenId, provider, userKey, onGoCalendar, onGoEdit, months }) {
+  const hasMeta = !!meta;
+  const hasPlants = Object.values(plants).flat().length > 0;
+
+  // Export helpers — reuse existing functions passed as props
+  const gardenUrl = garden ? buildGardenUrl(garden.city, garden.orientation, garden.features, garden.plants) : "";
+
+  return (
+    <div style={{maxWidth:680, margin:"0 auto"}}>
+      {/* Garden summary */}
+      <div className="cal-header" style={{marginBottom:"1.5rem"}}>
+        <div className="deco" style={{fontSize:"1.1rem"}}>✦ ✿ ✦</div>
+        <h2 style={{fontSize:"1.5rem"}}>{garden?.name || garden?.city || "Your garden"}</h2>
+        {garden?.city && <p style={{color:"var(--sage)",fontStyle:"italic",fontSize:".9rem",marginTop:".2rem"}}>{garden.city}</p>}
+        <div className="meta-pills" style={{justifyContent:"center",marginTop:".75rem"}}>
+          {hasPlants && <div className="pill">🌱 <b>{Object.values(plants).flat().length}</b> plants</div>}
+          {meta?.zone  && <div className="pill">🌡 Zone <b>{meta.zone}</b></div>}
+          {meta?.climate && <div className="pill">🌤 {meta.climate}</div>}
+          {!hasMeta && prefetchState === "fetching" && <div className="pill" style={{color:"var(--sage)",fontStyle:"italic"}}>⟳ Loading climate…</div>}
+        </div>
+      </div>
+
+      {/* Climate fallback — if still no meta after prefetch attempt */}
+      {!hasMeta && prefetchState === "error" && (
+        <div style={{background:"rgba(58,34,16,.45)",border:"1px solid rgba(200,169,110,.2)",borderRadius:"2px",padding:"1rem 1.25rem",marginBottom:"1.5rem",fontSize:".88rem",color:"var(--parchment)",lineHeight:1.6}}>
+          <strong style={{color:"var(--straw)"}}>Couldn't load climate data.</strong> Check your connection and try switching to the Calendar tab to regenerate.
+          <div style={{marginTop:".6rem"}}>
+            <button className="btn-solid" style={{fontSize:".85rem",padding:".5rem 1rem"}} onClick={onGoCalendar}>Go to Calendar →</button>
+          </div>
+        </div>
+      )}
+
+      {/* Insights — auto-load, no unlock button */}
+      <div className="insights-panel">
+        <div className="insights-unlock">
+          <span className="insights-title">🔍 Insights about your garden</span>
+          {insights.state === "done" && (
+            <button className="btn-unlock" onClick={fetchInsights} style={{fontSize:".78rem"}}>↺ Refresh</button>
+          )}
+        </div>
+        <div className="insights-body">
+          {(insights.state === "idle" || insights.state === "loading") && <Shimmer lines={4}/>}
+          {insights.state === "error" && (
+            <div style={{fontSize:".85rem",color:"var(--bloom)",fontStyle:"italic",padding:".4rem 0"}}>
+              Couldn't load insights — <button className="btn-unlock" style={{fontSize:".78rem"}} onClick={fetchInsights}>try again</button>
+            </div>
+          )}
+          {insights.state === "done" && insights.allLookingGood && (
+            <div className="insights-good">✓ {insights.goodNewsLine || "Your plant selection looks well-suited to this location — happy growing!"}</div>
+          )}
+          {insights.state === "done" && (insights.items||[]).map((item,i) => (
+            <div key={i} className="insight-item">
+              <div className="insight-plant">{item.plant}</div>
+              <div className="insight-q">{item.question}</div>
+              <div className="insight-ctx">{item.context}</div>
+              <div className="insight-tip">{item.suggestion}</div>
+            </div>
+          ))}
+          {insights.state === "done" && (insights.companions||[]).length > 0 && (
+            <div className="companion-section">
+              <div className="companion-title">🤝 Companion planting notes</div>
+              {(insights.companions||[]).map((c,i) => (
+                <div key={i} className="companion-item">
+                  <span className={`companion-badge ${c.type==="good"?"good":"warn"}`}>{c.type==="good"?"✓ Good":"✗ Avoid"}</span>
+                  <span><span className="companion-pair">{c.pair}</span>{c.reason&&<span className="companion-reason"> — {c.reason}</span>}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {insights.state === "done" && (
+            <div style={{fontSize:".68rem",color:"rgba(180,180,160,.35)",marginTop:".6rem",fontStyle:"italic",lineHeight:1.5}}>
+              Based on general horticultural knowledge. Verify with your local nursery.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Year-round interest lens calendars */}
+      <LensCalendars
+        plants={plants}
+        plantTraits={plantTraits}
+        lensData={lensData}
+        lensStates={lensStates}
+        onFetchLens={fetchLens}
+        stream1Done={true}
+        loadedBatches={4}
+        meta={meta}
+        city={city}
+        selectedGardenId={selectedGardenId}
+        provider={provider}
+        userKey={userKey}
+      />
+
+      {/* Download options */}
+      {garden && (
+        <div style={{display:"flex",gap:".75rem",justifyContent:"center",margin:"1rem 0 .5rem",flexWrap:"wrap"}}>
+          <button
+            onClick={() => exportPDF(months, garden.city, meta, gardenUrl)}
+            style={{background:"#2C1A0A",color:"#F5EDD8",border:"none",borderRadius:"6px",padding:".55rem 1.2rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
+            📄 Export for Print
+          </button>
+          <button
+            onClick={() => exportICS(months, garden.city, gardenUrl)}
+            style={{background:"#4a7c59",color:"#fff",border:"none",borderRadius:"6px",padding:".55rem 1.2rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
+            📅 Export to Calendar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TabBar ───────────────────────────────────────────────────────────────────
+const TABS = [
+  { id:"garden",   icon:"🏡", label:"Garden"   },
+  { id:"week",     icon:"📅", label:"This Week" },
+  { id:"calendar", icon:"🗓", label:"Calendar"  },
+  { id:"about",    icon:"🌿", label:"About"     },
+  { id:"edit",     icon:"✏️", label:"Edit"      },
+];
+
+function TabBar({ activeTab, onTabChange, hasGarden }) {
+  if (!hasGarden) return null;
+  return (
+    <nav className="tab-bar">
+      {TABS.map(tab => (
+        <button key={tab.id} className={`tab-btn${activeTab===tab.id?" active":""}`}
+          onClick={() => onTabChange(tab.id)}>
+          <span className="tab-icon">{tab.icon}</span>
+          <span className="tab-label">{tab.label}</span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -2414,12 +2579,15 @@ useEffect(() => {
     // Use ref-style check via functional updater to avoid stale closure
     setPlantMeta(prev => {
       if (prev[name]) return prev; // already validated or loading
-      // Kick off async validation outside the updater
       validatePlantName(name).then(result =>
         setPlantMeta(p => ({ ...p, [name]: result }))
       );
       return { ...prev, [name]: { status: "loading", name } };
     });
+    // Trigger colour sub-prompt for plants with meaningful colour variation
+    if (COLOUR_PROMPT_PLANTS.has(name.toLowerCase())) {
+      setColourPending({ plantName: name });
+    }
   }, []);
 
   const onClarify = useCallback((name, answer) => {
@@ -2430,6 +2598,7 @@ useEffect(() => {
   }, []);
   const [prefetchState,setPfState]   = useState("idle");
   const [stage,setStage]             = useState("form");
+  const [activeTab,setActiveTab]     = useState("garden"); // "garden"|"week"|"calendar"|"about"|"edit"
   // Language: browser default, persisted to localStorage, user can override
   const [lang, setLang] = useState(() => {
     const stored = localStorage.getItem("gc_lang");
@@ -2457,7 +2626,8 @@ useEffect(() => {
   const [insights,setInsights]       = useState({state:"idle", items:[]});
   const [lensData,setLensData]       = useState({});   // { colour:{}, texture:{}, ... }
   const [lensStates,setLensStates]   = useState({});   // { colour:"idle"|"loading"|"done"|"error", ... }
-  const [plantTraits,setPlantTraits] = useState({});   // { "Rose": { scented: "yes"|"no"|"unsure" } }
+  const [plantTraits,setPlantTraits] = useState({});   // { "Rose": { scented: "yes"|"no"|"unsure", colour: "red" } }
+  const [colourPending,setColourPending] = useState(null); // { plantName, catKey } — awaiting colour input
   const [showArrow,setShowArrow]     = useState(false);
   const [chunkCount,setChunkCount]   = useState(0);  // live chunk counter for stall diagnosis
   const chunkCountRef                = useRef(0);
@@ -2692,6 +2862,18 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
       setPfState("idle"); setMeta(null);
     }
   },[city,orientation,apiKey,prefetchMeta]);
+
+  // ── About tab — auto-fetch climate + insights ───────────────────────────────
+  useEffect(() => {
+    if (activeTab !== "about") return;
+    if (!meta && city && orientation && prefetchState === "idle") {
+      prefetchMeta(city, orientation);
+    }
+    if (meta && insights.state === "idle") {
+      fetchInsights();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, meta, insights.state, prefetchState]);
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -3454,6 +3636,20 @@ Return tasks for: ${batch.join(', ')}`;
   setSelectedGardenId(garden.id);
   return garden.id;
 }, [city, orientation, features, plants, plantTraits, meta, selectedGardenId, months, nowIdx]);
+
+  // ── Tab navigation ──────────────────────────────────────────────────────────
+  const handleTabChange = useCallback((tab) => {
+    // Save garden when leaving edit tab
+    if (activeTab === "edit" && tab !== "edit" && city) {
+      saveCurrentGarden();
+    }
+    setActiveTab(tab);
+    // Sync stage for views that still use it
+    if (tab === "calendar") setStage("calendar");
+    else if (tab === "week")     setStage("today");
+    else if (tab === "edit")     setStage("form");
+  }, [activeTab, city, saveCurrentGarden]);
+
   const handleSaveLink = () => {
     const url = buildGardenUrl(city, orientation, features, plants);
     // Update the browser URL bar so the current page IS the saved link
@@ -3610,21 +3806,33 @@ Respond entirely in ${langName()}.`;
     const traitCtx = Object.entries(plantTraits).filter(([,t]) => t.scented).map(([p,t]) => `${p}: ${t.scented === "yes" ? "scented" : t.scented === "no" ? "unscented" : "scent unknown"}`).join(", ");
 
     const LENS_PROMPTS = {
-      colour:       `Return months of colour interest (flowers, berries, autumn foliage, ornamental fruit). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Descriptor: brief colour description (e.g. "deep crimson").`,
-      texture:      `Return months of texture interest (leaf surface, bark, seedheads). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Descriptor: brief texture description (e.g. "peeling bark").`,
-      form:         `Return months of structural/form interest (silhouette, habit, winter skeleton). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Descriptor: brief form description (e.g. "weeping habit").`,
-      scent:        `Return months of scent/fragrance. Intensity: 0=none, 1=faint, 2=noticeable, 3=strong.${traitCtx ? ` Known traits: ${traitCtx}.` : ""} Descriptor: brief scent description (e.g. "honey and vanilla").`,
-      cropping:     `Return months of harvest/cropping. Intensity: 0=none, 1=start/end of season, 2=good harvest, 3=peak. Descriptor: what is harvested (e.g. "ripe tomatoes").`,
-      biodiversity: `Return months of biodiversity value (pollinators, birds, insects). Intensity: 0=none, 1=low, 2=moderate, 3=high. Descriptor: what benefits wildlife (e.g. "bees on flowers").`,
+      colour:   `Return months of colour interest (flowers, berries, autumn foliage, ornamental fruit). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Descriptor: brief colour description (e.g. "deep crimson"). Colour: a single CSS-compatible colour value representing the plant's primary colour of interest (e.g. "#c0392b", "hotpink", "#f39c12"). Use a specific named or hex colour — not "red" or "green" but actual shades.`,
+      texture:  `Return months of texture interest (leaf surface, bark, seedheads). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Descriptor: brief texture description (e.g. "peeling bark").`,
+      form:     `Return months of structural/form interest (silhouette, habit, winter skeleton). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Descriptor: brief form description (e.g. "weeping habit").`,
+      scent:    `Return months of scent/fragrance. Intensity: 0=none, 1=faint, 2=noticeable, 3=strong.${traitCtx ? ` Known traits: ${traitCtx}.` : ""} Descriptor: brief scent description (e.g. "honey and vanilla").`,
+      cropping: `Return months of harvest/cropping for edible plants only. Intensity: 0=none, 1=start/end of season, 2=good harvest, 3=peak. Descriptor: what is harvested (e.g. "ripe tomatoes").`,
     };
 
     // Chunk plants into batches of 8 to avoid token truncation
     const allPlantList = Object.values(plants).flat();
+    // For cropping lens, only send edible plants
+    const lensPlants = lensId === "cropping"
+      ? [...(plants.fruit||[]), ...(plants.vegetables||[])]
+      : allPlantList;
     const CHUNK_SIZE = 8;
     const chunks = [];
-    for (let i = 0; i < allPlantList.length; i += CHUNK_SIZE) {
-      chunks.push(allPlantList.slice(i, i + CHUNK_SIZE));
+    for (let i = 0; i < lensPlants.length; i += CHUNK_SIZE) {
+      chunks.push(lensPlants.slice(i, i + CHUNK_SIZE));
     }
+    if (chunks.length === 0) {
+      setLensStates(prev => ({ ...prev, [lensId]: "done" }));
+      setLensData(prev => ({ ...prev, [lensId]: {} }));
+      return;
+    }
+
+    const colourSchema = lensId === "colour"
+      ? `  "PlantName": { "months": [0,0,1,2,3,3,2,1,0,0,0,0], "descriptor": "deep crimson", "colour": "#c0392b" }`
+      : `  "PlantName": { "months": [0,0,1,2,3,3,2,1,0,0,0,0], "descriptor": "brief description" }`;
 
     const buildPrompt = (plantNames) =>
       `You are a horticultural expert. Location: ${city}. ${metaCtx} ${hemCtx}
@@ -3633,7 +3841,7 @@ Plants: ${plantNames.join(", ")}
 
 Return ONLY valid JSON, no markdown, no extra text:
 {
-  "PlantName": { "months": [0,0,1,2,3,3,2,1,0,0,0,0], "descriptor": "brief description" }
+${colourSchema}
 }
 Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL plants listed. Plant names must match exactly.`;
 
@@ -3974,6 +4182,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         }
         setShowHome(false);
         setFormStep('location');
+        setActiveTab('edit');
       }}
       onCreateNew={() => {
         setCity('');
@@ -3983,6 +4192,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         setSelectedGardenId(null);
         setShowHome(false);
         setFormStep('location');
+        setActiveTab('edit');
       }}
       onToday={() => {
         const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
@@ -3993,7 +4203,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         setInatData(null);
         setInatError(null);
         setStage('today');
-        // Fire weather, iNat, and tasks — weather+iNat are fast and show immediately
+        setActiveTab('week');
         const weatherPromise = fetchTodayWeather(g);
         fetchNearbyObs(g);
         weatherPromise.then(() => {
@@ -4213,6 +4423,42 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                     </div>
                   );
                 })}
+                {/* Colour sub-prompt — for plants where colour variation affects lens output */}
+                {colourPending && plants[cat.key].includes(colourPending.plantName) && (() => {
+                  const baseName = colourPending.plantName;
+                  let colourDraft = "";
+                  const confirm = () => {
+                    const colour = colourDraft.trim();
+                    if (colour) {
+                      // Rename the plant tag to "Name (colour)"
+                      const newName = `${baseName} (${colour})`;
+                      setPlants(prev => ({
+                        ...prev,
+                        [cat.key]: prev[cat.key].map(p => p === baseName ? newName : p)
+                      }));
+                      setPlantMeta(prev => {
+                        const next = { ...prev };
+                        if (next[baseName]) { next[newName] = next[baseName]; delete next[baseName]; }
+                        return next;
+                      });
+                    }
+                    setColourPending(null);
+                  };
+                  return (
+                    <div className="colour-prompt" key={`colour-${baseName}`}>
+                      <span className="colour-prompt-label">🎨 What colour is your {baseName}?</span>
+                      <input
+                        className="colour-prompt-input"
+                        placeholder="e.g. deep red"
+                        autoFocus
+                        onChange={e => { colourDraft = e.target.value; }}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); confirm(); } if (e.key === "Escape") setColourPending(null); }}
+                      />
+                      <button className="colour-prompt-confirm" type="button" onClick={confirm}>Add</button>
+                      <button className="colour-prompt-skip" type="button" onClick={() => setColourPending(null)}>skip</button>
+                    </div>
+                  );
+                })()}
                 {/* Scent trait prompts — for plants where scent materially affects lens output */}
                 {plants[cat.key].map(plantName => {
                   if (!SCENTED_PLANT_NAMES.has(plantName.toLowerCase())) return null;
@@ -4642,33 +4888,11 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
             {/* References panel — open with pending message until meta arrives */}
 
 
-            {/* Insights panel — between references and the calendar months */}
-            <InsightsPanel
-              insights={insights}
-              plantMeta={plantMeta}
-              onFetch={fetchInsights}
-              hasPlants={totalPlants > 0}
-              stream1Done={stream1Done}
-              loadedBatches={loadedBatches}
-              totalPlantCount={totalPlants}
-            />
-
-            {/* Year-round interest — six lens calendars */}
+            {/* Insights & Year-round interest — see About tab */}
             {stream1Done && (
-              <LensCalendars
-                plants={plants}
-                plantTraits={plantTraits}
-                lensData={lensData}
-                lensStates={lensStates}
-                onFetchLens={fetchLens}
-                stream1Done={stream1Done}
-                loadedBatches={loadedBatches}
-                meta={meta}
-                city={city}
-                selectedGardenId={selectedGardenId}
-                provider={provider}
-                userKey={userKey}
-              />
+              <div style={{textAlign:"center",margin:"1rem 0",fontSize:".82rem",color:"var(--sage)",fontStyle:"italic"}}>
+                💡 Insights and year-round interest are in the <button onClick={() => handleTabChange("about")} style={{background:"none",border:"none",color:"var(--straw)",cursor:"pointer",fontFamily:"'Crimson Pro',serif",fontSize:".82rem",fontStyle:"italic",padding:0,textDecoration:"underline"}}>About tab</button>
+              </div>
             )}
 
             {/* Batch inspiration button — fetch 3 at once */}
@@ -4828,7 +5052,41 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
             </div>
           </div>
         )}
+
+        {/* ── ABOUT VIEW ── */}
+        {activeTab === "about" && (() => {
+          const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
+          return (
+            <AboutView
+              garden={g}
+              meta={meta}
+              prefetchState={prefetchState}
+              insights={insights}
+              fetchInsights={fetchInsights}
+              lensData={lensData}
+              lensStates={lensStates}
+              fetchLens={fetchLens}
+              plants={plants}
+              plantTraits={plantTraits}
+              city={city}
+              selectedGardenId={selectedGardenId}
+              provider={provider}
+              userKey={userKey}
+              onGoCalendar={() => handleTabChange("calendar")}
+              onGoEdit={() => handleTabChange("edit")}
+              months={months}
+            />
+          );
+        })()}
+
       </div>
+
+      {/* ── BOTTOM TAB BAR ── */}
+      <TabBar
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        hasGarden={gardens.length > 0 || !!city}
+      />
     </>
   );
 }
