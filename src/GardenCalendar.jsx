@@ -426,7 +426,6 @@ const GARDEN_QUOTES = [
   {quote:"The secret of improved plant breeding, apart from scientific knowledge, is love.", attribution:"Luther Burbank"},
   {quote:"I like gardening — it's a place where I find myself when I need to lose myself.", attribution:"Alice Sebold"},
   {quote:"No occupation is so delightful to me as the culture of the earth.", attribution:"Thomas Jefferson"},
-  {quote:"We must cultivate our garden.", atribution:"Voltaire"},
   {quote:"I think this is what hooks one to gardening: it is the closest one can come to being present at the Creation.", attribution:"Phyllis Theroux"},
 ];
 
@@ -2133,11 +2132,30 @@ const LENSES = [
 const BAR_HEIGHTS = [0, 9, 18, 28]; // px heights for intensity 0–3
 
 const EDIBLE_CATS = new Set(["fruit","vegetables"]);
-const NOTEWORTHY_LENSES = new Set(["texture","form","scent"]); // only show plants with peak intensity >= 2
+const NOTEWORTHY_LENSES = new Set(["texture","form","scent"]);
+const QUARTERS = [
+  { label:"Dec–Feb", months:[11,0,1]  },
+  { label:"Mar–May", months:[2,3,4]   },
+  { label:"Jun–Aug", months:[5,6,7]   },
+  { label:"Sep–Nov", months:[8,9,10]  },
+];
+
+function currentQuarterIdx() {
+  const m = new Date().getMonth(); // 0=Jan
+  if (m === 11 || m <= 1) return 0;
+  if (m <= 4) return 1;
+  if (m <= 7) return 2;
+  return 3;
+}
 
 function LensGrid({ lensId, lensData, plants, lensColor }) {
+  const [qIdx, setQIdx] = useState(() => currentQuarterIdx());
+  const [filters, setFilters] = useState(new Set()); // "high","medium","low"
+
   if (!lensData) return <div className="tl-empty">No data available.</div>;
-  const rows = [];
+
+  // Build rows
+  const allRows = [];
   CAT_ORDER.forEach(cat => {
     if (lensId === "cropping" && !EDIBLE_CATS.has(cat)) return;
     (plants[cat] || []).forEach(p => {
@@ -2145,41 +2163,106 @@ function LensGrid({ lensId, lensData, plants, lensColor }) {
       if (!d) return;
       const months = d.months || Array(12).fill(0);
       if (NOTEWORTHY_LENSES.has(lensId) && Math.max(...months) < 2) return;
-      rows.push({ name: p, cat, months, descriptor: d.descriptor || "", colour: d.colour || null });
+      allRows.push({ name: p, cat, months, descriptor: d.descriptor || "", colour: d.colour || null });
     });
   });
-  if (!rows.length) return <div className="tl-empty">No notable interest for your plants in this lens.</div>;
+
+  if (!allRows.length) return <div className="tl-empty">No notable interest for your plants in this lens.</div>;
+
+  const quarter = QUARTERS[qIdx];
+  const qMonths = quarter.months; // 3 month indices
+
+  // Apply intensity filter — keep plants that have ≥1 month in the visible block matching filter
+  const intensityMatch = (row) => {
+    if (filters.size === 0) return true;
+    return qMonths.some(mi => {
+      const v = row.months[mi];
+      if (filters.has("high")   && v === 3) return true;
+      if (filters.has("medium") && v === 2) return true;
+      if (filters.has("low")    && v === 1) return true;
+      return false;
+    });
+  };
+  const rows = allRows.filter(intensityMatch);
+
+  const toggleFilter = (f) => setFilters(prev => {
+    const next = new Set(prev);
+    if (next.has(f)) next.delete(f); else next.add(f);
+    return next;
+  });
+
   return (
     <>
-      <div className="tl-month-labels">
-        {MONTH_ABBR.map(m => <div key={m} className="tl-month-lbl">{m}</div>)}
+      {/* Quarter nav + intensity filters */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:".6rem",flexWrap:"wrap",gap:".4rem"}}>
+        <div style={{display:"flex",alignItems:"center",gap:".4rem"}}>
+          <button className="nav-btn left" style={{position:"static",width:28,height:28,fontSize:".9rem"}}
+            onClick={() => setQIdx(i => (i+3)%4)}>‹</button>
+          <span style={{fontSize:".8rem",color:"var(--straw)",fontFamily:"'Playfair Display',serif",minWidth:60,textAlign:"center"}}>{quarter.label}</span>
+          <button className="nav-btn right" style={{position:"static",width:28,height:28,fontSize:".9rem"}}
+            onClick={() => setQIdx(i => (i+1)%4)}>›</button>
+        </div>
+        <div style={{display:"flex",gap:".3rem"}}>
+          {["high","medium","low"].map(f => (
+            <button key={f} onClick={() => toggleFilter(f)}
+              style={{
+                background: filters.has(f) ? "rgba(200,169,110,.2)" : "none",
+                border: `1px solid ${filters.has(f) ? "rgba(200,169,110,.5)" : "rgba(200,169,110,.2)"}`,
+                borderRadius:"20px", color: filters.has(f) ? "var(--straw)" : "var(--sage)",
+                padding:".15rem .55rem", fontSize:".7rem", cursor:"pointer",
+                fontFamily:"'Crimson Pro',serif", textTransform:"capitalize", transition:"all .15s"
+              }}>
+              {f}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="tl-grid">
-        {rows.map((row, i) => {
-          const barColor = (lensId === "colour" && row.colour) ? row.colour : lensColor;
-          return (
-            <div key={i} className="tl-row">
-              <div className="tl-label" title={row.name}>
-                {row.name}
-                <span className="tl-label-cat">{CAT_LABELS[row.cat]}</span>
-              </div>
-              <div className="tl-months">
-                <div className="tl-months-inner">
-                  {row.months.map((intensity, mi) => (
-                    <div
-                      key={mi}
-                      className={`tl-bar${intensity === 0 ? " none" : ""}`}
-                      style={intensity > 0 ? { background: barColor, height: BAR_HEIGHTS[Math.min(intensity,3)], opacity: 0.4 + (intensity * 0.2) } : {}}
-                      title={`${MONTH_ABBR[mi]}: ${intensity === 0 ? "none" : intensity === 1 ? "low" : intensity === 2 ? "medium" : "high"}${row.descriptor ? " · " + row.descriptor : ""}`}
-                    />
-                  ))}
+
+      {/* Month column headers */}
+      <div style={{display:"flex",marginBottom:".3rem",paddingLeft:110}}>
+        {qMonths.map(mi => (
+          <div key={mi} style={{flex:1,textAlign:"center",fontSize:".65rem",color:"rgba(180,180,160,.45)",textTransform:"uppercase",letterSpacing:".04em"}}>
+            {MONTH_ABBR[mi]}
+          </div>
+        ))}
+      </div>
+
+      {/* Plant rows */}
+      {rows.length === 0 ? (
+        <div className="tl-empty">No plants match the selected filter for {quarter.label}.</div>
+      ) : (
+        <div className="tl-grid">
+          {rows.map((row, i) => {
+            const barColor = (lensId === "colour" && row.colour && row.colour !== "var(--bloom)") ? row.colour : lensColor;
+            return (
+              <div key={i} className="tl-row">
+                <div className="tl-label" title={`${row.name}${row.descriptor ? " · " + row.descriptor : ""}`}>
+                  {row.name}
+                  <span className="tl-label-cat">{CAT_LABELS[row.cat]}</span>
+                </div>
+                <div className="tl-months">
+                  <div className="tl-months-inner">
+                    {qMonths.map(mi => {
+                      const intensity = row.months[mi];
+                      return (
+                        <div key={mi} className={`tl-bar${intensity === 0 ? " none" : ""}`}
+                          style={intensity > 0 ? {
+                            background: barColor,
+                            height: BAR_HEIGHTS[Math.min(intensity,3)],
+                            opacity: [0,0.5,0.75,1][Math.min(intensity,3)]
+                          } : {}}
+                          title={`${MONTH_ABBR[mi]}: ${["none","low","medium","high"][Math.min(intensity,3)]}${row.descriptor ? " · " + row.descriptor : ""}`}
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{fontSize:".65rem",color:"rgba(180,180,160,.3)",marginTop:".75rem",fontStyle:"italic"}}>
+            );
+          })}
+        </div>
+      )}
+      <div style={{fontSize:".62rem",color:"rgba(180,180,160,.28)",marginTop:".75rem",fontStyle:"italic"}}>
         Approximate — varies by variety and season.
       </div>
     </>
@@ -2274,12 +2357,12 @@ Rules: 2–3 suggestions per gap, climate-appropriate, not already in the existi
 
 function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens, stream1Done, loadedBatches, meta, city, selectedGardenId, provider, userKey }) {
   const [open, setOpen] = useState(false);
-  const [expandedLens, setExpandedLens] = useState({ colour: true });
+  const [expandedLens, setExpandedLens] = useState({});
   const canUnlock = stream1Done && loadedBatches >= 4 && Object.values(plants).flat().length > 0;
 
   const handleUnlock = () => {
     setOpen(true);
-    if (lensStates.colour === "idle") onFetchLens("colour");
+    // Don't pre-fetch — colour fetches when user opens it via toggleLens
   };
 
   const toggleLens = (id) => {
@@ -2472,10 +2555,10 @@ function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensD
 
 // ─── TabBar ───────────────────────────────────────────────────────────────────
 const TABS = [
-  { id:"garden",   icon:"🏡", label:"Garden"   },
+  { id:"garden",   icon:"🏡", label:"Home"     },
   { id:"week",     icon:"📅", label:"This Week" },
   { id:"calendar", icon:"🗓", label:"Calendar"  },
-  { id:"about",    icon:"🌿", label:"About"     },
+  { id:"about",    icon:"🌿", label:"Insights"  },
   { id:"edit",     icon:"✏️", label:"Edit"      },
 ];
 
@@ -2775,14 +2858,18 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     }
   },[]);
 
-  // ── Wake-up ping — fires once on mount to pre-warm Render free tier ──────
+  // ── Wake-up ping — fires once on mount + first interaction to pre-warm Render free tier ──
   useEffect(() => {
-    if (PROXY_BASE && !isArtifact()) {
-      fetch(`${PROXY_BASE}/api/health`, { method:"GET" })
-        .then(r => r.json())
-        .then(d => { if (d.ok) setUsage({ count: d.globalGenToday, cap: d.cap, ipCount: d.ipGenToday, ipCap: d.ipCap }); })
-        .catch(() => {});
-    }
+    if (!PROXY_BASE || isArtifact()) return;
+    const ping = () => fetch(`${PROXY_BASE}/api/health`, { method:"GET" })
+      .then(r => r.json())
+      .then(d => { if (d.ok) setUsage({ count: d.globalGenToday, cap: d.cap, ipCount: d.ipGenToday, ipCap: d.ipCap }); })
+      .catch(() => {});
+    ping(); // immediate on mount
+    // Also ping on first user interaction in case Render spun down since mount
+    const onFirstInteraction = () => { ping(); window.removeEventListener("pointerdown", onFirstInteraction); };
+    window.addEventListener("pointerdown", onFirstInteraction, { once: true });
+    return () => window.removeEventListener("pointerdown", onFirstInteraction);
   }, []);
 
   // Refresh usage when settings modal opens
@@ -4124,7 +4211,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         {rateLimitMsg && <div className="rate-limit-box">🌿 {rateLimitMsg}</div>}
 
         {/* ── SAVED GARDENS (favourites) — shown above form when any exist ── */}
-        {stage === "form" && !showHome && favourites.length > 0 && gardens.length === 0 && (
+        {activeTab !== "about" && stage === "form" && !showHome && favourites.length > 0 && gardens.length === 0 && (
           <div className="favs-panel">
             <div className="favs-title">⭐ Your saved gardens</div>
             <div className="favs-list">
@@ -4151,7 +4238,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         )}
 
         {/* ── FORM: LOCATION STEP ── */}
-        {showHome && stage === "form" && (
+        {activeTab !== "about" && showHome && stage === "form" && (
   <div className="form-card" style={{ maxWidth: 600, margin: '0 auto' }}>
     <div className="form-title" style={{ marginBottom: '.35rem' }}>Welcome back</div>
     <p className="form-hint" style={{ marginBottom: '1.75rem' }}>
@@ -4228,7 +4315,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
     />
   </div>
 )}
-        {!showHome && stage==="form" && formStep==="location" && (
+        {activeTab !== "about" && !showHome && stage==="form" && formStep==="location" && (
           <div className="form-card">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:".5rem",marginBottom:".25rem"}}>
               <div className="form-title" style={{margin:0}}>Tell us about your garden</div>
@@ -4334,7 +4421,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         )}
 
         {/* ── FORM: PLANTS STEP ── */}
-        {!showHome && stage==="form" && formStep==="plants" && (
+        {activeTab !== "about" && !showHome && stage==="form" && formStep==="plants" && (
           <div className="form-card">
             <div style={{display:"flex",alignItems:"center",gap:".75rem",marginBottom:"1rem"}}>
               <button onClick={()=>setFormStep("location")} type="button"
@@ -4588,7 +4675,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
 
 
         {/* ── TODAY VIEW ── */}
-        {stage === "today" && todayGarden && (
+        {activeTab !== "about" && stage === "today" && todayGarden && (
           <div className="cal-wrap" style={{ maxWidth: 640, margin: '0 auto' }}>
             <div className="cal-header" style={{ marginBottom: '1.25rem' }}>
               <div className="deco" style={{ fontSize: '1.1rem' }}>✦ ✿ ✦</div>
@@ -4803,7 +4890,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         )}
 
         {/* ── CALENDAR ── */}
-        {stage==="calendar" && (
+        {activeTab !== "about" && stage==="calendar" && (
           <div className="cal-wrap">
             <StreamBar months={months} stream1Done={stream1Done} activeMonth={activeMonth} chunkCount={chunkCount}/>
 
