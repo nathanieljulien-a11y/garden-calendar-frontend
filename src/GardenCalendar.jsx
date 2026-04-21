@@ -1405,7 +1405,20 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || data.error);
-  return JSON.parse(data.content.map(b => b.text || "").join("").replace(/```json|```/g, "").trim());
+  const rawText = data.content.map(b => b.text || "").join("").replace(/```json|```/g, "").trim();
+  try {
+    return JSON.parse(rawText);
+  } catch(e) {
+    // Try to salvage truncated JSON — find the last complete top-level closing brace/bracket
+    const lastBrace   = rawText.lastIndexOf("}");
+    const lastBracket = rawText.lastIndexOf("]");
+    const lastClose   = Math.max(lastBrace, lastBracket);
+    if (lastClose > 0) {
+      try { return JSON.parse(rawText.slice(0, lastClose + 1)); } catch {}
+    }
+    console.error("[callAI] JSON parse failed. finish_reason:", data.stop_reason, "raw:", rawText.slice(0, 300));
+    throw new Error(`JSON parse failed: ${e.message}`);
+  }
 }
 
 // Legacy aliases — keep for any code that still calls the old names
@@ -2243,7 +2256,7 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
   const toggleLens = (id) => {
     const willOpen = !expandedLens[id];
     setExpandedLens(prev => ({ ...prev, [id]: willOpen }));
-    if (willOpen && (!lensStates[id] || lensStates[id] === "idle")) {
+    if (willOpen && (!lensStates[id] || lensStates[id] === "idle" || lensStates[id] === "error")) {
       onFetchLens(id);
     }
   };
@@ -2258,7 +2271,18 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
             {canUnlock ? "Show lenses" : "Available after full year generated"}
           </button>
         ) : (
-          <button className="btn-unlock" onClick={() => { LENSES.forEach(l => onFetchLens(l.id)); }}
+          <button className="btn-unlock" onClick={() => {
+              // Bust all lens caches then refetch open lenses
+              const allPlantsSorted = Object.values(plants).flat().slice().sort().join(",");
+              const plantHash = (() => { try { return btoa(allPlantsSorted).slice(0,20); } catch { return "x"; } })();
+              LENSES.forEach(l => {
+                try { localStorage.removeItem(`gc_lens_${l.id}_${selectedGardenId||"anon"}_${plantHash}`); } catch {}
+              });
+              setLensStates({});
+              setLensData({});
+              // Re-fetch whichever lenses are currently expanded
+              LENSES.forEach(l => { if (expandedLens[l.id]) onFetchLens(l.id); });
+            }}
             style={{fontSize:".75rem"}}>
             ↺ Refresh all
           </button>
@@ -2287,7 +2311,12 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
                 {isOpen && (
                   <div className="lens-body">
                     {state === "loading" && <Shimmer lines={3}/>}
-                    {state === "error"   && <div className="tl-empty" style={{color:"var(--bloom)"}}>Couldn't load — try refreshing.</div>}
+                    {state === "error"   && (
+                      <div style={{display:"flex",alignItems:"center",gap:".75rem",padding:".25rem 0"}}>
+                        <div className="tl-empty" style={{color:"var(--bloom)",margin:0}}>Couldn't load.</div>
+                        <button className="btn-unlock" style={{fontSize:".72rem"}} onClick={(e) => { e.stopPropagation(); onFetchLens(lens.id); }}>↺ Retry</button>
+                      </div>
+                    )}
                     {state === "done"    && (
                       <>
                         <LensGrid lensData={lensData[lens.id]} plants={plants} lensColor={lens.color}/>
@@ -3612,15 +3641,17 @@ Rules:
 - Plant names must match the input exactly`;
 
     try {
-      const result = await callClaude(prompt, 1000, undefined, provider, userKey);
+      const result = await callClaude(prompt, 1600, undefined, provider, userKey);
       if (result && typeof result === "object" && !Array.isArray(result)) {
         try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch {}
         setLensData(prev => ({ ...prev, [lensId]: result }));
         setLensStates(prev => ({ ...prev, [lensId]: "done" }));
       } else {
+        console.error("[fetchLens] unexpected result shape for", lensId, result);
         setLensStates(prev => ({ ...prev, [lensId]: "error" }));
       }
-    } catch {
+    } catch(e) {
+      console.error("[fetchLens] error for", lensId, e.message);
       setLensStates(prev => ({ ...prev, [lensId]: "error" }));
     }
   };
