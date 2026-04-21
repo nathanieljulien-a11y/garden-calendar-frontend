@@ -278,33 +278,38 @@ const styles = `
   .inspo-detail { color:var(--sage); font-size:.82rem; margin-top:.15rem; }
   .inspo-text   { margin-top:.3rem; font-size:.84rem; color:var(--parchment); line-height:1.45; }
 
-  /* ── Year-Round Interest Timeline ── */
-  .timeline-panel { background:rgba(30,18,8,.7); border:1px solid rgba(200,169,110,.15); border-radius:2px; padding:1rem 1.5rem; margin-bottom:2rem; animation:fadeIn .4s ease; }
-  .timeline-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; }
-  .timeline-title  { font-size:.75rem; text-transform:uppercase; letter-spacing:.1em; color:var(--sage); display:flex; align-items:center; gap:.5rem; }
-  .timeline-body   { margin-top:1.1rem; overflow-x:auto; }
-  .timeline-legend { display:flex; gap:1.25rem; margin-bottom:.9rem; flex-wrap:wrap; }
-  .tl-leg-item { display:flex; align-items:center; gap:.35rem; font-size:.72rem; color:var(--sage); letter-spacing:.04em; }
-  .tl-leg-swatch { width:12px; height:12px; border-radius:2px; flex-shrink:0; }
-  .tl-grid { display:table; width:100%; border-collapse:collapse; min-width:520px; }
-  .tl-row  { display:table-row; }
-  .tl-row:last-child .tl-cell { border-bottom:none; }
-  .tl-label { display:table-cell; vertical-align:middle; font-size:.78rem; color:var(--parchment); padding:.3rem .7rem .3rem 0; white-space:nowrap; width:130px; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
-  .tl-label-cat { font-size:.62rem; color:var(--sage); opacity:.6; margin-left:.3rem; font-style:italic; }
-  .tl-months { display:table-cell; vertical-align:middle; padding:.25rem 0; }
-  .tl-months-inner { display:flex; gap:2px; }
-  .tl-cell { width:calc(100%/12); height:18px; border-radius:2px; flex-shrink:0; flex:1; transition:opacity .15s; }
-  .tl-cell:hover { opacity:.75; cursor:default; }
-  .tl-cell.flower  { background:var(--bloom); }
-  .tl-cell.fruit   { background:var(--warm); }
-  .tl-cell.foliage { background:var(--dew); opacity:.7; }
-  .tl-cell.none    { background:rgba(200,169,110,.07); }
-  .tl-month-labels { display:flex; gap:2px; margin-bottom:.2rem; padding-left:130px; }
+  /* ── Lens Calendars ── */
+  .lens-panel { background:rgba(30,18,8,.7); border:1px solid rgba(200,169,110,.15); border-radius:2px; padding:1rem 1.5rem; margin-bottom:2rem; animation:fadeIn .4s ease; }
+  .lens-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; }
+  .lens-section-title { font-size:.75rem; text-transform:uppercase; letter-spacing:.1em; color:var(--sage); }
+  .lens-list { margin-top:1rem; display:flex; flex-direction:column; gap:.5rem; }
+  .lens-item { border:1px solid rgba(200,169,110,.12); border-radius:2px; overflow:hidden; }
+  .lens-toggle { display:flex; align-items:center; justify-content:space-between; padding:.6rem .9rem; cursor:pointer; user-select:none; transition:background .15s; }
+  .lens-toggle:hover { background:rgba(200,169,110,.05); }
+  .lens-toggle-left { display:flex; align-items:center; gap:.5rem; }
+  .lens-name { font-family:"Playfair Display",serif; font-size:.9rem; font-weight:400; color:var(--cream); }
+  .lens-desc { font-size:.72rem; color:var(--sage); font-style:italic; margin-left:.35rem; }
+  .lens-chevron { font-size:.7rem; color:var(--sage); transition:transform .2s; }
+  .lens-chevron.open { transform:rotate(180deg); }
+  .lens-body { padding:.75rem .9rem 1rem; border-top:1px solid rgba(200,169,110,.1); overflow-x:auto; }
+  .tl-month-labels { display:flex; gap:2px; margin-bottom:.35rem; padding-left:120px; }
   .tl-month-lbl { flex:1; text-align:center; font-size:.58rem; color:rgba(180,180,160,.35); letter-spacing:.02em; text-transform:uppercase; }
-  .tl-category-row { display:table-row; }
-  .tl-cat-heading  { display:table-cell; padding:.5rem 0 .15rem; font-size:.65rem; text-transform:uppercase; letter-spacing:.09em; color:var(--straw); opacity:.55; colspan:2; }
-  .tl-divider { height:1px; background:rgba(200,169,110,.08); margin:.3rem 0; }
+  .tl-grid { display:table; width:100%; border-collapse:collapse; min-width:440px; }
+  .tl-row  { display:table-row; }
+  .tl-label { display:table-cell; vertical-align:middle; font-size:.75rem; color:var(--parchment); padding:.25rem .5rem .25rem 0; white-space:nowrap; width:120px; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+  .tl-label-cat { font-size:.6rem; color:var(--sage); opacity:.55; margin-left:.3rem; font-style:italic; }
+  .tl-months { display:table-cell; vertical-align:bottom; padding:.2rem 0; }
+  .tl-months-inner { display:flex; gap:2px; align-items:flex-end; height:28px; }
+  .tl-bar { flex:1; border-radius:2px 2px 0 0; transition:opacity .15s; min-height:2px; }
+  .tl-bar:hover { opacity:.75; cursor:default; }
+  .tl-bar.none { background:rgba(200,169,110,.07); height:3px; border-radius:2px; }
   .tl-empty { font-size:.83rem; color:var(--sage); font-style:italic; padding:.5rem 0; }
+  /* Scent trait prompt */
+  .scent-prompt { display:flex; align-items:center; flex-wrap:wrap; gap:.35rem; margin-top:.3rem; padding:.4rem .6rem; background:rgba(138,180,160,.07); border:1px solid rgba(138,180,160,.2); border-radius:2px; animation:fadeIn .2s ease; }
+  .scent-prompt-label { font-size:.78rem; color:var(--sage); flex-shrink:0; }
+  .scent-btn { background:none; border:1px solid rgba(138,180,160,.3); border-radius:20px; color:var(--sage); padding:.15rem .6rem; font-family:"Crimson Pro",serif; font-size:.75rem; cursor:pointer; transition:all .15s; }
+  .scent-btn:hover { border-color:var(--dew); color:var(--cream); }
+  .scent-btn.selected { background:rgba(138,180,160,.2); border-color:var(--dew); color:var(--cream); }
   .gap-section { margin-top:1.1rem; padding-top:1rem; border-top:1px solid rgba(200,169,110,.1); }
   .gap-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:.7rem; }
   .gap-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.09em; color:var(--sage); }
@@ -585,6 +590,18 @@ const CLARIFICATION_RULES = [
       : ans.startsWith("Autumn") ? "Camellia sasanqua — prune after autumn/winter flowering" : null,
   },
 ];
+
+// Plants where scent is a meaningful trait — triggers enrichment prompt in plant form
+const SCENTED_PLANT_NAMES = new Set([
+  "rose","roses","lavender","sweet pea","sweet peas","jasmine","wisteria",
+  "lilac","hyacinth","hyacinths","narcissus","daffodil","daffodils","lily","lilies",
+  "honeysuckle","gardenia","freesia","stocks","stock","wallflower","wallflowers",
+  "phlox","pittosporum","philadelphus","mock orange","heliotrope","peony","peonies",
+  "buddleja","buddleia","butterfly bush","verbena","nicotiana","tobacco plant",
+  "dianthus","carnation","carnations","pink","pinks","viola","violet","violets",
+  "osmanthus","daphne","sarcococca","mahonia","witch hazel","hamamelis",
+  "thyme","rosemary","basil","mint","lemon balm","lemon verbena"
+]);
 
 // Common English name → scientific name / genus for GBIF lookup.
 // GBIF species/match works well with scientific names but not vernacular English names.
@@ -2065,216 +2082,225 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, lo
   );
 }
 
-// ─── InterestTimeline ─────────────────────────────────────────────────────────
+// ─── LensCalendars ────────────────────────────────────────────────────────────
 const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const CAT_LABELS = { trees:"Tree", shrubs:"Shrub", flowers:"Flower", vegetables:"Veg", fruit:"Fruit", herbs:"Herb" };
-const CAT_ORDER  = ["trees","shrubs","flowers","fruit","vegetables","herbs"];
+const CAT_ORDER  = ["flowers","trees","shrubs","fruit","vegetables","herbs"];
 
-function InterestTimeline({ plants, timelineData, timelineState, onFetch, stream1Done, loadedBatches, meta, city, selectedGardenId, provider, userKey }) {
-  const [open, setOpen] = useState(false);
-  const canUnlock = stream1Done && loadedBatches >= 4 && Object.values(plants).flat().length > 0;
+const LENSES = [
+  { id:"colour",      emoji:"🎨", name:"Colour",      desc:"flower, foliage & fruit colour",   color:"var(--bloom)" },
+  { id:"texture",     emoji:"🍃", name:"Texture",     desc:"leaf, bark & seedhead texture",     color:"var(--sage)" },
+  { id:"form",        emoji:"🌳", name:"Form",        desc:"structure, habit & silhouette",     color:"var(--straw)" },
+  { id:"scent",       emoji:"🌸", name:"Scent",       desc:"fragrance presence & intensity",    color:"var(--dew)" },
+  { id:"cropping",    emoji:"🍓", name:"Cropping",    desc:"harvest windows",                   color:"var(--warm)" },
+  { id:"biodiversity",emoji:"🐝", name:"Biodiversity",desc:"pollinator, bird & wildlife value", color:"var(--fern)" },
+];
 
-  // Gap analysis state (local — self-contained)
-  const [gapState, setGapState] = useState("idle"); // idle | loading | done | error
-  const [gapData, setGapData]   = useState(null);   // [{ months:[], suggestions:[] }]
+const BAR_HEIGHTS = [0, 9, 18, 28]; // px heights for intensity 0–3
 
-  const handleUnlock = () => { setOpen(true); if (timelineState === "idle") onFetch(); };
-
-  // Build ordered rows grouped by category
+function LensGrid({ lensData, plants, lensColor }) {
+  if (!lensData) return <div className="tl-empty">No data available.</div>;
   const rows = [];
-  if (timelineData) {
-    CAT_ORDER.forEach(cat => {
-      const ps = (plants[cat] || []).filter(p => timelineData[p]);
-      if (!ps.length) return;
-      ps.forEach(p => {
-        const d = timelineData[p] || {};
-        const flowerSet  = new Set(d.flower  || []);
-        const fruitSet   = new Set(d.fruit   || []);
-        const foliageSet = new Set(d.foliage || []);
-        const cells = Array.from({length:12}, (_,i) => {
-          if (flowerSet.has(i))  return "flower";
-          if (fruitSet.has(i))   return "fruit";
-          if (foliageSet.has(i)) return "foliage";
-          return "none";
-        });
-        rows.push({ name: p, cat, cells });
-      });
+  CAT_ORDER.forEach(cat => {
+    (plants[cat] || []).forEach(p => {
+      const d = lensData[p];
+      if (!d) return;
+      rows.push({ name: p, cat, months: d.months || Array(12).fill(0), descriptor: d.descriptor || "" });
     });
-  }
+  });
+  if (!rows.length) return <div className="tl-empty">No interest data for your plants in this lens.</div>;
+  return (
+    <>
+      <div className="tl-month-labels">
+        {MONTH_ABBR.map(m => <div key={m} className="tl-month-lbl">{m}</div>)}
+      </div>
+      <div className="tl-grid">
+        {rows.map((row, i) => (
+          <div key={i} className="tl-row">
+            <div className="tl-label" title={row.name}>
+              {row.name}
+              <span className="tl-label-cat">{CAT_LABELS[row.cat]}</span>
+            </div>
+            <div className="tl-months">
+              <div className="tl-months-inner">
+                {row.months.map((intensity, mi) => (
+                  <div
+                    key={mi}
+                    className={`tl-bar${intensity === 0 ? " none" : ""}`}
+                    style={intensity > 0 ? { background: lensColor, height: BAR_HEIGHTS[Math.min(intensity,3)] } : {}}
+                    title={`${MONTH_ABBR[mi]}: ${intensity === 0 ? "none" : intensity === 1 ? "low" : intensity === 2 ? "medium" : "high"}${row.descriptor ? " · " + row.descriptor : ""}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{fontSize:".65rem",color:"rgba(180,180,160,.3)",marginTop:".75rem",fontStyle:"italic"}}>
+        Approximate — varies by variety and season.
+      </div>
+    </>
+  );
+}
 
-  // Compute gap months from timelineData — months with no flower or fruit across ALL plants
+function GapSection({ plants, lensData, selectedGardenId, meta, city, provider, userKey }) {
+  const [gapState, setGapState] = useState("idle");
+  const [gapData, setGapData]   = useState(null);
+
   const gapMonths = (() => {
-    if (!timelineData) return [];
+    if (!lensData) return [];
     const allPlantList = Object.values(plants).flat();
     return Array.from({length:12}, (_,i) => {
       const hasInterest = allPlantList.some(p => {
-        const d = timelineData[p];
-        if (!d) return false;
-        return (d.flower||[]).includes(i) || (d.fruit||[]).includes(i);
+        const d = lensData[p];
+        return d && (d.months||[])[i] >= 2;
       });
       return hasInterest ? null : i;
     }).filter(i => i !== null);
   })();
 
-  // Group consecutive gap months into clusters e.g. [0,1,11] → ["Nov–Jan"]
   const gapClusters = (() => {
     if (!gapMonths.length) return [];
-    // Sort and group into contiguous runs (wrapping aware)
     const sorted = [...gapMonths].sort((a,b)=>a-b);
-    const runs = [];
-    let run = [sorted[0]];
+    const runs = []; let run = [sorted[0]];
     for (let i = 1; i < sorted.length; i++) {
-      if (sorted[i] === sorted[i-1] + 1) { run.push(sorted[i]); }
+      if (sorted[i] === sorted[i-1]+1) { run.push(sorted[i]); }
       else { runs.push(run); run = [sorted[i]]; }
     }
     runs.push(run);
     return runs.map(r => ({
       indices: r,
-      label: r.length === 1
-        ? MONTH_ABBR[r[0]]
-        : `${MONTH_ABBR[r[0]]}–${MONTH_ABBR[r[r.length-1]]}`
+      label: r.length===1 ? MONTH_ABBR[r[0]] : `${MONTH_ABBR[r[0]]}–${MONTH_ABBR[r[r.length-1]]}`
     }));
   })();
 
-  const fetchGapSuggestions = async () => {
-    if (!gapClusters.length || !timelineData) return;
-    const cacheKey = `gc_gap_${selectedGardenId||"anon"}_${btoa(Object.values(plants).flat().slice().sort().join(",")).slice(0,20)}`;
+  const cacheKey = `gc_gap_${selectedGardenId||"anon"}_${(() => { try { return btoa(Object.values(plants).flat().slice().sort().join(",")).slice(0,20); } catch { return "x"; } })()}`;
+
+  const fetchGap = async () => {
     const cached = (() => { try { const r = localStorage.getItem(cacheKey); return r ? JSON.parse(r) : null; } catch { return null; } })();
     if (cached) { setGapData(cached); setGapState("done"); return; }
-
     setGapState("loading");
     const existingList = Object.values(plants).flat().join(", ");
     const metaCtx = meta ? `Climate: ${meta.climate}. Zone: ${meta.zone}.` : "";
     const gapDesc = gapClusters.map(c => c.label).join(", ");
-
     try {
       const result = await callClaude(
-        `You are a helpful gardening advisor. A garden in ${city} has gaps in colour and interest during: ${gapDesc}.
-${metaCtx}
-Existing plants: ${existingList}.
-
+        `You are a helpful gardening advisor. A garden in ${city} has gaps in colour during: ${gapDesc}.
+${metaCtx} Existing plants: ${existingList}.
 Suggest plants to fill each gap period. Return ONLY valid JSON, no markdown:
-[
-  {
-    "months": "<e.g. Nov–Jan>",
-    "suggestions": ["<plant 1>", "<plant 2>", "<plant 3>"]
-  }
-]
-Rules:
-- 2–3 suggestions per gap period, climate-appropriate, not already in the existing plant list
-- Common, nursery-available plants only
-- Keep suggestion names concise (common name only)
-- Return one entry per gap period listed above, in the same order`,
-        600, undefined, provider, userKey
+[{ "months": "<e.g. Nov–Jan>", "suggestions": ["<plant 1>", "<plant 2>", "<plant 3>"] }]
+Rules: 2–3 suggestions per gap, climate-appropriate, not already in the existing plant list, common nursery-available plants only.`,
+        500, undefined, provider, userKey
       );
       if (Array.isArray(result)) {
         try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch {}
-        setGapData(result);
-        setGapState("done");
+        setGapData(result); setGapState("done");
       } else { setGapState("error"); }
     } catch { setGapState("error"); }
   };
 
   return (
-    <div className="timeline-panel">
-      <div className="timeline-header">
-        <span className="timeline-title">🗓 Year-round interest</span>
+    <div className="gap-section">
+      <div className="gap-header">
+        <span className="gap-title">🌱 Gap analysis</span>
+        {gapState === "idle" && gapClusters.length > 0 && (
+          <button className="btn-unlock" style={{fontSize:".75rem"}} onClick={fetchGap}>Suggest plants</button>
+        )}
+        {gapState === "done" && (
+          <button className="btn-unlock" style={{fontSize:".72rem"}} onClick={() => { try { localStorage.removeItem(cacheKey); } catch {} setGapData(null); setGapState("idle"); }}>↺ Refresh</button>
+        )}
+      </div>
+      {gapClusters.length === 0 && <div className="gap-none">✓ Good colour coverage all year.</div>}
+      {gapClusters.length > 0 && gapState === "idle" && (
+        <div style={{fontSize:".8rem",color:"var(--sage)",fontStyle:"italic"}}>
+          Gaps: {gapClusters.map(c=>c.label).join(", ")}. Click "Suggest plants" for recommendations.
+        </div>
+      )}
+      {gapState === "loading" && <div style={{padding:".3rem 0"}}><Shimmer lines={2}/></div>}
+      {gapState === "error" && <div style={{fontSize:".83rem",color:"var(--bloom)",fontStyle:"italic"}}>Couldn't load suggestions.</div>}
+      {gapState === "done" && gapData && gapData.map((cluster,i) => (
+        <div key={i} className="gap-item">
+          <div className="gap-months">{cluster.months}</div>
+          <div className="gap-suggestions">
+            {(cluster.suggestions||[]).map((s,j) => <span key={j} className="gap-pill">{s}</span>)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens, stream1Done, loadedBatches, meta, city, selectedGardenId, provider, userKey }) {
+  const [open, setOpen] = useState(false);
+  const [expandedLens, setExpandedLens] = useState({ colour: true });
+  const canUnlock = stream1Done && loadedBatches >= 4 && Object.values(plants).flat().length > 0;
+
+  const handleUnlock = () => {
+    setOpen(true);
+    if (lensStates.colour === "idle") onFetchLens("colour");
+  };
+
+  const toggleLens = (id) => {
+    const willOpen = !expandedLens[id];
+    setExpandedLens(prev => ({ ...prev, [id]: willOpen }));
+    if (willOpen && (!lensStates[id] || lensStates[id] === "idle")) {
+      onFetchLens(id);
+    }
+  };
+
+  return (
+    <div className="lens-panel">
+      <div className="lens-header">
+        <span className="lens-section-title">✦ Year-round interest</span>
         {!open ? (
           <button className="btn-unlock" onClick={handleUnlock} disabled={!canUnlock}
-            title={!canUnlock ? "Available once calendar is generated" : ""}>
-            {canUnlock ? "Show timeline" : "Available after full year generated"}
+            title={!canUnlock ? "Available once full year is generated" : ""}>
+            {canUnlock ? "Show lenses" : "Available after full year generated"}
           </button>
         ) : (
-          <button className="btn-unlock" onClick={onFetch}
-            disabled={timelineState === "loading"} style={{fontSize:".78rem"}}>
-            {timelineState === "loading" ? "Thinking…" : "↺ Refresh"}
+          <button className="btn-unlock" onClick={() => { LENSES.forEach(l => onFetchLens(l.id)); }}
+            style={{fontSize:".75rem"}}>
+            ↺ Refresh all
           </button>
         )}
       </div>
 
       {open && (
-        <div className="timeline-body">
-          {timelineState === "loading" && <div style={{padding:".5rem 0"}}><Shimmer lines={3}/></div>}
-          {timelineState === "error" && (
-            <div style={{fontSize:".85rem",color:"var(--bloom)",fontStyle:"italic",padding:".4rem 0"}}>
-              Couldn't load timeline — try refreshing.
-            </div>
-          )}
-          {timelineState === "done" && (
-            <>
-              <div className="timeline-legend">
-                <div className="tl-leg-item"><div className="tl-leg-swatch" style={{background:"var(--bloom)"}}/>Flower</div>
-                <div className="tl-leg-item"><div className="tl-leg-swatch" style={{background:"var(--warm)"}}/>Fruit</div>
-                <div className="tl-leg-item"><div className="tl-leg-swatch" style={{background:"var(--dew)",opacity:.7}}/>Foliage</div>
-              </div>
-              <div className="tl-month-labels">
-                {MONTH_ABBR.map(m => <div key={m} className="tl-month-lbl">{m}</div>)}
-              </div>
-              {rows.length === 0 ? (
-                <div className="tl-empty">No interest data available for your plants.</div>
-              ) : (
-                <div className="tl-grid">
-                  {rows.map((row, i) => (
-                    <div key={i} className="tl-row">
-                      <div className="tl-label" title={row.name}>
-                        {row.name}
-                        <span className="tl-label-cat">{CAT_LABELS[row.cat]}</span>
-                      </div>
-                      <div className="tl-months">
-                        <div className="tl-months-inner">
-                          {row.cells.map((type, mi) => (
-                            <div key={mi} className={`tl-cell ${type}`} title={`${MONTH_ABBR[mi]}: ${type === "none" ? "no interest" : type}`}/>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+        <div className="lens-list">
+          {LENSES.map(lens => {
+            const isOpen = !!expandedLens[lens.id];
+            const state  = lensStates[lens.id] || "idle";
+            return (
+              <div key={lens.id} className="lens-item">
+                <div className="lens-toggle" onClick={() => toggleLens(lens.id)}>
+                  <div className="lens-toggle-left">
+                    <span style={{fontSize:"1rem"}}>{lens.emoji}</span>
+                    <span className="lens-name">{lens.name}</span>
+                    <span className="lens-desc">{lens.desc}</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:".5rem"}}>
+                    {state === "loading" && <span style={{fontSize:".72rem",color:"var(--sage)",fontStyle:"italic"}}>loading…</span>}
+                    {state === "error"   && <span style={{fontSize:".72rem",color:"var(--bloom)"}}>⚠</span>}
+                    <span className={`lens-chevron${isOpen ? " open" : ""}`}>▼</span>
+                  </div>
                 </div>
-              )}
-              <div style={{fontSize:".68rem",color:"rgba(180,180,160,.35)",marginTop:".9rem",fontStyle:"italic",lineHeight:"1.5"}}>
-                Approximate interest windows for your climate. Exact timing varies by variety and season.
-              </div>
-
-              {/* ── Gap Analysis ── */}
-              <div className="gap-section">
-                <div className="gap-header">
-                  <span className="gap-title">🌱 Gap analysis</span>
-                  {gapState === "idle" && gapClusters.length > 0 && (
-                    <button className="btn-unlock" style={{fontSize:".75rem"}} onClick={fetchGapSuggestions}>
-                      Suggest plants
-                    </button>
-                  )}
-                  {gapState === "done" && (
-                    <button className="btn-unlock" style={{fontSize:".72rem"}} onClick={() => { setGapData(null); setGapState("idle"); try { localStorage.removeItem(`gc_gap_${selectedGardenId||"anon"}_${btoa(Object.values(plants).flat().slice().sort().join(",")).slice(0,20)}`); } catch {} }}>
-                      ↺ Refresh
-                    </button>
-                  )}
-                </div>
-                {gapClusters.length === 0 && (
-                  <div className="gap-none">✓ No major gaps — your garden has colour or interest all year.</div>
-                )}
-                {gapClusters.length > 0 && gapState === "idle" && (
-                  <div style={{fontSize:".8rem",color:"var(--sage)",fontStyle:"italic"}}>
-                    Gaps detected: {gapClusters.map(c=>c.label).join(", ")}. Click "Suggest plants" to get recommendations.
+                {isOpen && (
+                  <div className="lens-body">
+                    {state === "loading" && <Shimmer lines={3}/>}
+                    {state === "error"   && <div className="tl-empty" style={{color:"var(--bloom)"}}>Couldn't load — try refreshing.</div>}
+                    {state === "done"    && (
+                      <>
+                        <LensGrid lensData={lensData[lens.id]} plants={plants} lensColor={lens.color}/>
+                        {lens.id === "colour" && (
+                          <GapSection plants={plants} lensData={lensData.colour} selectedGardenId={selectedGardenId} meta={meta} city={city} provider={provider} userKey={userKey}/>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
-                {gapState === "loading" && <div style={{padding:".3rem 0"}}><Shimmer lines={2}/></div>}
-                {gapState === "error" && (
-                  <div style={{fontSize:".83rem",color:"var(--bloom)",fontStyle:"italic"}}>Couldn't load suggestions — try refreshing.</div>
-                )}
-                {gapState === "done" && gapData && gapData.map((cluster, i) => (
-                  <div key={i} className="gap-item">
-                    <div className="gap-months">{cluster.months}</div>
-                    <div className="gap-suggestions">
-                      {(cluster.suggestions||[]).map((s,j) => (
-                        <span key={j} className="gap-pill">{s}</span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
               </div>
-            </>
-          )}
+            );
+          })}
         </div>
       )}
     </div>
@@ -2408,8 +2434,9 @@ useEffect(() => {
   // Per-month inspiration: { "January": { state:"idle"|"loading"|"done"|"error", data:{...}|null } }
   const [inspos,setInspos]           = useState({});
   const [insights,setInsights]       = useState({state:"idle", items:[]});
-  const [timelineData,setTimelineData] = useState(null);
-  const [timelineState,setTimelineState] = useState("idle"); // idle | loading | done | error
+  const [lensData,setLensData]       = useState({});   // { colour:{}, texture:{}, ... }
+  const [lensStates,setLensStates]   = useState({});   // { colour:"idle"|"loading"|"done"|"error", ... }
+  const [plantTraits,setPlantTraits] = useState({});   // { "Rose": { scented: "yes"|"no"|"unsure" } }
   const [showArrow,setShowArrow]     = useState(false);
   const [chunkCount,setChunkCount]   = useState(0);  // live chunk counter for stall diagnosis
   const chunkCountRef                = useRef(0);
@@ -2664,7 +2691,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     setS1Done(false); setActiveMonth(null);
     unlockedPages.current = new Set();
     userNavigatedRef.current = false;
-    setInspos({}); setInsights({state:"idle", items:[]}); setTimelineData(null); setTimelineState("idle");
+    setInspos({}); setInsights({state:"idle", items:[]}); setLensData({}); setLensStates({}); setPlantTraits(p => p); // preserve plantTraits across regenerations
     setShowArrow(true);
     sowingLogRef.current = []; // reset sowing log for fresh generation
     setPlantMeta(prev => {
@@ -3168,7 +3195,7 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     if (uiIntervalRef.current) { clearInterval(uiIntervalRef.current); uiIntervalRef.current = null; }
     ++prefetchIdRef.current; ++submitIdRef.current;
     unlockedPages.current = new Set();
-    setStage("form"); setFormStep("location"); setShowHome(hasSavedGardens() && gardens.length > 0); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]}); setTimelineData(null); setTimelineState("idle");
+    setStage("form"); setFormStep("location"); setShowHome(hasSavedGardens() && gardens.length > 0); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]}); setLensData({}); setLensStates({}); setPlantTraits({});
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
     setTodayGarden(null); setWeatherData(null); setWeatherSignals([]); setWeatherLoading(false); setWeatherError(null);
     setTodayTasks(null); setTodayTasksLoading(false); setTodayTasksError(null);
@@ -3399,12 +3426,13 @@ Return tasks for: ${batch.join(', ')}`;
     lng:         meta?.lng         ?? existing?.lng         ?? null,
     climateData: meta?._cd ? { _cd: meta._cd, _derived: meta._derived } : (existing?.climateData ?? null),
     calendarTasks: Object.keys(calendarTasksForToday).length ? calendarTasksForToday : (existing?.calendarTasks ?? null),
+    plantTraits: Object.keys(plantTraits).length ? plantTraits : (existing?.plantTraits ?? null),
   });
   const updated = saveGarden(garden);
   setGardens(updated);
   setSelectedGardenId(garden.id);
   return garden.id;
-}, [city, orientation, features, plants, meta, selectedGardenId, months, nowIdx]);
+}, [city, orientation, features, plants, plantTraits, meta, selectedGardenId, months, nowIdx]);
   const handleSaveLink = () => {
     const url = buildGardenUrl(city, orientation, features, plants);
     // Update the browser URL bar so the current page IS the saved link
@@ -3536,57 +3564,64 @@ Respond entirely in ${langName()}.`;
     }
   };
 
-  // ── Year-round interest timeline ────────────────────────────────────────────
-  const fetchTimeline = async () => {
+  // ── Lens calendars ────────────────────────────────────────────────────────
+  const fetchLens = async (lensId) => {
     if (Object.values(plants).flat().length === 0) return;
-    // Cache key: stable hash of sorted plant list + gardenId
     const allPlantsSorted = Object.values(plants).flat().slice().sort().join(",");
-    const cacheKey = `gc_timeline_${selectedGardenId || "anon"}_${btoa(allPlantsSorted).slice(0,24)}`;
+    const plantHash = (() => { try { return btoa(allPlantsSorted).slice(0,20); } catch { return "x"; } })();
+    const cacheKey = `gc_lens_${lensId}_${selectedGardenId || "anon"}_${plantHash}`;
     const cached = (() => { try { const r = localStorage.getItem(cacheKey); return r ? JSON.parse(r) : null; } catch { return null; } })();
-    if (cached) { setTimelineData(cached); setTimelineState("done"); return; }
-
-    setTimelineState("loading");
-    const allPlants = Object.entries(plants)
-      .map(([k,v]) => v.length ? `${k}: ${v.join(", ")}` : null)
-      .filter(Boolean).join(" | ");
-    const metaCtx = meta
-      ? `Climate: ${meta.climate}. Zone: ${meta.zone}. Last frost: ${meta.lastFrost}. First frost: ${meta.firstFrost}.`
-      : "";
+    if (cached) {
+      setLensData(prev => ({ ...prev, [lensId]: cached }));
+      setLensStates(prev => ({ ...prev, [lensId]: "done" }));
+      return;
+    }
+    setLensStates(prev => ({ ...prev, [lensId]: "loading" }));
+    const allPlants = Object.entries(plants).map(([k,v]) => v.length ? `${k}: ${v.join(", ")}` : null).filter(Boolean).join(" | ");
+    const metaCtx = meta ? `Climate: ${meta.climate}. Zone: ${meta.zone}. Last frost: ${meta.lastFrost}. First frost: ${meta.firstFrost}.` : "";
     const hemCtx = meta?._derived?.hemisphere === "S" ? "Southern hemisphere — seasons are inverted." : "";
+    // Enrich prompt with scent traits for relevant plants
+    const traitCtx = Object.entries(plantTraits).filter(([,t]) => t.scented).map(([p,t]) => `${p}: ${t.scented === "yes" ? "scented" : t.scented === "no" ? "unscented" : "scent unknown"}`).join(", ");
 
-    try {
-      const result = await callClaude(
-        `You are a horticultural expert. Given a garden's plant inventory and climate, return the months of peak interest for each plant.
+    const LENS_PROMPTS = {
+      colour:       `For each plant, return its months of colour interest (flowers, berries, autumn foliage, ornamental fruit). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Include a brief colour descriptor (e.g. "deep crimson", "golden yellow").`,
+      texture:      `For each plant, return its months of texture interest (interesting leaf surface, bark, seedheads, tactile quality). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Include a brief texture descriptor (e.g. "velvety leaves", "peeling bark").`,
+      form:         `For each plant, return its months of structural/form interest (striking silhouette, architectural habit, winter skeleton, strong shape). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Include a brief form descriptor (e.g. "weeping habit", "upright columnar").`,
+      scent:        `For each plant, return its months of scent/fragrance (flowers, foliage when crushed, bark). Intensity: 0=none, 1=faint, 2=noticeable, 3=strong.${traitCtx ? ` Known scent traits: ${traitCtx}.` : ""} Include a brief scent descriptor (e.g. "honey and vanilla", "sharp citrus").`,
+      cropping:     `For each plant, return its months of harvest/cropping interest (vegetables, fruit, berries, herbs ready to pick). Intensity: 0=none, 1=beginning/end of season, 2=good harvest, 3=peak harvest. Include what is harvested (e.g. "ripe tomatoes", "soft fruit").`,
+      biodiversity: `For each plant, return its months of biodiversity value (pollinator attraction, bird food/shelter, insect habitat, wildlife value). Intensity: 0=none, 1=low, 2=moderate, 3=high. Include what benefits wildlife (e.g. "bees on flowers", "berries for birds").`,
+    };
+
+    const prompt = `You are a horticultural expert assessing garden plants for a specific interest lens.
 Location: ${city}. ${metaCtx} ${hemCtx}
 Plants: ${allPlants}
 
-For each plant return three arrays of 0-indexed month numbers (0=Jan … 11=Dec) representing:
-- "flower": months when it flowers or blooms visibly
-- "fruit": months when it produces harvestable fruit, berries, vegetables, or seed heads of interest
-- "foliage": months of notable foliage, bark, structural, or winter interest (e.g. evergreen, autumn colour, ornamental bark, dried seedheads)
+Lens: ${LENSES.find(l=>l.id===lensId)?.name} — ${LENS_PROMPTS[lensId]}
 
-Rules:
-- A month can appear in at most ONE array — use priority: flower > fruit > foliage
-- Use the garden's actual climate and hemisphere for timing
-- If a plant has no meaningful interest in a category, return an empty array for that category
-- Include ALL plants listed even if you have low confidence — make your best estimate
-- Return ONLY valid JSON, no markdown, no preamble. Format:
+Return ONLY valid JSON, no markdown:
 {
-  "PlantName": { "flower": [3,4,5], "fruit": [], "foliage": [10,11] },
-  ...
+  "PlantName": {
+    "months": [0,0,1,2,3,3,2,1,0,0,0,0],
+    "descriptor": "brief description"
+  }
 }
-Plant names must match the input exactly.`,
-        1200, undefined, provider, userKey
-      );
-      if (result && typeof result === "object") {
+Rules:
+- months array must have exactly 12 integers (0–3), index 0=Jan … 11=Dec
+- Include ALL plants listed — use 0 if no interest in this lens for a plant
+- Use the garden's actual climate and hemisphere for timing
+- Plant names must match the input exactly`;
+
+    try {
+      const result = await callClaude(prompt, 1000, undefined, provider, userKey);
+      if (result && typeof result === "object" && !Array.isArray(result)) {
         try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch {}
-        setTimelineData(result);
-        setTimelineState("done");
+        setLensData(prev => ({ ...prev, [lensId]: result }));
+        setLensStates(prev => ({ ...prev, [lensId]: "done" }));
       } else {
-        setTimelineState("error");
+        setLensStates(prev => ({ ...prev, [lensId]: "error" }));
       }
-    } catch(e) {
-      setTimelineState("error");
+    } catch {
+      setLensStates(prev => ({ ...prev, [lensId]: "error" }));
     }
   };
 
@@ -3895,6 +3930,7 @@ Plant names must match the input exactly.`,
         if (g.orientation) setOri(g.orientation);
         if (g.features)    setFeatures(g.features);
         if (g.plants)      setPlants(g.plants);
+        if (g.plantTraits) setPlantTraits(g.plantTraits);
       }}
       onCreateEdit={() => {
         const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : null;
@@ -3903,6 +3939,7 @@ Plant names must match the input exactly.`,
           if (g.orientation) setOri(g.orientation);
           if (g.features)    setFeatures(g.features);
           if (g.plants)      setPlants(g.plants);
+          if (g.plantTraits) setPlantTraits(g.plantTraits);
         }
         setShowHome(false);
         setFormStep('location');
@@ -4142,6 +4179,24 @@ Plant names must match the input exactly.`,
                       {m.scientificName && (
                         <span className="gbif-badge">· {m.scientificName} · GBIF/WCVP</span>
                       )}
+                    </div>
+                  );
+                })}
+                {/* Scent trait prompts — for plants where scent materially affects lens output */}
+                {plants[cat.key].map(plantName => {
+                  if (!SCENTED_PLANT_NAMES.has(plantName.toLowerCase())) return null;
+                  const trait = plantTraits[plantName];
+                  return (
+                    <div key={`scent-${plantName}`} className="scent-prompt">
+                      <span className="scent-prompt-label">🌸 Is your {plantName} scented?</span>
+                      {["Yes","No","Not sure"].map(opt => (
+                        <button key={opt}
+                          className={`scent-btn${trait?.scented === opt.toLowerCase().replace(" ","") ? " selected" : ""}`}
+                          onClick={() => setPlantTraits(prev => ({ ...prev, [plantName]: { ...prev[plantName], scented: opt === "Not sure" ? "unsure" : opt.toLowerCase() } }))}
+                          type="button">
+                          {opt}
+                        </button>
+                      ))}
                     </div>
                   );
                 })}
@@ -4567,13 +4622,14 @@ Plant names must match the input exactly.`,
               totalPlantCount={totalPlants}
             />
 
-            {/* Year-round interest timeline */}
+            {/* Year-round interest — six lens calendars */}
             {stream1Done && (
-              <InterestTimeline
+              <LensCalendars
                 plants={plants}
-                timelineData={timelineData}
-                timelineState={timelineState}
-                onFetch={fetchTimeline}
+                plantTraits={plantTraits}
+                lensData={lensData}
+                lensStates={lensStates}
+                onFetchLens={fetchLens}
                 stream1Done={stream1Done}
                 loadedBatches={loadedBatches}
                 meta={meta}
