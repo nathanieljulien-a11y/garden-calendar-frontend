@@ -2257,7 +2257,7 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
     const willOpen = !expandedLens[id];
     setExpandedLens(prev => ({ ...prev, [id]: willOpen }));
     if (willOpen && (!lensStates[id] || lensStates[id] === "idle" || lensStates[id] === "error")) {
-      onFetchLens(id);
+      onFetchLens(id, lensStates[id] === "error");
     }
   };
 
@@ -2272,16 +2272,8 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
           </button>
         ) : (
           <button className="btn-unlock" onClick={() => {
-              // Bust all lens caches then refetch open lenses
-              const allPlantsSorted = Object.values(plants).flat().slice().sort().join(",");
-              const plantHash = (() => { try { return btoa(allPlantsSorted).slice(0,20); } catch { return "x"; } })();
-              LENSES.forEach(l => {
-                try { localStorage.removeItem(`gc_lens_${l.id}_${selectedGardenId||"anon"}_${plantHash}`); } catch {}
-              });
-              setLensStates({});
-              setLensData({});
-              // Re-fetch whichever lenses are currently expanded
-              LENSES.forEach(l => { if (expandedLens[l.id]) onFetchLens(l.id); });
+              // Bust cache and refetch all expanded lenses via onFetchLens(id, true)
+              LENSES.forEach(l => { if (expandedLens[l.id]) onFetchLens(l.id, true); });
             }}
             style={{fontSize:".75rem"}}>
             ↺ Refresh all
@@ -2314,7 +2306,7 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
                     {state === "error"   && (
                       <div style={{display:"flex",alignItems:"center",gap:".75rem",padding:".25rem 0"}}>
                         <div className="tl-empty" style={{color:"var(--bloom)",margin:0}}>Couldn't load.</div>
-                        <button className="btn-unlock" style={{fontSize:".72rem"}} onClick={(e) => { e.stopPropagation(); onFetchLens(lens.id); }}>↺ Retry</button>
+                        <button className="btn-unlock" style={{fontSize:".72rem"}} onClick={(e) => { e.stopPropagation(); onFetchLens(lens.id, true); }}>↺ Retry</button>
                       </div>
                     )}
                     {state === "done"    && (
@@ -3594,60 +3586,68 @@ Respond entirely in ${langName()}.`;
   };
 
   // ── Lens calendars ────────────────────────────────────────────────────────
-  const fetchLens = async (lensId) => {
+  const fetchLens = async (lensId, bustCache = false) => {
     if (Object.values(plants).flat().length === 0) return;
     const allPlantsSorted = Object.values(plants).flat().slice().sort().join(",");
     const plantHash = (() => { try { return btoa(allPlantsSorted).slice(0,20); } catch { return "x"; } })();
     const cacheKey = `gc_lens_${lensId}_${selectedGardenId || "anon"}_${plantHash}`;
-    const cached = (() => { try { const r = localStorage.getItem(cacheKey); return r ? JSON.parse(r) : null; } catch { return null; } })();
-    if (cached) {
-      setLensData(prev => ({ ...prev, [lensId]: cached }));
-      setLensStates(prev => ({ ...prev, [lensId]: "done" }));
-      return;
+
+    if (bustCache) {
+      try { localStorage.removeItem(cacheKey); } catch {}
+    } else {
+      const cached = (() => { try { const r = localStorage.getItem(cacheKey); return r ? JSON.parse(r) : null; } catch { return null; } })();
+      if (cached) {
+        setLensData(prev => ({ ...prev, [lensId]: cached }));
+        setLensStates(prev => ({ ...prev, [lensId]: "done" }));
+        return;
+      }
     }
+
     setLensStates(prev => ({ ...prev, [lensId]: "loading" }));
-    const allPlants = Object.entries(plants).map(([k,v]) => v.length ? `${k}: ${v.join(", ")}` : null).filter(Boolean).join(" | ");
+
     const metaCtx = meta ? `Climate: ${meta.climate}. Zone: ${meta.zone}. Last frost: ${meta.lastFrost}. First frost: ${meta.firstFrost}.` : "";
     const hemCtx = meta?._derived?.hemisphere === "S" ? "Southern hemisphere — seasons are inverted." : "";
-    // Enrich prompt with scent traits for relevant plants
     const traitCtx = Object.entries(plantTraits).filter(([,t]) => t.scented).map(([p,t]) => `${p}: ${t.scented === "yes" ? "scented" : t.scented === "no" ? "unscented" : "scent unknown"}`).join(", ");
 
     const LENS_PROMPTS = {
-      colour:       `For each plant, return its months of colour interest (flowers, berries, autumn foliage, ornamental fruit). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Include a brief colour descriptor (e.g. "deep crimson", "golden yellow").`,
-      texture:      `For each plant, return its months of texture interest (interesting leaf surface, bark, seedheads, tactile quality). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Include a brief texture descriptor (e.g. "velvety leaves", "peeling bark").`,
-      form:         `For each plant, return its months of structural/form interest (striking silhouette, architectural habit, winter skeleton, strong shape). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Include a brief form descriptor (e.g. "weeping habit", "upright columnar").`,
-      scent:        `For each plant, return its months of scent/fragrance (flowers, foliage when crushed, bark). Intensity: 0=none, 1=faint, 2=noticeable, 3=strong.${traitCtx ? ` Known scent traits: ${traitCtx}.` : ""} Include a brief scent descriptor (e.g. "honey and vanilla", "sharp citrus").`,
-      cropping:     `For each plant, return its months of harvest/cropping interest (vegetables, fruit, berries, herbs ready to pick). Intensity: 0=none, 1=beginning/end of season, 2=good harvest, 3=peak harvest. Include what is harvested (e.g. "ripe tomatoes", "soft fruit").`,
-      biodiversity: `For each plant, return its months of biodiversity value (pollinator attraction, bird food/shelter, insect habitat, wildlife value). Intensity: 0=none, 1=low, 2=moderate, 3=high. Include what benefits wildlife (e.g. "bees on flowers", "berries for birds").`,
+      colour:       `Return months of colour interest (flowers, berries, autumn foliage, ornamental fruit). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Descriptor: brief colour description (e.g. "deep crimson").`,
+      texture:      `Return months of texture interest (leaf surface, bark, seedheads). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Descriptor: brief texture description (e.g. "peeling bark").`,
+      form:         `Return months of structural/form interest (silhouette, habit, winter skeleton). Intensity: 0=none, 1=subtle, 2=moderate, 3=peak. Descriptor: brief form description (e.g. "weeping habit").`,
+      scent:        `Return months of scent/fragrance. Intensity: 0=none, 1=faint, 2=noticeable, 3=strong.${traitCtx ? ` Known traits: ${traitCtx}.` : ""} Descriptor: brief scent description (e.g. "honey and vanilla").`,
+      cropping:     `Return months of harvest/cropping. Intensity: 0=none, 1=start/end of season, 2=good harvest, 3=peak. Descriptor: what is harvested (e.g. "ripe tomatoes").`,
+      biodiversity: `Return months of biodiversity value (pollinators, birds, insects). Intensity: 0=none, 1=low, 2=moderate, 3=high. Descriptor: what benefits wildlife (e.g. "bees on flowers").`,
     };
 
-    const prompt = `You are a horticultural expert assessing garden plants for a specific interest lens.
-Location: ${city}. ${metaCtx} ${hemCtx}
-Plants: ${allPlants}
+    // Chunk plants into batches of 8 to avoid token truncation
+    const allPlantList = Object.values(plants).flat();
+    const CHUNK_SIZE = 8;
+    const chunks = [];
+    for (let i = 0; i < allPlantList.length; i += CHUNK_SIZE) {
+      chunks.push(allPlantList.slice(i, i + CHUNK_SIZE));
+    }
 
-Lens: ${LENSES.find(l=>l.id===lensId)?.name} — ${LENS_PROMPTS[lensId]}
+    const buildPrompt = (plantNames) =>
+      `You are a horticultural expert. Location: ${city}. ${metaCtx} ${hemCtx}
+Lens: ${(LENSES.find(l=>l.id===lensId)||{}).name} — ${LENS_PROMPTS[lensId]}
+Plants: ${plantNames.join(", ")}
 
-Return ONLY valid JSON, no markdown:
+Return ONLY valid JSON, no markdown, no extra text:
 {
-  "PlantName": {
-    "months": [0,0,1,2,3,3,2,1,0,0,0,0],
-    "descriptor": "brief description"
-  }
+  "PlantName": { "months": [0,0,1,2,3,3,2,1,0,0,0,0], "descriptor": "brief description" }
 }
-Rules:
-- months array must have exactly 12 integers (0–3), index 0=Jan … 11=Dec
-- Include ALL plants listed — use 0 if no interest in this lens for a plant
-- Use the garden's actual climate and hemisphere for timing
-- Plant names must match the input exactly`;
+Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL plants listed. Plant names must match exactly.`;
 
     try {
-      const result = await callClaude(prompt, 1600, undefined, provider, userKey);
-      if (result && typeof result === "object" && !Array.isArray(result)) {
-        try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch {}
-        setLensData(prev => ({ ...prev, [lensId]: result }));
+      const chunkResults = await Promise.all(
+        chunks.map(chunk => callClaude(buildPrompt(chunk), 800, undefined, provider, userKey))
+      );
+      const merged = Object.assign({}, ...chunkResults.filter(r => r && typeof r === "object" && !Array.isArray(r)));
+      if (Object.keys(merged).length > 0) {
+        try { localStorage.setItem(cacheKey, JSON.stringify(merged)); } catch {}
+        setLensData(prev => ({ ...prev, [lensId]: merged }));
         setLensStates(prev => ({ ...prev, [lensId]: "done" }));
       } else {
-        console.error("[fetchLens] unexpected result shape for", lensId, result);
+        console.error("[fetchLens] all chunks empty for", lensId);
         setLensStates(prev => ({ ...prev, [lensId]: "error" }));
       }
     } catch(e) {
