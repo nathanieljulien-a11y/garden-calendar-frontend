@@ -426,7 +426,7 @@ const GARDEN_QUOTES = [
   {quote:"The secret of improved plant breeding, apart from scientific knowledge, is love.", attribution:"Luther Burbank"},
   {quote:"I like gardening — it's a place where I find myself when I need to lose myself.", attribution:"Alice Sebold"},
   {quote:"No occupation is so delightful to me as the culture of the earth.", attribution:"Thomas Jefferson"},
-  {quote:"We must cultivate our garden.", atribution:"Voltaire"}
+  {quote:"We must cultivate our garden.", atribution:"Voltaire"},
   {quote:"I think this is what hooks one to gardening: it is the closest one can come to being present at the Creation.", attribution:"Phyllis Theroux"},
 ];
 
