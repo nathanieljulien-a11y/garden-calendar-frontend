@@ -3893,6 +3893,7 @@ Return tasks for: ${batch.join(', ')}`;
       const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
       if (g) {
         setTodayGarden(g);
+        if (g.city) setCity(g.city); // ensures fetchInspo has city in scope
         setTodayTasks(null);
         setTodayTasksError(null);
         setInatData(null);
