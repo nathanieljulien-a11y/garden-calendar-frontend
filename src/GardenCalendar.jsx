@@ -5087,6 +5087,44 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 )}
               </div>
             )}
+
+            {/* ── Inspo tip — on demand ── */}
+            {(() => {
+              const monthName = MONTH_NAMES[nowIdx];
+              const inspo = inspos[monthName];
+              return (
+                <div style={{marginTop:"1rem"}}>
+                  {(!inspo || inspo.state === "idle") && (
+                    <button className="btn-inspo" onClick={() => fetchInspo([monthName])}>
+                      🌿 Find a garden to visit this week
+                    </button>
+                  )}
+                  {inspo?.state === "loading" && (
+                    <div className="inspo-loading">
+                      <span className="spin-sm">◌</span> Finding a garden near {todayGarden?.city || city}…
+                    </div>
+                  )}
+                  {inspo?.state === "error" && (
+                    <button className="btn-inspo" onClick={() => fetchInspo([monthName])}>↺ Try again</button>
+                  )}
+                  {inspo?.state === "none" && (
+                    <div style={{fontSize:".82rem",color:"var(--sage)",fontStyle:"italic",padding:".4rem 0"}}>No notable public gardens found nearby.</div>
+                  )}
+                  {inspo?.state === "done" && inspo.data && (
+                    <div style={{background:"rgba(176,138,94,.08)",border:"1px solid rgba(176,138,94,.25)",borderRadius:"2px",padding:".75rem 1rem",animation:"fadeIn .3s ease"}}>
+                      <div className="inspo-name">{inspo.data.name}</div>
+                      {inspo.data.location && <div className="inspo-detail">{inspo.data.location}{inspo.data.distance ? ` · ${inspo.data.distance}` : ""}</div>}
+                      {inspo.data.highlight && <div className="inspo-text">{inspo.data.highlight}</div>}
+                      {inspo.data.confidence === "medium" && (
+                        <div style={{fontSize:".72rem",color:"var(--sage)",fontStyle:"italic",marginTop:".4rem",opacity:.7}}>↗ Verify seasonal highlights on the garden's website before visiting</div>
+                      )}
+                      <button style={{marginTop:".6rem",background:"none",border:"none",color:"var(--sage)",fontSize:".75rem",cursor:"pointer",fontFamily:"'Crimson Pro',serif",padding:0,opacity:.7}}
+                        onClick={() => fetchInspo([monthName])}>↺ Find another</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
