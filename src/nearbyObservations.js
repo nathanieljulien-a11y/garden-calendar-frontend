@@ -135,7 +135,7 @@ export async function fetchNearbyObservations(lat, lng, inventoryPlants = [], si
 
   // Normalise captive plants first — mark them as captive for scoring
   const captiveNorm = normaliseInatObservations(
-    { results: captiveData.results || [] }, inventoryPlants, true
+    { results: captiveData.results || [] }, inventoryPlants, true, lat, lng
   );
 
   // If captive gave us fewer than 3 plants, top up with wild plants
@@ -144,7 +144,7 @@ export async function fetchNearbyObservations(lat, lng, inventoryPlants = [], si
   if (plantObs.length < MIN_PLANTS) {
     const captiveTaxonIds = new Set(plantObs.map(o => o.taxonId));
     const wildNorm = normaliseInatObservations(
-      { results: wildPlantData.results || [] }, inventoryPlants, false
+      { results: wildPlantData.results || [] }, inventoryPlants, false, lat, lng
     );
     // Add wild plants not already in captive results
     const wildExtras = wildNorm.observations.filter(o => !captiveTaxonIds.has(o.taxonId));
@@ -153,7 +153,7 @@ export async function fetchNearbyObservations(lat, lng, inventoryPlants = [], si
 
   // Normalise wildlife
   const wildlifeNorm = normaliseInatObservations(
-    { results: wildlifeData.results || [] }, inventoryPlants, false
+    { results: wildlifeData.results || [] }, inventoryPlants, false, lat, lng
   );
 
   // Merge: re-sort combined list by score, cap at 6, strip internal fields
@@ -181,7 +181,7 @@ const GARDEN_BIRD_ORDERS = new Set([
   'passeriformes', 'apodiformes', 'columbiformes', 'piciformes', 'psittaciformes',
 ]);
 
-export function normaliseInatObservations(raw, inventoryPlants = [], isCaptive = false) {
+export function normaliseInatObservations(raw, inventoryPlants = [], isCaptive = false, searchLat = 0, searchLng = 0) {
   const results = raw?.results || [];
   const inventoryLower = inventoryPlants.map(p => p.toLowerCase());
 
@@ -243,13 +243,26 @@ export function normaliseInatObservations(raw, inventoryPlants = [], isCaptive =
     }
   }
 
-  // Build local observation search URL — links to actual nearby sightings with photos
+  // Build local observation search URL using bounding box — lat/lng/radius are API-only
+  // and silently ignored by the iNaturalist web observations page.
+  // 30km radius: ~0.27° lat, lng degrees vary by latitude (cos correction).
   const observations = Object.values(byTaxon).map(o => {
-    const locParam     = (o._obsLat && o._obsLng) ? `&lat=${o._obsLat.toFixed(2)}&lng=${o._obsLng.toFixed(2)}&radius=30` : '';
+    const RADIUS_KM = 30;
+    const DEG_PER_KM_LAT = 1 / 111;
+    const latDeg = RADIUS_KM * DEG_PER_KM_LAT;
+    // Use observation lat/lng if available, else fall back to the search lat/lng from params
+    const centreLat = o._obsLat || searchLat || 0;
+    const centreLng = o._obsLng || searchLng || 0;
+    const lngDeg = latDeg / Math.max(Math.cos(centreLat * Math.PI / 180), 0.01);
+    const swlat = (centreLat - latDeg).toFixed(2);
+    const swlng = (centreLng - lngDeg).toFixed(2);
+    const nelat = (centreLat + latDeg).toFixed(2);
+    const nelng = (centreLng + lngDeg).toFixed(2);
+    const bboxParam = `&swlat=${swlat}&swlng=${swlng}&nelat=${nelat}&nelng=${nelng}`;
     const d1Param      = o._d1 ? `&d1=${o._d1}` : '';
     const captiveParam = o.isCaptive ? '&captive=true' : '';
-    const inatUrl      = `https://www.inaturalist.org/observations?taxon_id=${o.taxonId}${locParam}${d1Param}${captiveParam}&order_by=observed_on`;
-    const _rawScore    = o.count * (o.isCaptive ? 1.8 : o._isPlant ? 1.4 : 1.0);
+    const inatUrl = `https://www.inaturalist.org/observations?taxon_id=${o.taxonId}${bboxParam}${d1Param}${captiveParam}&order_by=observed_on`;
+    const _rawScore = o.count * (o.isCaptive ? 1.8 : o._isPlant ? 1.4 : 1.0);
 
     return {
       taxonId:        o.taxonId,
