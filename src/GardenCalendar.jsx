@@ -5423,6 +5423,41 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               );
             })()}
 
+
+
+            <div ref={calTopRef}/>
+            <div className="month-nav">
+              <button className={`nav-btn left${!canLeft?" hidden":""}`} onClick={()=>{userNavigatedRef.current=true; setPageIdx(p=>p-1);}} disabled={!canLeft}>‹</button>
+              <div className="months-window">
+                {visibleNames.map((name) => {
+                  return (
+                    <div key={name} ref={el => { if(el) monthRefs.current[name]=el; }}>
+                      <MonthPanel
+                        m={months[name]}
+                        isCurrent={name===nowName}
+                        showInspoButton={months[name]?._state==="done"}
+                        inspo={inspos[name] || {state:"idle",data:null}}
+                        onFetchInspo={()=>fetchInspo([name])}
+                        t={t}
+                        videoRegion={videoRegion}
+                        city={city}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <button className={`nav-btn right${!canRight?" hidden":""}`} onClick={()=>{userNavigatedRef.current=true; setPageIdx(p=>p+1);}} disabled={!canRight}>›</button>
+            </div>
+
+            <div className="page-dots">
+              {Array.from({length: MAX_OFFSET + 1}).map((_,i)=>{
+                const rdy = offsetReady(i);
+                const label = `${orderedForNav[i]} – ${orderedForNav[i+2]}`;
+                return <div key={i} className={`pdot${i===pageIdx?" active":""}${!rdy?" disabled":""}`}
+                  onClick={()=>rdy&&setPageIdx(i)} title={rdy ? label : "Generating…"}/>;
+              })}
+            </div>
+
             {/* Load more months button */}
             {stream1Done && loadedBatches < 4 && (
               <div style={{textAlign:"center",margin:"1.5rem 0 .5rem"}}>
@@ -5474,40 +5509,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               </div>
             )}
 
-            <div ref={calTopRef}/>
-            <div className="month-nav">
-              <button className={`nav-btn left${!canLeft?" hidden":""}`} onClick={()=>{userNavigatedRef.current=true; setPageIdx(p=>p-1);}} disabled={!canLeft}>‹</button>
-              <div className="months-window">
-                {visibleNames.map((name) => {
-                  return (
-                    <div key={name} ref={el => { if(el) monthRefs.current[name]=el; }}>
-                      <MonthPanel
-                        m={months[name]}
-                        isCurrent={name===nowName}
-                        showInspoButton={months[name]?._state==="done"}
-                        inspo={inspos[name] || {state:"idle",data:null}}
-                        onFetchInspo={()=>fetchInspo([name])}
-                        t={t}
-                        videoRegion={videoRegion}
-                        city={city}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-              <button className={`nav-btn right${!canRight?" hidden":""}`} onClick={()=>{userNavigatedRef.current=true; setPageIdx(p=>p+1);}} disabled={!canRight}>›</button>
-            </div>
-
-            <div className="page-dots">
-              {Array.from({length: MAX_OFFSET + 1}).map((_,i)=>{
-                const rdy = offsetReady(i);
-                const label = `${orderedForNav[i]} – ${orderedForNav[i+2]}`;
-                return <div key={i} className={`pdot${i===pageIdx?" active":""}${!rdy?" disabled":""}`}
-                  onClick={()=>rdy&&setPageIdx(i)} title={rdy ? label : "Generating…"}/>;
-              })}
-            </div>
-
-            {/* Calendar footer attribution — shown once first batch is done */}
+                        {/* Calendar footer attribution — shown once first batch is done */}
             {stream1Done && (() => {
               const society = meta?.country_code ? HORT_SOCIETY[meta.country_code.toLowerCase()] : null;
               return (
