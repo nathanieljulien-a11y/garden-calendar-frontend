@@ -2972,6 +2972,7 @@ useEffect(() => {
   const abortRef      = useRef(null);
   const parserRef     = useRef(null);
   const skipNextPrefetchRef = useRef(false); // set when restoring climate from storage
+  const pendingCalendarGardenRef = useRef(null); // garden to use in next handleSubmit call
   const uiIntervalRef = useRef(null);
   const openFarmCtxRef = useRef(""); // stores OpenFarm context for reuse in loadMoreMonths
   const sowingLogRef   = useRef([]); // accumulates sown/planted crops across batches for reminder
@@ -3219,7 +3220,21 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!city||!orientation) { setError("Please fill in city and orientation."); return; }
+    // If navigated directly to calendar, use the pending garden ref instead of stale state
+    const pendingG = pendingCalendarGardenRef.current;
+    if (pendingG) {
+      pendingCalendarGardenRef.current = null;
+      if (pendingG.city)        setCity(pendingG.city);
+      if (pendingG.orientation) setOri(pendingG.orientation);
+      if (pendingG.features)    setFeatures(pendingG.features);
+      if (pendingG.plants)      setPlants(pendingG.plants);
+      if (pendingG.plantTraits) setPlantTraits(pendingG.plantTraits);
+    }
+    const effectiveCity = pendingG?.city || city;
+    const effectiveOrientation = pendingG?.orientation || orientation;
+    const effectivePlants = pendingG?.plants || plants;
+    const effectiveFeatures = pendingG?.features || features;
+    if (!effectiveCity || !effectiveOrientation) { setError("Please fill in city and orientation."); return; }
     setRateLimitMsg("");
     // Abort previous stream
     if (abortRef.current) { abortRef.current.abort(); }
@@ -3229,6 +3244,12 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     const abort = new AbortController();
     abortRef.current = abort;
     const rid = ++submitIdRef.current;
+
+    // Use effective values (from pendingG or state)
+    const city        = effectiveCity;
+    const orientation = effectiveOrientation;
+    const plants      = effectivePlants;
+    const features    = effectiveFeatures;
 
     // ── Start calendar generation ────────────────────────────────────────────
     setStage("calendar");
@@ -4035,17 +4056,15 @@ Return tasks for: ${batch.join(', ')}`;
 
       const hasClimate = !!(g?.climateData?._cd);
 
-      if (g) {
-        skipNextPrefetchRef.current = true; // prevent prefetch effect overwriting restored climate
-        if (g.city)        setCity(g.city);
-        if (g.orientation) setOri(g.orientation);
-        if (g.features)    setFeatures(g.features);
-        if (g.plants)      setPlants(g.plants);
-        if (g.plantTraits) setPlantTraits(g.plantTraits);
-      }
-
       if (!g?.city || !g?.orientation || !hasClimate) {
         // No usable garden or never generated — route to Edit first
+        if (g) {
+          if (g.city)        setCity(g.city);
+          if (g.orientation) setOri(g.orientation);
+          if (g.features)    setFeatures(g.features);
+          if (g.plants)      setPlants(g.plants);
+          if (g.plantTraits) setPlantTraits(g.plantTraits);
+        }
         setActiveTab("edit");
         setStage("form");
         setShowHome(false);
@@ -4053,8 +4072,9 @@ Return tasks for: ${batch.join(', ')}`;
         return;
       }
 
-      // Has prior generate — restore climate and show calendar
-      setActiveTab("calendar");
+      // Has prior generate — store garden on ref so handleSubmit reads it directly
+      // without setting city/orientation state (which triggers the prefetch effect)
+      pendingCalendarGardenRef.current = g;
       const restoredMeta = {
         ...g.climateData._derived,
         _cd: g.climateData._cd,
@@ -4063,8 +4083,9 @@ Return tasks for: ${batch.join(', ')}`;
         lng: g.lng,
       };
       setMeta(restoredMeta);
-      metaRef.current = restoredMeta; // sync ref immediately so handleSubmit finds it
+      metaRef.current = restoredMeta;
       setPfState("ready");
+      setActiveTab("calendar");
       setStage("calendar");
       return;
     }
