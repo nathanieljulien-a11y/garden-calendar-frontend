@@ -3193,18 +3193,15 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
   };
 
   useEffect(()=>{
-    // Skip if we just restored climate from storage — no need to re-fetch
-    if (skipNextPrefetchRef.current) {
-      skipNextPrefetchRef.current = false;
-      return;
-    }
     if (city&&orientation&&(!isArtifact()||apiKey)) {
+      // Skip re-fetch if metaRef already has valid climate for this city
+      if (metaRef.current?._cd && prefetchState === "ready") return;
       const timer = setTimeout(() => prefetchMeta(city,orientation), 600);
       return () => clearTimeout(timer);
     } else {
       setPfState("idle"); setMeta(null);
     }
-  },[city,orientation,apiKey,prefetchMeta]);
+  },[city,orientation,apiKey,prefetchMeta,prefetchState]);
 
   // ── About tab — auto-fetch climate + insights ───────────────────────────────
   useEffect(() => {
@@ -3220,21 +3217,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    // If navigated directly to calendar, use the pending garden ref instead of stale state
-    const pendingG = pendingCalendarGardenRef.current;
-    if (pendingG) {
-      pendingCalendarGardenRef.current = null;
-      if (pendingG.city)        setCity(pendingG.city);
-      if (pendingG.orientation) setOri(pendingG.orientation);
-      if (pendingG.features)    setFeatures(pendingG.features);
-      if (pendingG.plants)      setPlants(pendingG.plants);
-      if (pendingG.plantTraits) setPlantTraits(pendingG.plantTraits);
-    }
-    const effectiveCity = pendingG?.city || city;
-    const effectiveOrientation = pendingG?.orientation || orientation;
-    const effectivePlants = pendingG?.plants || plants;
-    const effectiveFeatures = pendingG?.features || features;
-    if (!effectiveCity || !effectiveOrientation) { setError("Please fill in city and orientation."); return; }
+    if (!city||!orientation) { setError("Please fill in city and orientation."); return; }
     setRateLimitMsg("");
     // Abort previous stream
     if (abortRef.current) { abortRef.current.abort(); }
@@ -3244,12 +3227,6 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     const abort = new AbortController();
     abortRef.current = abort;
     const rid = ++submitIdRef.current;
-
-    // Use effective values (from pendingG or state)
-    const city        = effectiveCity;
-    const orientation = effectiveOrientation;
-    const plants      = effectivePlants;
-    const features    = effectiveFeatures;
 
     // ── Start calendar generation ────────────────────────────────────────────
     setStage("calendar");
@@ -4072,9 +4049,12 @@ Return tasks for: ${batch.join(', ')}`;
         return;
       }
 
-      // Has prior generate — store garden on ref so handleSubmit reads it directly
-      // without setting city/orientation state (which triggers the prefetch effect)
-      pendingCalendarGardenRef.current = g;
+      // Has prior generate — restore state and climate
+      if (g.city)        setCity(g.city);
+      if (g.orientation) setOri(g.orientation);
+      if (g.features)    setFeatures(g.features);
+      if (g.plants)      setPlants(g.plants);
+      if (g.plantTraits) setPlantTraits(g.plantTraits);
       const restoredMeta = {
         ...g.climateData._derived,
         _cd: g.climateData._cd,
