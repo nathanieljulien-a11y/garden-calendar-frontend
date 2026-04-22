@@ -2058,7 +2058,7 @@ function StreamBar({months, stream1Done, activeMonth, chunkCount}) {
 function orientationShort(o) { return o?o.split(" (")[0]:""; }
 
 // ─── MonthPanel ───────────────────────────────────────────────────────────────
-const MonthPanel = React.memo(function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, videoRegion}) {
+const MonthPanel = React.memo(function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, videoRegion, city}) {
   if (!m || m._state==="pending") {
     return <div className="month-ghost"><Shimmer lines={2}/></div>;
   }
@@ -5439,6 +5439,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                         onFetchInspo={()=>fetchInspo([name])}
                         t={t}
                         videoRegion={videoRegion}
+                        city={city}
                       />
                     </div>
                   );
