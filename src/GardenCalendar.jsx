@@ -3352,26 +3352,8 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     }
 
     // ── OpenFarm: batch-fetch sowing/harvest data for vegetables and herbs ──────
+    // OpenFarm disabled — endpoint currently unavailable
     let openFarmData = {};
-    if (PROXY_BASE) {
-      const vegHerbPlants = [...(plants.vegetables || []), ...(plants.herbs || [])];
-      if (vegHerbPlants.length > 0) {
-        try {
-          const ofResults = await Promise.race([
-            Promise.all(vegHerbPlants.map(async (name) => {
-              const attrs = await fetchOpenFarm(name);
-              return { name, attrs };
-            })),
-            new Promise(resolve => setTimeout(() => resolve(null), 5000)),
-          ]);
-          if (ofResults) {
-            ofResults.forEach(({ name, attrs }) => {
-              if (attrs && attrs.found !== false) openFarmData[name.toLowerCase()] = attrs;
-            });
-          }
-        } catch {}
-      }
-    }
     const openFarmLines = Object.entries(openFarmData)
       .map(([, attrs]) => {
         const parts = [];
@@ -3602,6 +3584,7 @@ Other rules:
     }, 2000);
 
     try {
+      console.log('[stream] firing', { city, firstBatch, metaCd: !!m?._cd, provider });
       await streamClaude(s1prompt, 3500, (chunk) => {
         chunkCountRef.current++;
         lastChunkAt = Date.now();
