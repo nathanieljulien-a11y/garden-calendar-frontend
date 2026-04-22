@@ -5330,6 +5330,14 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               </div>
             )}
 
+            {/* ── Regenerate button — top of calendar ── */}
+            <div style={{textAlign:"center",margin:"1.25rem 0 .5rem"}}>
+              <button className="btn-solid" onClick={handleSubmit} disabled={stillStreaming}
+                style={{minWidth:200}}>
+                {stillStreaming ? "Generating…" : "✦ Generate Calendar"}
+              </button>
+            </div>
+
             {/* Occurrence warnings — only shown when plant was GBIF-validated (has scientificName)
                  AND returned count=0. Unvalidated plants or proxy failures are silently skipped. */}
             {Object.entries(plantMeta).filter(([,m]) => m?.occurrence?.count === 0 && m?.occurrence?.matchType === 'EXACT' && m?.scientificName).length > 0 && (
@@ -5445,9 +5453,9 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               </div>
             )}
 
-            {/* Export buttons — shown once generation is complete */}
-            {stream1Done && (
-              <div style={{display:"flex",gap:".75rem",justifyContent:"center",margin:"1rem 0 .5rem",flexWrap:"wrap"}}>
+            {/* Export + share — only visible once all 12 months generated */}
+            {stream1Done && loadedBatches >= 4 && (
+              <div style={{display:"flex",gap:".75rem",justifyContent:"center",margin:"1.25rem 0 .5rem",flexWrap:"wrap"}}>
                 <button
                   onClick={() => exportPDF(months, city, meta, buildGardenUrl(city, orientation, features, plants))}
                   style={{background:"#2C1A0A",color:"#F5EDD8",border:"none",borderRadius:"6px",padding:".55rem 1.2rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
@@ -5461,7 +5469,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 <button
                   className={`btn-save-link${linkCopied?" copied":""}`}
                   onClick={handleSaveLink}>
-                  {linkCopied ? "✓ Saved & copied!" : "⭐ Save garden link"}
+                  {linkCopied ? "✓ Now share!" : "🔗 Share garden link"}
                 </button>
               </div>
             )}
@@ -5534,12 +5542,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               );
             })()}
 
-            <div className="cal-actions">
-              <button className="btn-ghost" onClick={resetAll}>← Edit Garden</button>
-              <button className="btn-solid" onClick={handleSubmit} disabled={stillStreaming}>
-                {stillStreaming?"Generating…":"✦ Regenerate"}
-              </button>
-            </div>
+
           </div>
         )}
 
