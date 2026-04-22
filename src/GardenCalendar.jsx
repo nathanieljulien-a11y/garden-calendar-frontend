@@ -1923,6 +1923,34 @@ function TagInput({value,onChange,placeholder,onAdd}) {
 }
 
 
+// Fetches a Wikipedia article thumbnail via the REST summary API (free, no key)
+// Returns an <img> or null. Gracefully degrades if article not found.
+function WikimediaPhoto({ title, style }) {
+  const [src, setSrc] = useState(null);
+  const [tried, setTried] = useState(false);
+  useEffect(() => {
+    if (!title || tried) return;
+    setTried(true);
+    const slug = encodeURIComponent(title.trim().replace(/ /g, '_'));
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`, {
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.thumbnail?.source) setSrc(data.thumbnail.source); })
+      .catch(() => {});
+  }, [title, tried]);
+
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt={title}
+      style={{ width:'100%', maxHeight:160, objectFit:'cover', borderRadius:'2px', marginTop:'.6rem', display:'block', ...style }}
+      onError={() => setSrc(null)}
+    />
+  );
+}
+
 function Shimmer({lines=3}) {
   const w=["full","medium","short","medium","full"];
   return <div className="shimmer-block">{Array.from({length:lines}).map((_,i)=><div key={i} className={`shimmer-line ${w[i%w.length]}`} style={{animationDelay:`${i*.15}s`}}/>)}</div>;
@@ -2075,6 +2103,7 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, vide
             ) : inspo.data ? (
               <div className="inspo-block">
                 <div className="inspo-name">{inspo.data.name}</div>
+                <WikimediaPhoto title={inspo.data.wikipedia || inspo.data.name} style={{marginBottom:".4rem"}}/>
                 {inspo.data.organisation && (
                   <div style={{fontSize:".75rem",color:"var(--clay)",opacity:.8,marginBottom:".15rem"}}>{inspo.data.organisation}</div>
                 )}
@@ -4000,7 +4029,7 @@ Priority rules — apply in this order:
 6. Use medium confidence freely for nearby gardens — the UI will show a caveat. Medium confidence + nearby is always preferable to high confidence + far away.
 
 Return ONLY valid JSON, no markdown:
-{"name":"<Garden name or 'none'>","organisation":"<operator e.g. National Trust / RHS / local authority / independent>","location":"<Town, Region>","distance":"<approx journey time from ${city}, including ferry/flight if applicable>","highlight":"<What this garden is genuinely known for in ${monthName} — specific plant, collection or feature — 10-20 words>","known_for":"<The garden primary specialism or what it is most famous for — 8-15 words>","website":"<official website URL — only include if you are certain it is correct, e.g. rhs.org.uk/gardens/wisley — omit the field entirely if uncertain>","confidence":"high or medium"}
+{"name":"<Garden name or 'none'>","organisation":"<operator e.g. National Trust / RHS / local authority / independent>","location":"<Town, Region>","distance":"<approx journey time from ${city}, including ferry/flight if applicable>","highlight":"<What this garden is genuinely known for in ${monthName} — specific plant, collection or feature — 10-20 words>","known_for":"<The garden primary specialism or what it is most famous for — 8-15 words>","website":"<official website URL — only include if you are certain it is correct, e.g. rhs.org.uk/gardens/wisley — omit the field entirely if uncertain>","wikipedia":"<exact Wikipedia article title if one exists, e.g. 'RHS Garden Wisley' or 'Sissinghurst Castle Garden' — omit if uncertain>","confidence":"high or medium"}
 
 confidence high = you have clear specific knowledge of this garden collections and seasonal highlights from published sources.
 confidence medium = you know the garden exists and broadly what it contains but are less certain of specific highlights.
@@ -5144,6 +5173,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                   {inspo?.state === "done" && inspo.data && (
                     <div style={{background:"rgba(176,138,94,.08)",border:"1px solid rgba(176,138,94,.25)",borderRadius:"2px",padding:".75rem 1rem",animation:"fadeIn .3s ease"}}>
                       <div className="inspo-name">{inspo.data.name}</div>
+                      <WikimediaPhoto title={inspo.data.wikipedia || inspo.data.name} style={{marginBottom:".4rem"}}/>
                       {inspo.data.location && <div className="inspo-detail">{inspo.data.location}{inspo.data.distance ? ` · ${inspo.data.distance}` : ""}</div>}
                       {inspo.data.highlight && <div className="inspo-text">{inspo.data.highlight}</div>}
                       {inspo.data.website ? (
