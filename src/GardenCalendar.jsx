@@ -1552,12 +1552,28 @@ function makeLineParser(onFlush, sunByMonth = {}, onSowingMention = null) {
 
   function cur() { return currentName ? monthsMap[currentName] : null; }
 
+  const lastFlushed = {}; // track last-flushed state per month for reference preservation
+
   function doFlush() {
     if (cancelled || !dirty) return;
     dirty = false;
     const snapshot = {};
-    Object.keys(monthsMap).forEach(k => { snapshot[k] = { ...monthsMap[k], tasks:[...monthsMap[k].tasks], enjoy:[...monthsMap[k].enjoy] }; });
-    onFlush(snapshot);
+    let anyChanged = false;
+    Object.keys(monthsMap).forEach(k => {
+      const m = monthsMap[k];
+      const prev = lastFlushed[k];
+      // Skip months that haven't changed since last flush
+      if (prev &&
+          prev._state === m._state &&
+          prev.tasks.length === m.tasks.length &&
+          prev.enjoy.length === m.enjoy.length &&
+          prev._taskPartial === m._taskPartial &&
+          prev._enjoyPartial === m._enjoyPartial) return;
+      snapshot[k] = { ...m, tasks:[...m.tasks], enjoy:[...m.enjoy] };
+      lastFlushed[k] = snapshot[k];
+      anyChanged = true;
+    });
+    if (anyChanged) onFlush(snapshot);
   }
 
   function scheduleFlush() { dirty = true; } // just mark dirty — interval does the rest
@@ -2092,7 +2108,7 @@ const MonthPanel = React.memo(function MonthPanel({m, isCurrent, showInspoButton
               <li key={j}>
                 <span className="bullet-task">›</span>
                 <span style={{flex:1}}>{task}</span>
-                {taskNeedsVideo(task) && (
+                {!isActive && taskNeedsVideo(task) && (
                   <VideoButton taskText={task} region={videoRegion || 'uk'}/>
                 )}
               </li>
@@ -3569,24 +3585,12 @@ Other rules:
 
     const parser1 = makeLineParser((snapshot) => {
       if (rid!==submitIdRef.current) return;
+      // snapshot only contains months that actually changed (from doFlush optimisation)
       const active = Object.values(snapshot).find(m=>m._state==="active");
-      setActiveMonth(active ? active.month : null);
+      if (active) setActiveMonth(active.month);
       setMonths(prev => {
-        // Only update months that actually changed — avoids re-rendering unchanged MonthPanels
-        let changed = false;
-        const next = { ...prev };
-        Object.keys(snapshot).forEach(k => {
-          const s = snapshot[k];
-          const p = prev[k];
-          // Quick structural check — tasks/enjoy length or partial text changed
-          if (!p || p._state !== s._state || p.tasks.length !== s.tasks.length ||
-              p.enjoy.length !== s.enjoy.length || p._taskPartial !== s._taskPartial ||
-              p._enjoyPartial !== s._enjoyPartial) {
-            next[k] = s;
-            changed = true;
-          }
-        });
-        return changed ? next : prev;
+        if (!Object.keys(snapshot).length) return prev;
+        return { ...prev, ...snapshot };
       });
     }, sunByMonthRef.current, (entry) => { sowingLogRef.current.push(entry); });
     parserRef.current = parser1;
@@ -3594,11 +3598,11 @@ Other rules:
     chunkCountRef.current = 0;
     setChunkCount(0);
 
-    // Drive UI updates at 1000ms — streaming feels live but doesn't saturate mobile JS thread
+    // Drive UI updates at 1500ms — live enough to feel responsive, gentle on mobile
     uiIntervalRef.current = setInterval(() => {
       parser1.doFlush();
       setChunkCount(chunkCountRef.current);
-    }, 1000);
+    }, 1500);
 
     // Stall detector — if no chunks for 22s (Claude/proxy) or 60s (Gemini, allows retry backoff), abort and show error
     let lastChunkAt = Date.now();
@@ -5558,4 +5562,3 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
     </>
   );
 }
-    
