@@ -3817,7 +3817,7 @@ Return tasks for: ${batch.join(', ')}`;
       const prompt = buildTodayPrompt(
         garden, weatherData, signals, monthName, calendarTasks, existingTasks, isRefresh
       );
-      const raw = await callAI(prompt, 1000, undefined, provider, userKey);
+      const raw = await callAI(prompt, 1400, undefined, provider, userKey);
       const payload = validateTodayResponse(raw);
 
       if (isRefresh) {
@@ -4951,6 +4951,12 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 {todayTasks.allCalm && todayTasks.calmMessage && (
                   <div style={{ fontSize: '.88rem', color: 'var(--fern)', fontStyle: 'italic', marginBottom: '.85rem', paddingBottom: '.75rem', borderBottom: '1px solid rgba(200,169,110,.1)' }}>
                     ✓ {todayTasks.calmMessage}
+                  </div>
+                )}
+                {todayTasks.weekendNote && (
+                  <div style={{ fontSize: '.82rem', color: 'var(--dew)', fontStyle: 'italic', marginBottom: '.75rem', paddingBottom: '.65rem', borderBottom: '1px solid rgba(200,169,110,.08)', display:'flex', gap:'.4rem', alignItems:'flex-start' }}>
+                    <span style={{flexShrink:0}}>🌤</span>
+                    {todayTasks.weekendNote}
                   </div>
                 )}
                 <div style={{ fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--straw)', marginBottom: '.65rem' }}>
