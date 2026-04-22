@@ -1923,21 +1923,47 @@ function TagInput({value,onChange,placeholder,onAdd}) {
 }
 
 
-// Fetches a Wikipedia article thumbnail via the REST summary API (free, no key)
-// Returns an <img> or null. Gracefully degrades if article not found.
+// Fetches a garden photo from Wikimedia — tries multiple strategies in sequence:
+// 1. English Wikipedia REST summary (exact title)
+// 2. Wikimedia search API on English (handles minor title mismatches)
+// 3. French Wikipedia REST summary (covers French/Belgian/Swiss gardens)
+// 4. Wikimedia search API on French
+// Gracefully returns nothing if all fail.
 function WikimediaPhoto({ title, style }) {
   const [src, setSrc] = useState(null);
   const [tried, setTried] = useState(false);
+
   useEffect(() => {
     if (!title || tried) return;
     setTried(true);
+
     const slug = encodeURIComponent(title.trim().replace(/ /g, '_'));
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`, {
-      headers: { 'Accept': 'application/json' }
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.thumbnail?.source) setSrc(data.thumbnail.source); })
-      .catch(() => {});
+    const titleEnc = encodeURIComponent(title.trim());
+
+    const trySummary = (lang) =>
+      fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${slug}`, { headers: { Accept: 'application/json' } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => d?.thumbnail?.source || null)
+        .catch(() => null);
+
+    const trySearch = (lang) =>
+      fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${titleEnc}&gsrlimit=1&prop=pageimages&piprop=thumbnail&pithumbsize=400&format=json&origin=*`, { headers: { Accept: 'application/json' } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          const pages = d?.query?.pages;
+          if (!pages) return null;
+          return Object.values(pages)[0]?.thumbnail?.source || null;
+        })
+        .catch(() => null);
+
+    (async () => {
+      const result =
+        await trySummary('en') ||
+        await trySearch('en')  ||
+        await trySummary('fr') ||
+        await trySearch('fr');
+      if (result) setSrc(result);
+    })();
   }, [title, tried]);
 
   if (!src) return null;
