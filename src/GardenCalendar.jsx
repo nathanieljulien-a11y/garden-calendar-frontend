@@ -4021,26 +4021,37 @@ Return tasks for: ${batch.join(', ')}`;
     // Calendar — load selected garden data into form state so handleSubmit has what it needs
     else if (tab === "calendar") {
       const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
+      const hasCachedCalendar = g?.calendarTasks && Object.keys(g.calendarTasks).length > 0;
+
       if (g) {
         if (g.city)        setCity(g.city);
         if (g.orientation) setOri(g.orientation);
         if (g.features)    setFeatures(g.features);
         if (g.plants)      setPlants(g.plants);
         if (g.plantTraits) setPlantTraits(g.plantTraits);
-        // Restore stored climate data so generate doesn't need to re-fetch
-        if (g.climateData?._cd) {
-          setMeta({
-            ...g.climateData._derived,
-            _cd: g.climateData._cd,
-            _derived: g.climateData._derived,
-            lat: g.lat,
-            lng: g.lng,
-          });
-          setPfState("ready");
-        } else if (g.city && g.orientation) {
-          // No stored climate — trigger prefetch
-          prefetchMeta(g.city, g.orientation);
-        }
+      }
+
+      if (!hasCachedCalendar) {
+        // No calendar yet — send to Edit so all state is properly hydrated before generation
+        setShowHome(false);
+        setFormStep("location");
+        setActiveTab("edit");
+        setStage("form");
+        return;
+      }
+
+      // Has cached calendar — restore climate and go straight to calendar view
+      if (g?.climateData?._cd) {
+        setMeta({
+          ...g.climateData._derived,
+          _cd: g.climateData._cd,
+          _derived: g.climateData._derived,
+          lat: g.lat,
+          lng: g.lng,
+        });
+        setPfState("ready");
+      } else if (g?.city && g?.orientation) {
+        prefetchMeta(g.city, g.orientation);
       }
       setStage("calendar");
     }
@@ -4612,7 +4623,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
     <div style={{display:"flex",flexDirection:"column",gap:".75rem"}}>
       {[
         { icon:"📅", label:"This Week", desc:"Weather-aware tasks, what to enjoy, and local wildlife sightings for your garden today", tab:"week" },
-        { icon:"🗓", label:"My Garden Calendar", desc:"A full year of personalised growing, tending and harvesting tasks", tab:"calendar" },
+        { icon:"🗓", label:"My Garden Calendar", desc:"A full year of personalised growing, tending and harvesting tasks — start by editing your garden details", tab:"calendar" },
         { icon:"🌿", label:"Insights", desc:"Climate suitability, companion planting, and year-round interest across colour, scent, form and more", tab:"about" },
       ].map(card => (
         <div key={card.tab}
