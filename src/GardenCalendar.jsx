@@ -903,7 +903,11 @@ async function fetchOpenFarm(plantName) {
       `${PROXY_BASE}/api/openfarm?q=${encodeURIComponent(plantName)}`,
       { signal: AbortSignal.timeout(5000) }
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // Cache null result for 24h so repeated generates don't hit a broken endpoint
+      try { localStorage.setItem(key, JSON.stringify({ data: null, cachedAt: Date.now() })); } catch {}
+      return null;
+    }
     const data = await res.json();
     if (data.error) return null;
     try { localStorage.setItem(key, JSON.stringify({ data, cachedAt: Date.now() })); } catch {}
@@ -4014,8 +4018,16 @@ Return tasks for: ${batch.join(', ')}`;
       setShowHome(false);
       setFormStep("location");
     }
-    // Calendar
+    // Calendar — load selected garden data into form state so handleSubmit has what it needs
     else if (tab === "calendar") {
+      const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
+      if (g) {
+        if (g.city)        setCity(g.city);
+        if (g.orientation) setOri(g.orientation);
+        if (g.features)    setFeatures(g.features);
+        if (g.plants)      setPlants(g.plants);
+        if (g.plantTraits) setPlantTraits(g.plantTraits);
+      }
       setStage("calendar");
     }
   }, [activeTab, city, saveCurrentGarden, selectedGardenId, gardens, fetchTodayWeather, fetchNearbyObs, fetchTodayTasks]);
