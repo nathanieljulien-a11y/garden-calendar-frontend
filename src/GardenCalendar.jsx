@@ -2058,7 +2058,7 @@ function StreamBar({months, stream1Done, activeMonth, chunkCount}) {
 function orientationShort(o) { return o?o.split(" (")[0]:""; }
 
 // ─── MonthPanel ───────────────────────────────────────────────────────────────
-function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, videoRegion}) {
+const MonthPanel = React.memo(function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, videoRegion}) {
   if (!m || m._state==="pending") {
     return <div className="month-ghost"><Shimmer lines={2}/></div>;
   }
@@ -2191,7 +2191,7 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, vide
       </div>
     </div>
   );
-}
+}); // React.memo — only re-renders when props change
 
 // ─── InsightsPanel ───────────────────────────────────────────────────────────
 function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, loadedBatches, totalPlantCount}) {
@@ -3572,9 +3572,21 @@ Other rules:
       const active = Object.values(snapshot).find(m=>m._state==="active");
       setActiveMonth(active ? active.month : null);
       setMonths(prev => {
+        // Only update months that actually changed — avoids re-rendering unchanged MonthPanels
+        let changed = false;
         const next = { ...prev };
-        Object.keys(snapshot).forEach(k => { next[k] = snapshot[k]; });
-        return next;
+        Object.keys(snapshot).forEach(k => {
+          const s = snapshot[k];
+          const p = prev[k];
+          // Quick structural check — tasks/enjoy length or partial text changed
+          if (!p || p._state !== s._state || p.tasks.length !== s.tasks.length ||
+              p.enjoy.length !== s.enjoy.length || p._taskPartial !== s._taskPartial ||
+              p._enjoyPartial !== s._enjoyPartial) {
+            next[k] = s;
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
       });
     }, sunByMonthRef.current, (entry) => { sowingLogRef.current.push(entry); });
     parserRef.current = parser1;
@@ -3582,11 +3594,11 @@ Other rules:
     chunkCountRef.current = 0;
     setChunkCount(0);
 
-    // Drive UI updates at 300ms intervals — decoupled from chunk rate, easier on low-end devices
+    // Drive UI updates at 1000ms — streaming feels live but doesn't saturate mobile JS thread
     uiIntervalRef.current = setInterval(() => {
       parser1.doFlush();
-      setChunkCount(chunkCountRef.current); // sync chunk count to React
-    }, 300);
+      setChunkCount(chunkCountRef.current);
+    }, 1000);
 
     // Stall detector — if no chunks for 22s (Claude/proxy) or 60s (Gemini, allows retry backoff), abort and show error
     let lastChunkAt = Date.now();
@@ -4037,7 +4049,7 @@ Return tasks for: ${batch.join(', ')}`;
 
   // ── On-demand inspiration fetch for a single month ────────────────────────
   // Fetch inspiration for 1 or 3 months (batch). monthNames = array of month name strings.
-  const fetchInspo = async (monthNames) => {
+  const fetchInspo = useCallback(async (monthNames) => {
     const names = Array.isArray(monthNames) ? monthNames : [monthNames];
     const now = `${MONTH_NAMES[nowIdx]} ${new Date().getFullYear()}`;
 
@@ -4090,7 +4102,7 @@ Respond entirely in ${langName()}.`,
         setInspos(prev => ({ ...prev, [monthName]: { state:"error", data:null } }));
       }
     }
-  };
+  }, [city, inspos, provider, userKey]);
   // ── Garden insights — climate suitability analysis + companion planting ─────
   const fetchInsights = async () => {
     if (totalPlants === 0) return;
@@ -4273,6 +4285,12 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
   const canRight = pageIdx < MAX_OFFSET && (offsetReady(pageIdx + 1) || nextOffsetIsActive);
 
   const visibleNames = orderedForNav.slice(pageIdx, pageIdx + 3);
+  // Stable callbacks per month name — prevents MonthPanel memo from busting on every render
+  const inspoCallbacks = useMemo(() => {
+    const map = {};
+    MONTH_NAMES.forEach(n => { map[n] = () => fetchInspo([n]); });
+    return map;
+  }, [fetchInspo]);
   const stillStreaming = !stream1Done;
 
   const pfLabel = {
@@ -5439,7 +5457,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                         isCurrent={name===nowName}
                         showInspoButton={months[name]?._state==="done"}
                         inspo={inspos[name] || {state:"idle",data:null}}
-                        onFetchInspo={()=>fetchInspo([name])}
+                        onFetchInspo={inspoCallbacks[name]}
                         t={t}
                         videoRegion={videoRegion}
                       />
