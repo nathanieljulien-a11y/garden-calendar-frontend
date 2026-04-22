@@ -2971,6 +2971,7 @@ useEffect(() => {
   const submitIdRef   = useRef(0);
   const abortRef      = useRef(null);
   const parserRef     = useRef(null);
+  const skipNextPrefetchRef = useRef(false); // set when restoring climate from storage
   const uiIntervalRef = useRef(null);
   const openFarmCtxRef = useRef(""); // stores OpenFarm context for reuse in loadMoreMonths
   const sowingLogRef   = useRef([]); // accumulates sown/planted crops across batches for reminder
@@ -3191,9 +3192,11 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
   };
 
   useEffect(()=>{
-    // Debounce: wait 600ms after the user stops typing before firing Nominatim.
-    // Without this, every keystroke triggers a geocode request and hits the 1 req/sec
-    // rate limit immediately (429) or fires on partial city strings (404).
+    // Skip if we just restored climate from storage — no need to re-fetch
+    if (skipNextPrefetchRef.current) {
+      skipNextPrefetchRef.current = false;
+      return;
+    }
     if (city&&orientation&&(!isArtifact()||apiKey)) {
       const timer = setTimeout(() => prefetchMeta(city,orientation), 600);
       return () => clearTimeout(timer);
@@ -3601,7 +3604,6 @@ Other rules:
     }, 2000);
 
     try {
-      console.log('[stream] starting', { provider, hasUserKey: !!userKey, signalAborted: abort.signal.aborted, city, metaCd: !!m?._cd });
       await streamClaude(s1prompt, 3500, (chunk) => {
         chunkCountRef.current++;
         lastChunkAt = Date.now();
@@ -4034,6 +4036,7 @@ Return tasks for: ${batch.join(', ')}`;
       const hasClimate = !!(g?.climateData?._cd);
 
       if (g) {
+        skipNextPrefetchRef.current = true; // prevent prefetch effect overwriting restored climate
         if (g.city)        setCity(g.city);
         if (g.orientation) setOri(g.orientation);
         if (g.features)    setFeatures(g.features);
