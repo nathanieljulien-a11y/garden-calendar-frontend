@@ -5077,7 +5077,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                       </a>
                     ))}
                     <div style={{ fontSize: '.65rem', color: 'rgba(180,180,160,.35)', marginTop: '.35rem', fontStyle: 'italic' }}>
-                      Research-grade observations within 30km · last 14 days ·{' '}
+                      Research-grade observations within 30km · this month ·{' '}
                       <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline', opacity: .8 }}>
                         iNaturalist
                       </a>
