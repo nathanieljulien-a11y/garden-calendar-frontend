@@ -4031,7 +4031,6 @@ Return tasks for: ${batch.join(', ')}`;
         : freshGardens[0];
 
       const hasClimate = !!(g?.climateData?._cd);
-      console.log('[handleTabChange calendar]', { selectedGardenId, gardenFound: !!g, city: g?.city, orientation: g?.orientation, hasClimate });
 
       if (g) {
         if (g.city)        setCity(g.city);
@@ -4052,13 +4051,15 @@ Return tasks for: ${batch.join(', ')}`;
 
       // Has prior generate — restore climate and show calendar
       setActiveTab("calendar");
-      setMeta({
+      const restoredMeta = {
         ...g.climateData._derived,
         _cd: g.climateData._cd,
         _derived: g.climateData._derived,
         lat: g.lat,
         lng: g.lng,
-      });
+      };
+      setMeta(restoredMeta);
+      metaRef.current = restoredMeta; // sync ref immediately so handleSubmit finds it
       setPfState("ready");
       setStage("calendar");
       return;
@@ -5586,3 +5587,4 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
     </>
   );
 }
+    
