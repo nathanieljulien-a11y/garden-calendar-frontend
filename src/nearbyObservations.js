@@ -138,7 +138,6 @@ export async function fetchNearbyObservations(lat, lng, inventoryPlants = [], si
     { results: captiveData.results || [] }, inventoryPlants, true, lat, lng
   );
 
-  // If captive gave us fewer than 3 plants, top up with wild plants
   const MIN_PLANTS = 3;
   let plantObs = captiveNorm.observations;
   if (plantObs.length < MIN_PLANTS) {
@@ -146,12 +145,10 @@ export async function fetchNearbyObservations(lat, lng, inventoryPlants = [], si
     const wildNorm = normaliseInatObservations(
       { results: wildPlantData.results || [] }, inventoryPlants, false, lat, lng
     );
-    // Add wild plants not already in captive results
     const wildExtras = wildNorm.observations.filter(o => !captiveTaxonIds.has(o.taxonId));
     plantObs = [...plantObs, ...wildExtras];
   }
 
-  // Normalise wildlife
   const wildlifeNorm = normaliseInatObservations(
     { results: wildlifeData.results || [] }, inventoryPlants, false, lat, lng
   );
@@ -243,22 +240,12 @@ export function normaliseInatObservations(raw, inventoryPlants = [], isCaptive =
     }
   }
 
-  // Build URL using iNaturalist observations page with bounding box.
-  // Must include place_id=any to override the user's default place filter (which can blank results).
+  // Link to observations page filtered by taxon + garden location using the same
+  // lat/lng/radius the API search used — consistent and always relevant.
   const observations = Object.values(byTaxon).map(o => {
-    const RADIUS_KM = 30;
-    const DEG_PER_KM_LAT = 1 / 111;
-    const latDeg = RADIUS_KM * DEG_PER_KM_LAT;
-    const centreLat = o._obsLat || searchLat || 0;
-    const centreLng = o._obsLng || searchLng || 0;
-    const lngDeg = latDeg / Math.max(Math.cos(centreLat * Math.PI / 180), 0.01);
-    const swlat = (centreLat - latDeg).toFixed(2);
-    const swlng = (centreLng - lngDeg).toFixed(2);
-    const nelat = (centreLat + latDeg).toFixed(2);
-    const nelng = (centreLng + lngDeg).toFixed(2);
     const d1Param      = o._d1 ? `&d1=${o._d1}` : '';
     const captiveParam = o.isCaptive ? '&captive=true' : '';
-    const inatUrl = `https://www.inaturalist.org/observations?taxon_id=${o.taxonId}&place_id=any&nelat=${nelat}&nelng=${nelng}&swlat=${swlat}&swlng=${swlng}${d1Param}${captiveParam}&view=map`;
+    const inatUrl = `https://www.inaturalist.org/observations?taxon_id=${o.taxonId}&place_id=any&lat=${searchLat.toFixed(3)}&lng=${searchLng.toFixed(3)}&radius=30${d1Param}${captiveParam}&view=map`;
     const _rawScore = o.count * (o.isCaptive ? 1.8 : o._isPlant ? 1.4 : 1.0);
 
     return {
