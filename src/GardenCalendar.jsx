@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { readGardens, saveGarden, touchGarden, renameGarden, deleteGarden, migrateLegacyFavourites, hasSavedGardens, createGardenObject } from './gardenStorage.js';
 import { HomeScreen, HOME_SCREEN_STYLES } from './HomeScreen.jsx';
 import { fetchWeatherForecast, computeUrgencySignals, readWeatherCache, writeWeatherCache } from './weatherService.js';
@@ -1552,28 +1552,12 @@ function makeLineParser(onFlush, sunByMonth = {}, onSowingMention = null) {
 
   function cur() { return currentName ? monthsMap[currentName] : null; }
 
-  const lastFlushed = {}; // track last-flushed state per month for reference preservation
-
   function doFlush() {
     if (cancelled || !dirty) return;
     dirty = false;
     const snapshot = {};
-    let anyChanged = false;
-    Object.keys(monthsMap).forEach(k => {
-      const m = monthsMap[k];
-      const prev = lastFlushed[k];
-      // Skip months that haven't changed since last flush
-      if (prev &&
-          prev._state === m._state &&
-          prev.tasks.length === m.tasks.length &&
-          prev.enjoy.length === m.enjoy.length &&
-          prev._taskPartial === m._taskPartial &&
-          prev._enjoyPartial === m._enjoyPartial) return;
-      snapshot[k] = { ...m, tasks:[...m.tasks], enjoy:[...m.enjoy] };
-      lastFlushed[k] = snapshot[k];
-      anyChanged = true;
-    });
-    if (anyChanged) onFlush(snapshot);
+    Object.keys(monthsMap).forEach(k => { snapshot[k] = { ...monthsMap[k], tasks:[...monthsMap[k].tasks], enjoy:[...monthsMap[k].enjoy] }; });
+    onFlush(snapshot);
   }
 
   function scheduleFlush() { dirty = true; } // just mark dirty — interval does the rest
@@ -3585,24 +3569,20 @@ Other rules:
 
     const parser1 = makeLineParser((snapshot) => {
       if (rid!==submitIdRef.current) return;
-      // snapshot only contains months that actually changed (from doFlush optimisation)
       const active = Object.values(snapshot).find(m=>m._state==="active");
-      if (active) setActiveMonth(active.month);
-      setMonths(prev => {
-        if (!Object.keys(snapshot).length) return prev;
-        return { ...prev, ...snapshot };
-      });
+      setActiveMonth(active ? active.month : null);
+      setMonths(prev => ({ ...prev, ...snapshot }));
     }, sunByMonthRef.current, (entry) => { sowingLogRef.current.push(entry); });
     parserRef.current = parser1;
 
     chunkCountRef.current = 0;
     setChunkCount(0);
 
-    // Drive UI updates at 1500ms — live enough to feel responsive, gentle on mobile
+    // Drive UI updates at 1000ms — balance between live feel and mobile performance
     uiIntervalRef.current = setInterval(() => {
       parser1.doFlush();
       setChunkCount(chunkCountRef.current);
-    }, 1500);
+    }, 1000);
 
     // Stall detector — if no chunks for 22s (Claude/proxy) or 60s (Gemini, allows retry backoff), abort and show error
     let lastChunkAt = Date.now();
@@ -4053,7 +4033,7 @@ Return tasks for: ${batch.join(', ')}`;
 
   // ── On-demand inspiration fetch for a single month ────────────────────────
   // Fetch inspiration for 1 or 3 months (batch). monthNames = array of month name strings.
-  const fetchInspo = useCallback(async (monthNames) => {
+  const fetchInspo = async (monthNames) => {
     const names = Array.isArray(monthNames) ? monthNames : [monthNames];
     const now = `${MONTH_NAMES[nowIdx]} ${new Date().getFullYear()}`;
 
@@ -4106,7 +4086,7 @@ Respond entirely in ${langName()}.`,
         setInspos(prev => ({ ...prev, [monthName]: { state:"error", data:null } }));
       }
     }
-  }, [city, inspos, provider, userKey]);
+  };
   // ── Garden insights — climate suitability analysis + companion planting ─────
   const fetchInsights = async () => {
     if (totalPlants === 0) return;
@@ -4290,11 +4270,6 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
 
   const visibleNames = orderedForNav.slice(pageIdx, pageIdx + 3);
   // Stable callbacks per month name — prevents MonthPanel memo from busting on every render
-  const inspoCallbacks = useMemo(() => {
-    const map = {};
-    MONTH_NAMES.forEach(n => { map[n] = () => fetchInspo([n]); });
-    return map;
-  }, [fetchInspo]);
   const stillStreaming = !stream1Done;
 
   const pfLabel = {
@@ -5461,7 +5436,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                         isCurrent={name===nowName}
                         showInspoButton={months[name]?._state==="done"}
                         inspo={inspos[name] || {state:"idle",data:null}}
-                        onFetchInspo={inspoCallbacks[name]}
+                        onFetchInspo={()=>fetchInspo([name])}
                         t={t}
                         videoRegion={videoRegion}
                       />
