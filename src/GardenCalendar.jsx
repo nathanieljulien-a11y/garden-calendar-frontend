@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { readGardens, saveGarden, touchGarden, renameGarden, deleteGarden, migrateLegacyFavourites, hasSavedGardens, createGardenObject } from './gardenStorage.js';
 import { HomeScreen, HOME_SCREEN_STYLES } from './HomeScreen.jsx';
 import { fetchWeatherForecast, computeUrgencySignals, readWeatherCache, writeWeatherCache } from './weatherService.js';
@@ -1923,6 +1923,18 @@ function TagInput({value,onChange,placeholder,onAdd}) {
 }
 
 
+// Error boundary — catches render errors in inspo cards and WikimediaPhoto
+// without crashing the whole app to a white screen
+class InspoErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { crashed: false }; }
+  static getDerivedStateFromError() { return { crashed: true }; }
+  componentDidCatch(e) { console.warn('[InspoErrorBoundary]', e.message); }
+  render() {
+    if (this.state.crashed) return null; // silently hide rather than white screen
+    return this.props.children;
+  }
+}
+
 // Fetches a garden photo from Wikimedia — tries multiple strategies in sequence:
 // 1. English Wikipedia REST summary (exact title)
 // 2. Wikimedia search API on English (handles minor title mismatches)
@@ -2127,6 +2139,7 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, vide
                 <button className="btn-inspo" style={{marginTop:".4rem"}} onClick={onFetchInspo}>↺ Try again</button>
               </div>
             ) : inspo.data ? (
+              <InspoErrorBoundary>
               <div className="inspo-block">
                 <div className="inspo-name">{inspo.data.name}</div>
                 <WikimediaPhoto title={inspo.data.wikipedia || inspo.data.name} style={{marginBottom:".4rem"}}/>
@@ -2171,6 +2184,7 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, vide
                 )}
                 <button className="btn-inspo" style={{marginTop:".7rem"}} onClick={onFetchInspo}>↺ Try somewhere else</button>
               </div>
+              </InspoErrorBoundary>
             ) : null}
           </div>
         )}
@@ -3568,11 +3582,11 @@ Other rules:
     chunkCountRef.current = 0;
     setChunkCount(0);
 
-    // Drive UI updates at 50ms intervals — completely decoupled from chunk rate
+    // Drive UI updates at 300ms intervals — decoupled from chunk rate, easier on low-end devices
     uiIntervalRef.current = setInterval(() => {
       parser1.doFlush();
       setChunkCount(chunkCountRef.current); // sync chunk count to React
-    }, 50);
+    }, 300);
 
     // Stall detector — if no chunks for 22s (Claude/proxy) or 60s (Gemini, allows retry backoff), abort and show error
     let lastChunkAt = Date.now();
@@ -4062,7 +4076,7 @@ confidence medium = you know the garden exists and broadly what it contains but 
 known_for: the garden defining characteristic regardless of season.
 ${[...alreadyChosen, ...chosenThisBatch].length > 0 ? "\nDo NOT suggest any of these (already recommended): " + [...alreadyChosen, ...chosenThisBatch].join(", ") + ". Choose a genuinely different garden." : ""}
 Respond entirely in ${langName()}.`,
-          300, undefined, provider, userKey);
+          500, undefined, provider, userKey);
         // Handle "none" response — no suitable garden found
         if (!result.name || result.name === "none") {
           setInspos(prev => ({ ...prev, [monthName]: { state:"none", data:null } }));
@@ -5197,6 +5211,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                     <div style={{fontSize:".82rem",color:"var(--sage)",fontStyle:"italic",padding:".4rem 0"}}>No notable public gardens found nearby.</div>
                   )}
                   {inspo?.state === "done" && inspo.data && (
+                    <InspoErrorBoundary>
                     <div style={{background:"rgba(176,138,94,.08)",border:"1px solid rgba(176,138,94,.25)",borderRadius:"2px",padding:".75rem 1rem",animation:"fadeIn .3s ease"}}>
                       <div className="inspo-name">{inspo.data.name}</div>
                       <WikimediaPhoto title={inspo.data.wikipedia || inspo.data.name} style={{marginBottom:".4rem"}}/>
@@ -5228,6 +5243,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                       <button style={{marginTop:".6rem",background:"none",border:"none",color:"var(--sage)",fontSize:".75rem",cursor:"pointer",fontFamily:"'Crimson Pro',serif",padding:0,opacity:.7}}
                         onClick={() => fetchInspo([monthName])}>↺ Find another</button>
                     </div>
+                    </InspoErrorBoundary>
                   )}
                 </div>
               );
