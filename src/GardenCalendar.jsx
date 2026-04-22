@@ -4020,8 +4020,15 @@ Return tasks for: ${batch.join(', ')}`;
     }
     // Calendar — load selected garden data into form state so handleSubmit has what it needs
     else if (tab === "calendar") {
-      const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
-      const hasCachedCalendar = g?.calendarTasks && Object.keys(g.calendarTasks).length > 0;
+      // Read fresh from localStorage — React state may be stale
+      const freshGardens = readGardens();
+      const g = selectedGardenId
+        ? freshGardens.find(g => g.id === selectedGardenId)
+        : freshGardens[0];
+
+      // A garden is "ready to generate" if it has climate data stored from a previous generate
+      // calendarTasks only covers 3 months so isn't reliable; climateData is always saved
+      const hasClimate = !!(g?.climateData?._cd);
 
       if (g) {
         if (g.city)        setCity(g.city);
@@ -4031,8 +4038,8 @@ Return tasks for: ${batch.join(', ')}`;
         if (g.plantTraits) setPlantTraits(g.plantTraits);
       }
 
-      if (!hasCachedCalendar) {
-        // No calendar yet — send to Edit so all state is properly hydrated before generation
+      if (!g || !g.city || !g.orientation) {
+        // No usable garden at all — go to Edit
         setShowHome(false);
         setFormStep("location");
         setActiveTab("edit");
@@ -4040,19 +4047,24 @@ Return tasks for: ${batch.join(', ')}`;
         return;
       }
 
-      // Has cached calendar — restore climate and go straight to calendar view
-      if (g?.climateData?._cd) {
-        setMeta({
-          ...g.climateData._derived,
-          _cd: g.climateData._cd,
-          _derived: g.climateData._derived,
-          lat: g.lat,
-          lng: g.lng,
-        });
-        setPfState("ready");
-      } else if (g?.city && g?.orientation) {
-        prefetchMeta(g.city, g.orientation);
+      if (!hasClimate) {
+        // Garden exists but never generated — go to Edit so all state hydrates properly
+        setShowHome(false);
+        setFormStep("location");
+        setActiveTab("edit");
+        setStage("form");
+        return;
       }
+
+      // Has prior generate — restore climate and go straight to calendar
+      setMeta({
+        ...g.climateData._derived,
+        _cd: g.climateData._cd,
+        _derived: g.climateData._derived,
+        lat: g.lat,
+        lng: g.lng,
+      });
+      setPfState("ready");
       setStage("calendar");
     }
   }, [activeTab, city, saveCurrentGarden, selectedGardenId, gardens, fetchTodayWeather, fetchNearbyObs, fetchTodayTasks, prefetchMeta]);
