@@ -4027,10 +4027,24 @@ Return tasks for: ${batch.join(', ')}`;
         if (g.features)    setFeatures(g.features);
         if (g.plants)      setPlants(g.plants);
         if (g.plantTraits) setPlantTraits(g.plantTraits);
+        // Restore stored climate data so generate doesn't need to re-fetch
+        if (g.climateData?._cd) {
+          setMeta({
+            ...g.climateData._derived,
+            _cd: g.climateData._cd,
+            _derived: g.climateData._derived,
+            lat: g.lat,
+            lng: g.lng,
+          });
+          setPfState("ready");
+        } else if (g.city && g.orientation) {
+          // No stored climate — trigger prefetch
+          prefetchMeta(g.city, g.orientation);
+        }
       }
       setStage("calendar");
     }
-  }, [activeTab, city, saveCurrentGarden, selectedGardenId, gardens, fetchTodayWeather, fetchNearbyObs, fetchTodayTasks]);
+  }, [activeTab, city, saveCurrentGarden, selectedGardenId, gardens, fetchTodayWeather, fetchNearbyObs, fetchTodayTasks, prefetchMeta]);
 
   const handleSaveLink = () => {
     const url = buildGardenUrl(city, orientation, features, plants);
