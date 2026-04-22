@@ -386,6 +386,16 @@ const PLANT_CATEGORIES = [
 ];
 
 // ─── Pre-loaded garden quotes ────────────────────────────────────────────────
+// Returns a directions URL for the device's native maps app
+function mapsDirectionsUrl(from, to) {
+  const isIOS = typeof navigator !== 'undefined' &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const enc = encodeURIComponent;
+  return isIOS
+    ? `https://maps.apple.com/?saddr=${enc(from)}&daddr=${enc(to)}`
+    : `https://www.google.com/maps/dir/${enc(from)}/${enc(to)}`;
+}
+
 const GARDEN_QUOTES = [
   {quote:"To plant a garden is to believe in tomorrow.", attribution:"Audrey Hepburn"},
   {quote:"The glory of gardening: hands in the dirt, head in the sun, heart with nature. To nurture a garden is to feed not just the body, but the soul.", attribution:"Alfred Austin"},
@@ -2079,6 +2089,20 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, vide
                   </div>
                 )}
                 {inspo.data.highlight && <div className="inspo-text">{inspo.data.highlight}</div>}
+                {inspo.data.website && (
+                  <a href={inspo.data.website.startsWith('http') ? inspo.data.website : `https://${inspo.data.website}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{display:"inline-block",marginTop:".45rem",fontSize:".78rem",color:"var(--dew)",textDecoration:"none",borderBottom:"1px solid rgba(138,180,160,.3)"}}>
+                    ↗ {inspo.data.website.replace(/^https?:\/\//, '')}
+                  </a>
+                )}
+                {inspo.data.location && (
+                  <a href={mapsDirectionsUrl(city, inspo.data.name + ', ' + inspo.data.location)}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{display:"inline-block",marginTop:".45rem",marginLeft: inspo.data.website ? ".75rem" : "0",fontSize:".78rem",color:"var(--dew)",textDecoration:"none",borderBottom:"1px solid rgba(138,180,160,.3)"}}>
+                    🗺 Directions
+                  </a>
+                )}
                 {inspo.data.confidence === "medium" && (
                   <div style={{fontSize:".72rem",color:"var(--muted)",marginTop:".4rem",fontStyle:"italic",opacity:.7}}>
                     {t("verifyHighlight")}
@@ -3970,7 +3994,7 @@ Priority rules — apply in this order:
 6. Use medium confidence freely for nearby gardens — the UI will show a caveat. Medium confidence + nearby is always preferable to high confidence + far away.
 
 Return ONLY valid JSON, no markdown:
-{"name":"<Garden name or 'none'>","organisation":"<operator e.g. National Trust / RHS / local authority / independent>","location":"<Town, Region>","distance":"<approx journey time from ${city}, including ferry/flight if applicable>","highlight":"<What this garden is genuinely known for in ${monthName} — specific plant, collection or feature — 10-20 words>","known_for":"<The garden primary specialism or what it is most famous for — 8-15 words>","confidence":"high or medium"}
+{"name":"<Garden name or 'none'>","organisation":"<operator e.g. National Trust / RHS / local authority / independent>","location":"<Town, Region>","distance":"<approx journey time from ${city}, including ferry/flight if applicable>","highlight":"<What this garden is genuinely known for in ${monthName} — specific plant, collection or feature — 10-20 words>","known_for":"<The garden primary specialism or what it is most famous for — 8-15 words>","website":"<official website URL — only include if you are certain it is correct, e.g. rhs.org.uk/gardens/wisley — omit the field entirely if uncertain>","confidence":"high or medium"}
 
 confidence high = you have clear specific knowledge of this garden collections and seasonal highlights from published sources.
 confidence medium = you know the garden exists and broadly what it contains but are less certain of specific highlights.
@@ -5116,8 +5140,22 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                       <div className="inspo-name">{inspo.data.name}</div>
                       {inspo.data.location && <div className="inspo-detail">{inspo.data.location}{inspo.data.distance ? ` · ${inspo.data.distance}` : ""}</div>}
                       {inspo.data.highlight && <div className="inspo-text">{inspo.data.highlight}</div>}
+                      {inspo.data.website && (
+                        <a href={inspo.data.website.startsWith('http') ? inspo.data.website : `https://${inspo.data.website}`}
+                          target="_blank" rel="noopener noreferrer"
+                          style={{display:"inline-block",marginTop:".45rem",fontSize:".78rem",color:"var(--dew)",textDecoration:"none",borderBottom:"1px solid rgba(138,180,160,.3)"}}>
+                          ↗ {inspo.data.website.replace(/^https?:\/\//, '')}
+                        </a>
+                      )}
+                      {inspo.data.location && (
+                        <a href={mapsDirectionsUrl(todayGarden?.city || city, inspo.data.name + ', ' + inspo.data.location)}
+                          target="_blank" rel="noopener noreferrer"
+                          style={{display:"inline-block",marginTop:".45rem",marginLeft: inspo.data.website ? ".75rem" : "0",fontSize:".78rem",color:"var(--dew)",textDecoration:"none",borderBottom:"1px solid rgba(138,180,160,.3)"}}>
+                          🗺 Directions
+                        </a>
+                      )}
                       {inspo.data.confidence === "medium" && (
-                        <div style={{fontSize:".72rem",color:"var(--sage)",fontStyle:"italic",marginTop:".4rem",opacity:.7}}>↗ Verify seasonal highlights on the garden's website before visiting</div>
+                        <div style={{fontSize:".72rem",color:"var(--sage)",fontStyle:"italic",marginTop:".4rem",opacity:.7}}>Verify seasonal highlights on the garden's website before visiting</div>
                       )}
                       <button style={{marginTop:".6rem",background:"none",border:"none",color:"var(--sage)",fontSize:".75rem",cursor:"pointer",fontFamily:"'Crimson Pro',serif",padding:0,opacity:.7}}
                         onClick={() => fetchInspo([monthName])}>↺ Find another</button>
