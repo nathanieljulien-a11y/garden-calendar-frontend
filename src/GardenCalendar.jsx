@@ -3978,34 +3978,37 @@ Return tasks for: ${batch.join(', ')}`;
     if (activeTab === "edit" && tab !== "edit" && city) {
       saveCurrentGarden();
     }
-    setActiveTab(tab);
 
     // Home — always show home screen
     if (tab === "garden") {
+      setActiveTab("garden");
       setStage("form");
       setShowHome(true);
+      return;
     }
 
-    // This Week — load the selected garden and fire data fetches
+    // This Week
     if (tab === "week") {
+      setActiveTab("week");
       setStage("today");
       const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
       if (g) {
         setTodayGarden(g);
-        if (g.city) setCity(g.city); // ensures fetchInspo has city in scope
-        setTodayTasks(null);
-        setTodayTasksError(null);
-        setInatData(null);
-        setInatError(null);
+        if (g.city) setCity(g.city);
+        setTodayTasks(null); setTodayTasksError(null);
+        setInatData(null); setInatError(null);
         const weatherPromise = fetchTodayWeather(g);
         fetchNearbyObs(g);
         weatherPromise.then(() => {
           fetchTodayTasks(g, readWeatherCache(g.id), computeUrgencySignals(readWeatherCache(g.id)));
         });
       }
+      return;
     }
-    // Edit — load selected garden into form state and go straight to form (not home screen)
-    else if (tab === "edit") {
+
+    // Edit
+    if (tab === "edit") {
+      setActiveTab("edit");
       const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
       if (g) {
         if (g.city)        setCity(g.city);
@@ -4017,18 +4020,18 @@ Return tasks for: ${batch.join(', ')}`;
       setStage("form");
       setShowHome(false);
       setFormStep("location");
+      return;
     }
-    // Calendar — load selected garden data into form state so handleSubmit has what it needs
-    else if (tab === "calendar") {
-      // Read fresh from localStorage — React state may be stale
+
+    // Calendar — redirect to Edit if no prior generate
+    if (tab === "calendar") {
       const freshGardens = readGardens();
       const g = selectedGardenId
         ? freshGardens.find(g => g.id === selectedGardenId)
         : freshGardens[0];
 
-      // A garden is "ready to generate" if it has climate data stored from a previous generate
-      // calendarTasks only covers 3 months so isn't reliable; climateData is always saved
       const hasClimate = !!(g?.climateData?._cd);
+      console.log('[handleTabChange calendar]', { selectedGardenId, gardenFound: !!g, city: g?.city, orientation: g?.orientation, hasClimate });
 
       if (g) {
         if (g.city)        setCity(g.city);
@@ -4038,25 +4041,17 @@ Return tasks for: ${batch.join(', ')}`;
         if (g.plantTraits) setPlantTraits(g.plantTraits);
       }
 
-      if (!g || !g.city || !g.orientation) {
-        // No usable garden at all — go to Edit
-        setShowHome(false);
-        setFormStep("location");
+      if (!g?.city || !g?.orientation || !hasClimate) {
+        // No usable garden or never generated — route to Edit first
         setActiveTab("edit");
         setStage("form");
+        setShowHome(false);
+        setFormStep("location");
         return;
       }
 
-      if (!hasClimate) {
-        // Garden exists but never generated — go to Edit so all state hydrates properly
-        setShowHome(false);
-        setFormStep("location");
-        setActiveTab("edit");
-        setStage("form");
-        return;
-      }
-
-      // Has prior generate — restore climate and go straight to calendar
+      // Has prior generate — restore climate and show calendar
+      setActiveTab("calendar");
       setMeta({
         ...g.climateData._derived,
         _cd: g.climateData._cd,
@@ -4066,7 +4061,11 @@ Return tasks for: ${batch.join(', ')}`;
       });
       setPfState("ready");
       setStage("calendar");
+      return;
     }
+
+    // About / any other tab
+    setActiveTab(tab);
   }, [activeTab, city, saveCurrentGarden, selectedGardenId, gardens, fetchTodayWeather, fetchNearbyObs, fetchTodayTasks, prefetchMeta]);
 
   const handleSaveLink = () => {
