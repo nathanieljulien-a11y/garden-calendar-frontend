@@ -4310,7 +4310,9 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
 
   const visibleNames = orderedForNav.slice(pageIdx, pageIdx + 3);
   // Stable callbacks per month name — prevents MonthPanel memo from busting on every render
-  const stillStreaming = !stream1Done;
+  // Actually streaming = stream has started (activeMonth set) but not finished
+  // stream1Done=false alone doesn't mean streaming — it's the initial state too
+  const stillStreaming = !stream1Done && !!activeMonth;
 
   const pfLabel = {
     idle:null,
