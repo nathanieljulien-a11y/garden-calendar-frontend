@@ -3601,6 +3601,7 @@ Other rules:
     }, 2000);
 
     try {
+      console.log('[stream] starting', { provider, hasUserKey: !!userKey, signalAborted: abort.signal.aborted, city, metaCd: !!m?._cd });
       await streamClaude(s1prompt, 3500, (chunk) => {
         chunkCountRef.current++;
         lastChunkAt = Date.now();
@@ -5587,4 +5588,3 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
     </>
   );
 }
-    
