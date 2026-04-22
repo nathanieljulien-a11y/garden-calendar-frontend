@@ -2089,11 +2089,17 @@ function MonthPanel({m, isCurrent, showInspoButton, inspo, onFetchInspo, t, vide
                   </div>
                 )}
                 {inspo.data.highlight && <div className="inspo-text">{inspo.data.highlight}</div>}
-                {inspo.data.website && (
+                {inspo.data.website ? (
                   <a href={inspo.data.website.startsWith('http') ? inspo.data.website : `https://${inspo.data.website}`}
                     target="_blank" rel="noopener noreferrer"
                     style={{display:"inline-block",marginTop:".45rem",fontSize:".78rem",color:"var(--dew)",textDecoration:"none",borderBottom:"1px solid rgba(138,180,160,.3)"}}>
                     ↗ {inspo.data.website.replace(/^https?:\/\//, '')}
+                  </a>
+                ) : (
+                  <a href={`https://www.google.com/search?q=${encodeURIComponent(inspo.data.name + ' ' + (inspo.data.location||'') + ' official website')}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{display:"inline-block",marginTop:".45rem",fontSize:".78rem",color:"var(--sage)",textDecoration:"none",borderBottom:"1px solid rgba(122,140,106,.25)",fontStyle:"italic"}}>
+                    Look it up ↗
                   </a>
                 )}
                 {inspo.data.location && (
@@ -5140,11 +5146,17 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                       <div className="inspo-name">{inspo.data.name}</div>
                       {inspo.data.location && <div className="inspo-detail">{inspo.data.location}{inspo.data.distance ? ` · ${inspo.data.distance}` : ""}</div>}
                       {inspo.data.highlight && <div className="inspo-text">{inspo.data.highlight}</div>}
-                      {inspo.data.website && (
+                      {inspo.data.website ? (
                         <a href={inspo.data.website.startsWith('http') ? inspo.data.website : `https://${inspo.data.website}`}
                           target="_blank" rel="noopener noreferrer"
                           style={{display:"inline-block",marginTop:".45rem",fontSize:".78rem",color:"var(--dew)",textDecoration:"none",borderBottom:"1px solid rgba(138,180,160,.3)"}}>
                           ↗ {inspo.data.website.replace(/^https?:\/\//, '')}
+                        </a>
+                      ) : (
+                        <a href={`https://www.google.com/search?q=${encodeURIComponent(inspo.data.name + ' ' + (inspo.data.location||'') + ' official website')}`}
+                          target="_blank" rel="noopener noreferrer"
+                          style={{display:"inline-block",marginTop:".45rem",fontSize:".78rem",color:"var(--sage)",textDecoration:"none",borderBottom:"1px solid rgba(122,140,106,.25)",fontStyle:"italic"}}>
+                          Look it up ↗
                         </a>
                       )}
                       {inspo.data.location && (
