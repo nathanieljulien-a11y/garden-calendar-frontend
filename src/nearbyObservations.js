@@ -243,14 +243,12 @@ export function normaliseInatObservations(raw, inventoryPlants = [], isCaptive =
     }
   }
 
-  // Build local observation search URL using bounding box — lat/lng/radius are API-only
-  // and silently ignored by the iNaturalist web observations page.
-  // 30km radius: ~0.27° lat, lng degrees vary by latitude (cos correction).
+  // Build URL using iNaturalist observations page with bounding box.
+  // Must include place_id=any to override the user's default place filter (which can blank results).
   const observations = Object.values(byTaxon).map(o => {
     const RADIUS_KM = 30;
     const DEG_PER_KM_LAT = 1 / 111;
     const latDeg = RADIUS_KM * DEG_PER_KM_LAT;
-    // Use observation lat/lng if available, else fall back to the search lat/lng from params
     const centreLat = o._obsLat || searchLat || 0;
     const centreLng = o._obsLng || searchLng || 0;
     const lngDeg = latDeg / Math.max(Math.cos(centreLat * Math.PI / 180), 0.01);
@@ -258,10 +256,9 @@ export function normaliseInatObservations(raw, inventoryPlants = [], isCaptive =
     const swlng = (centreLng - lngDeg).toFixed(2);
     const nelat = (centreLat + latDeg).toFixed(2);
     const nelng = (centreLng + lngDeg).toFixed(2);
-    const bboxParam = `&swlat=${swlat}&swlng=${swlng}&nelat=${nelat}&nelng=${nelng}`;
     const d1Param      = o._d1 ? `&d1=${o._d1}` : '';
     const captiveParam = o.isCaptive ? '&captive=true' : '';
-    const inatUrl = `https://www.inaturalist.org/observations?taxon_id=${o.taxonId}${bboxParam}${d1Param}${captiveParam}&order_by=observed_on`;
+    const inatUrl = `https://www.inaturalist.org/observations?taxon_id=${o.taxonId}&place_id=any&nelat=${nelat}&nelng=${nelng}&swlat=${swlat}&swlng=${swlng}${d1Param}${captiveParam}&view=map`;
     const _rawScore = o.count * (o.isCaptive ? 1.8 : o._isPlant ? 1.4 : 1.0);
 
     return {
