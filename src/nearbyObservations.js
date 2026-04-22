@@ -87,15 +87,13 @@ export function writeInatCache(gardenId, data) {
  * }
  */
 export async function fetchNearbyObservations(lat, lng, inventoryPlants = [], signal) {
-  const d1 = new Date();
-  d1.setDate(d1.getDate() - 14);
-  const d1str = d1.toISOString().slice(0, 10);
+  const month = new Date().getMonth() + 1; // 1–12
 
   const baseParams = {
     lat:      lat.toFixed(4),
     lng:      lng.toFixed(4),
     radius:   30,
-    d1:       d1str,
+    month:    month,
     per_page: 100,
     order:    'desc',
     order_by: 'observed_on',
@@ -243,9 +241,9 @@ export function normaliseInatObservations(raw, inventoryPlants = [], isCaptive =
   // Link to observations page filtered by taxon + garden location using the same
   // lat/lng/radius the API search used — consistent and always relevant.
   const observations = Object.values(byTaxon).map(o => {
-    const d1Param      = o._d1 ? `&d1=${o._d1}` : '';
-    const captiveParam = o.isCaptive ? '&captive=true' : '';
-    const inatUrl = `https://www.inaturalist.org/observations?taxon_id=${o.taxonId}&place_id=any&lat=${searchLat.toFixed(3)}&lng=${searchLng.toFixed(3)}&radius=30${d1Param}${captiveParam}&view=map`;
+    const month = new Date().getMonth() + 1; // 1–12
+    const captiveParam = o.isCaptive ? '&captive=true' : 'captive=false';
+    const inatUrl = `https://www.inaturalist.org/observations?taxon_id=${o.taxonId}&lat=${searchLat.toFixed(4)}&lng=${searchLng.toFixed(4)}&month=${month}&radius=30&subview=map&verifiable=any${o.isCaptive ? '&captive=true' : ''}`;
     const _rawScore = o.count * (o.isCaptive ? 1.8 : o._isPlant ? 1.4 : 1.0);
 
     return {
