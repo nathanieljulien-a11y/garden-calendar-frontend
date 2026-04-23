@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import QRCodeLib from 'qrcode';
 import { readGardens, saveGarden, touchGarden, renameGarden, deleteGarden, migrateLegacyFavourites, hasSavedGardens, createGardenObject } from './gardenStorage.js';
 import { HomeScreen, HOME_SCREEN_STYLES } from './HomeScreen.jsx';
 import { fetchWeatherForecast, computeUrgencySignals, readWeatherCache, writeWeatherCache } from './weatherService.js';
@@ -2100,22 +2101,55 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const enjoyText = (monthData?.enjoy || []).join(' ').toLowerCase();
   const enjoyPlants = allPlantsList.filter(p => enjoyText.includes(p.toLowerCase()));
 
-  // Also check tasks text for plant mentions
+  // Vegetables and herbs show food photos on Wikipedia, not plants — skip for illustrations
+  const VEG_HERB_CATEGORIES = ['vegetables', 'herbs'];
+  const illustratable = allPlantsList.filter(p => {
+    const cat = Object.entries(allPlants).find(([, arr]) => arr.includes(p))?.[0];
+    return !VEG_HERB_CATEGORIES.includes(cat);
+  });
+
+  // Detect "habitat" mentions — plant named as perch/backdrop for wildlife, not as subject
+  // e.g. "from the mulberry tree", "under the oak", "in the rose hedge"
+  const habitatPattern = /\b(from|under|in|on|off|beside|through|into|against|along) the ([a-z]+ )*(PLANT)/i;
+  const enjoyLines = monthData?.enjoy || [];
+  const enjoyPlantsFiltered = illustratable.filter(p => {
+    const pLower = p.toLowerCase();
+    return enjoyLines.some(line => {
+      const l = line.toLowerCase();
+      if (!l.includes(pLower)) return false;
+      // Check if it's a habitat mention — plant preceded by "the X tree/bush/hedge" pattern
+      const habitatRe = new RegExp(`(from|under|in|on|off|beside|through|into|against|along)\s+(the\s+)?${pLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\s*(tree|bush|hedge|wall|shrub|bed)?`, 'i');
+      const isHabitat = habitatRe.test(l);
+      return !isHabitat; // include only if NOT habitat mention
+    });
+  });
+
+  // Task plants — only illustratable (no veg/herbs), and only flowering/visual tasks
+  // Skip "plant out", "sow", "harvest" task mentions — not visually interesting
   const taskText = (monthData?.tasks || []).join(' ').toLowerCase();
-  const taskPlants = allPlantsList.filter(p => taskText.includes(p.toLowerCase()));
-  const activeThisMonth = [...new Set([...enjoyPlants, ...taskPlants])];
+  const visualTaskKeywords = ['prune', 'trim', 'stake', 'train', 'tie', 'deadhead', 'feed', 'mulch', 'protect'];
+  const taskPlants = illustratable.filter(p => {
+    const pLower = p.toLowerCase();
+    if (!taskText.includes(pLower)) return false;
+    // Only include if the task is a visual/care task, not planting/sowing
+    return (monthData?.tasks || []).some(t => {
+      const tl = t.toLowerCase();
+      return tl.includes(pLower) && visualTaskKeywords.some(kw => tl.includes(kw));
+    });
+  });
+
+  const activeThisMonth = [...new Set([...enjoyPlantsFiltered, ...taskPlants])];
 
   // Candidate order:
-  // 1. Plants mentioned in enjoy (most visually relevant — flowering, fruiting, interesting)
-  // 2. Plants mentioned in tasks (being worked on this month)
-  // 3. Peak lens plants (high interest score)
-  // 4. Rest of inventory as final fallback
-  // Never show a plant that has zero connection to this month's content
+  // 1. Plants as subjects in enjoy lines (not as habitat)
+  // 2. Plants in visual care tasks (pruning, staking, training)
+  // 3. Peak lens plants (high interest score this month)
+  // 4. Any other illustratable plant as final fallback
   const illustrationCandidates = [
-    ...enjoyPlants,
-    ...taskPlants.filter(p => !enjoyPlants.includes(p)),
-    ...peakPlants.filter(p => !activeThisMonth.includes(p)),
-    ...(activeThisMonth.length === 0 ? allPlantsList : []), // fallback only if nothing active
+    ...enjoyPlantsFiltered,
+    ...taskPlants.filter(p => !enjoyPlantsFiltered.includes(p)),
+    ...peakPlants.filter(p => !activeThisMonth.includes(p) && illustratable.includes(p)),
+    ...illustratable.filter(p => !activeThisMonth.includes(p) && !peakPlants.includes(p)),
   ];
 
   // Fetch illustration URLs via Wikipedia REST API — try each candidate until we get 2 images
@@ -2172,12 +2206,23 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 
   const gardenUrl = `https://garden-calendar.vercel.app`;
 
+  // Generate QR codes as inline SVG — no CDN dependency
+  const makeQRSvgInline = async (url, size) => {
+    try {
+      return await QRCodeLib.toString(url, {
+        type: 'svg', width: size, margin: 1,
+        color: { dark: '#2C1A0A', light: '#ffffff' }
+      });
+    } catch { return ''; }
+  };
+  const qrDirectionsSvg = mapsUrl ? await makeQRSvgInline(mapsUrl, 36) : '';
+  const qrAppSvg = await makeQRSvgInline(gardenUrl, 28);
+
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSe2HkjoPqABNAT1XHaUPauUpKoZwKqk9Whw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
   body { width:1240px; height:874px; background:#FDFAF4; font-family:'Crimson Pro',Georgia,serif; color:#2C1A0A; overflow:hidden; }
@@ -2394,7 +2439,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 
   ${mapsUrl ? `
   <div class="qr-row">
-    <div class="qr-box"><div id="qr-directions" style="width:34px;height:34px"></div></div>
+    <div class="qr-box">${qrDirectionsSvg}</div>
     <div class="qr-label">Directions<br>to ${(inspo.name?.split(' ')[0] || 'garden')} ↗</div>
   </div>` : ''}` : `
   <div class="inspo-detail" style="font-style:italic;opacity:.6">Generate inspo gardens<br>in the app to populate<br>this section</div>`}
@@ -2409,37 +2454,12 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   <div class="footer-climate">${meta?.zone ? `Zone ${meta.zone} · ` : ''}${meta?.lastFrost ? `Last frost ${meta.lastFrost} · ` : ''}Climate data: Open-Meteo / ERA5</div>
   <div class="footer-centre">✦ The Garden Calendar · ${gardenUrl} ✦</div>
   <div class="footer-app">
-    <div class="footer-qr-box"><div id="qr-app" style="width:26px;height:26px"></div></div>
+    <div class="footer-qr-box">${qrAppSvg}</div>
     <div class="footer-qr-label">Your digital<br>calendar ↗</div>
   </div>
 </footer>
 
 </div>
-<script>
-  (function() {
-    function makeQR(id, url, size) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      if (typeof QRCode === 'undefined') {
-        // Fallback: show URL as tiny text if library failed to load
-        el.innerHTML = '<div style="font-size:6px;word-break:break-all;color:#2C1A0A;padding:2px">' + url.slice(0,30) + '</div>';
-        return;
-      }
-      try {
-        new QRCode(el, {
-          text: url,
-          width: size, height: size,
-          colorDark: '#2C1A0A', colorLight: '#ffffff',
-          correctLevel: QRCode.CorrectLevel.M
-        });
-      } catch(e) { console.warn('QR failed:', e); }
-    }
-    window.addEventListener('load', function() {
-      ${mapsUrl ? `makeQR('qr-directions', '${mapsUrl.replace(/'/g, "\'")}', 34);` : ''}
-      makeQR('qr-app', '${gardenUrl}', 26);
-    });
-  })();
-</script>
 </body>
 </html>`;
 }
