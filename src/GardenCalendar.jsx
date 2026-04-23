@@ -2039,7 +2039,7 @@ function makeQRSvg(size = 48) {
 }
 
 // ─── Calendar Page HTML Generator ────────────────────────────────────────────
-async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, city, meta, monthData, inspoData, lensData, allPlants, insights }) {
+async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, city, meta, monthData, inspoData, lensData, allPlants, insights, usedPlants = new Set(), usedInspos = new Set() }) {
   const cd = meta?._cd;
 
   // Weather stats for this month
@@ -2172,10 +2172,11 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   // 1. Plants as subjects in enjoy lines
   // 2. Plants in visual care tasks
   // 3. Any other illustratable plant (last resort fallback only)
+  // Strictly from this page's content — no fallback to full inventory
+  // This prevents off-page plants (olive, mulberry etc.) appearing
   const illustrationCandidates = [
     ...enjoyPlantsFiltered,
     ...taskPlants.filter(p => !enjoyPlantsFiltered.includes(p)),
-    ...illustratable.filter(p => !activeThisMonth.includes(p)),
   ];
 
   // Wildlife mentioned in enjoy lines — fallback if not enough plant illustrations
@@ -2199,17 +2200,22 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 
   // Fetch plant illustrations via Wikipedia REST summary API — proven CORS-accessible
   // Only fetches plants that have a known Wikipedia article (PLANT_WIKI_ARTICLES lookup)
+  // One illustration per page — first match not already used across other months
   const illus = [];
   for (const p of illustrationCandidates) {
-    if (illus.length >= 2) break;
+    if (illus.length >= 1) break;
+    if (usedPlants.has(p.toLowerCase())) continue; // no repeats across months
     const articleTitle = PLANT_WIKI_ARTICLES[p.toLowerCase().trim()];
     if (!articleTitle) continue;
     const url = await fetchWikiThumb(articleTitle);
-    if (url) illus.push({ plant: p, url, licence: "Wikipedia · CC BY-SA" });
+    if (url) {
+      illus.push({ plant: p, url, licence: "Wikipedia · CC BY-SA" });
+      usedPlants.add(p.toLowerCase()); // register for subsequent months
+    }
   }
 
   // Wildlife fallback: if we have fewer than 2 plant illustrations, add wildlife
-  if (illus.length < 2 && foundWildlife) {
+  if (illus.length < 1 && foundWildlife) {
     const wPhoto = await fetchWildlifePhoto(foundWildlife);
     if (wPhoto?.url) {
       illus.push({ plant: foundWildlife, url: wPhoto.url, licence: wPhoto.licence });
@@ -2217,7 +2223,10 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   }
 
   // Inspo garden + fetch its Wikipedia photo
-  const inspo = inspoData?.state === 'done' ? inspoData.data : null;
+  const inspoRaw = inspoData?.state === 'done' ? inspoData.data : null;
+  // Skip inspo if this garden was already used in another month
+  const inspo = inspoRaw && !usedInspos.has(inspoRaw.name) ? inspoRaw : null;
+  if (inspo) usedInspos.add(inspo.name); // register for subsequent months
   const mapsUrl = inspo?.location
     ? `https://www.google.com/maps/dir/${encodeURIComponent(city)}/${encodeURIComponent((inspo.name || '') + ', ' + inspo.location)}`
     : null;
@@ -2260,8 +2269,8 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     const src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encoded}&margin=2`;
     return `<img src="${src}" width="${size}" height="${size}" style="display:block"/>`;
   };
-  const qrDirectionsSvg = mapsUrl ? makeQRImg(mapsUrl, 36) : '';
-  const qrAppSvg = makeQRImg(gardenUrl, 28);
+  const qrDirectionsSvg = mapsUrl ? makeQRImg(mapsUrl, 120) : '';
+  const qrAppSvg = makeQRImg(gardenUrl, 80);
 
   return `<!DOCTYPE html>
 <html>
@@ -2271,7 +2280,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
   body { width:1240px; height:874px; background:#FDFAF4; font-family:'Crimson Pro',Georgia,serif; color:#2C1A0A; overflow:hidden; }
-  .page { display:grid; grid-template-columns:360px 1fr 220px; grid-template-rows:56px 1fr 44px; height:100%; }
+  .page { display:grid; grid-template-columns:420px 1fr 200px; grid-template-rows:56px 1fr 44px; height:100%; }
   .header { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; padding:0 24px; background:#2C1A0A; color:#F5EDD8; border-bottom:2px solid #8B6914; }
   .hdr-left { display:flex; align-items:baseline; gap:12px; }
   .hdr-month { font-family:'Playfair Display',serif; font-size:28px; font-style:italic; letter-spacing:.03em; }
@@ -2323,7 +2332,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   .inspo-detail { font-size:10px; color:#7A5C2A; line-height:1.4; }
   .inspo-highlight { font-size:10px; color:#4A3520; font-style:italic; line-height:1.4; }
   .qr-row { display:flex; align-items:center; gap:8px; flex-shrink:0; }
-  .qr-box { width:36px; height:36px; border:1.5px solid #8B6914; border-radius:2px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:white; }
+  .qr-box { width:120px; height:120px; border:1.5px solid #8B6914; border-radius:2px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:white; }
   .qr-label { font-size:9.5px; color:#7A5C2A; font-style:italic; line-height:1.45; }
   .quote { padding-top:8px; border-top:1px solid rgba(139,105,20,.2); font-style:italic; font-size:10.5px; line-height:1.55; color:#4A3520; flex-shrink:0; }
   .quote-attr { font-style:normal; font-size:9.5px; color:#8B6914; margin-top:3px; }
@@ -2331,7 +2340,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   .footer-climate { font-size:9px; color:#7A5C2A; font-style:italic; }
   .footer-centre { font-family:'Playfair Display',serif; font-size:10px; font-style:italic; color:#8B6914; }
   .footer-app { display:flex; align-items:center; gap:7px; }
-  .footer-qr-box { width:28px; height:28px; border:1px solid rgba(139,105,20,.4); border-radius:2px; display:flex; align-items:center; justify-content:center; background:white; }
+  .footer-qr-box { width:80px; height:80px; border:1px solid rgba(139,105,20,.4); border-radius:2px; display:flex; align-items:center; justify-content:center; background:white; }
   .footer-qr-label { font-size:9px; color:#8B6914; font-style:italic; line-height:1.4; }
   .insights-section { margin-top:8px; padding:8px 10px; background:rgba(139,105,20,.05); border-radius:3px; border:1px solid rgba(139,105,20,.18); flex-shrink:0; }
   .insight-item-print { margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid rgba(139,105,20,.12); }
@@ -2369,17 +2378,6 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   <div class="illus-slot">
     <div class="illus-img-wrap"><div class="illus-placeholder"><div class="illus-placeholder-text">${monthName}</div></div></div>
   </div>`}
-  ${illus[1] ? `
-  <div class="illus-divider"></div>
-  <div class="illus-slot">
-    <div class="illus-img-wrap">
-      <img src="${illus[1].url}" alt="${illus[1].plant}"/>
-    </div>
-    <div class="illus-caption">
-      <span class="illus-caption-name">${illus[1].plant.charAt(0).toUpperCase() + illus[1].plant.slice(1)}</span>
-      <span class="illus-caption-licence">${illus[1].licence}</span>
-    </div>
-  </div>` : ''}
 </div>
 
 <!-- CENTRE: WEATHER + TASKS + ENJOY + LENS + NOTES -->
@@ -6103,6 +6101,10 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               const availableMonths = Array.from({length: loadedBatches * 3}, (_,i) => MONTH_NAMES[(startIdx2 + i) % 12])
                 .filter(n => months[n]?._state === 'done');
               if (!availableMonths.length) return null;
+              // Track used illustrations and inspo gardens across all months — no repeats
+              const usedPlants = new Set();
+              const usedInspos = new Set();
+
               const handlePreview = async (monthName) => {
                 const mIdx = MONTH_NAMES.indexOf(monthName);
                 const year = new Date().getFullYear() + (mIdx < nowIdx ? 1 : 0);
@@ -6119,6 +6121,8 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                   lensData,
                   allPlants: plants,
                   insights,
+                  usedPlants,
+                  usedInspos,
                 });
                 const blob = new Blob([html], { type: 'text/html' });
                 const url = URL.createObjectURL(blob);
