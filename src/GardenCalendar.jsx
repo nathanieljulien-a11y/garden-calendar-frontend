@@ -2101,8 +2101,11 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const enjoyPlants = allPlantsList.filter(p => enjoyText.includes(p.toLowerCase()));
 
   // Vegetables and herbs show food photos on Wikipedia, not plants — skip for illustrations
+  // Also exclude plants not in the current garden's inventory (guards against stale lensData)
   const VEG_HERB_CATEGORIES = ['vegetables', 'herbs'];
+  const currentInventory = new Set(allPlantsList);
   const illustratable = allPlantsList.filter(p => {
+    if (!currentInventory.has(p)) return false; // stale data guard
     const cat = Object.entries(allPlants).find(([, arr]) => arr.includes(p))?.[0];
     return !VEG_HERB_CATEGORIES.includes(cat);
   });
@@ -2117,7 +2120,14 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
       const l = line.toLowerCase();
       if (!l.includes(pLower)) return false;
       // Check if it's a habitat mention — plant preceded by "the X tree/bush/hedge" pattern
-      const habitatRe = new RegExp(`(from|under|in|on|off|beside|through|into|against|along)\s+(the\s+)?${pLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\s*(tree|bush|hedge|wall|shrub|bed)?`, 'i');
+      // Habitat: plant used as location/perch for wildlife ("from the olive tree", "in the rose hedge")
+      // Also catch "X tree" patterns where plant IS the tree noun
+      const escapedPlant = pLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const habitatRe = new RegExp(
+        `(from|under|in|on|off|beside|through|into|against|along|atop)\s+(the\s+)?${escapedPlant}|` +
+        `${escapedPlant}\s+(tree|bush|hedge|wall|shrub|bed|bough|branch)`,
+        'i'
+      );
       const isHabitat = habitatRe.test(l);
       return !isHabitat; // include only if NOT habitat mention
     });
@@ -2151,14 +2161,39 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     ...illustratable.filter(p => !activeThisMonth.includes(p) && !peakPlants.includes(p)),
   ];
 
+  // Wildlife mentioned in enjoy lines — fallback if not enough plant illustrations
+  const WILDLIFE_WORDS = ['blackbird','robin','blue tit','great tit','sparrow','wren','chaffinch',
+    'goldfinch','starling','swallow','swift','house martin','bumblebee','honeybee','butterfly',
+    'red admiral','comma','peacock butterfly','ladybird','ladybug','dragonfly','frog',
+    'hedgehog','bat','heron','kingfisher','woodpecker','jay','magpie','dove','chiffchaff'];
+  const enjoyTextForWildlife = (monthData?.enjoy || []).join(' ').toLowerCase();
+  const foundWildlife = WILDLIFE_WORDS.find(w => enjoyTextForWildlife.includes(w));
+
+  const fetchWildlifePhoto = async (name) => {
+    try {
+      const r = await fetch(`https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(name)}&per_page=1`, { headers: { Accept: 'application/json' } });
+      if (!r.ok) return null;
+      const d = await r.json();
+      const taxon = d.results?.[0];
+      if (!taxon?.default_photo?.medium_url) return null;
+      return { url: taxon.default_photo.medium_url, name: taxon.preferred_common_name || name, licence: taxon.default_photo.attribution || 'iNaturalist · CC BY' };
+    } catch { return null; }
+  };
+
   // Fetch illustration URLs via Wikipedia REST API — try each candidate until we get 2 images
   const fetchWikiThumbForPlant = async (plantName) => {
-    const sci = PLANT_SCI_NAMES[plantName.toLowerCase()];
-    if (!sci) return null;
-    // Try full scientific name, then genus only, then common name directly
-    return await fetchWikiThumb(sci)
-        || await fetchWikiThumb(sci.split(' ')[0])
-        || await fetchWikiThumb(plantName);
+    const key = plantName.toLowerCase().trim();
+    const sci = PLANT_SCI_NAMES[key];
+    // Try in order: scientific name, genus, common name capitalised, common name as-is
+    // Also try with "blossom" or "flower" appended for flowering plants — often better images
+    const candidates = sci
+      ? [sci, sci.split(' ')[0], plantName, plantName + ' blossom', plantName + ' flower']
+      : [plantName, plantName.charAt(0).toUpperCase() + plantName.slice(1), plantName + ' flower'];
+    for (const c of candidates) {
+      const url = await fetchWikiThumb(c);
+      if (url) return url;
+    }
+    return null;
   };
 
   const illus = [];
@@ -2166,6 +2201,14 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     if (illus.length >= 2) break;
     const url = await fetchWikiThumbForPlant(p);
     if (url) illus.push({ plant: p, url, licence: 'Wikimedia Commons · Public Domain' });
+  }
+
+  // Wildlife fallback: if we have fewer than 2 plant illustrations, add wildlife
+  if (illus.length < 2 && foundWildlife) {
+    const wPhoto = await fetchWildlifePhoto(foundWildlife);
+    if (wPhoto?.url) {
+      illus.push({ plant: foundWildlife, url: wPhoto.url, licence: wPhoto.licence });
+    }
   }
 
   // Inspo garden + fetch its Wikipedia photo
@@ -2208,7 +2251,8 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   // Generate QR codes as data-URI images via Google Charts API (free, no key, CORS-friendly)
   const makeQRImg = (url, size) => {
     const encoded = encodeURIComponent(url);
-    const src = `https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${encoded}&chco=2C1A0A&chf=bg,s,ffffff&chld=M|1`;
+    // Note: no colour params — chco/chf are unreliable and cause blank renders
+    const src = `https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${encoded}&chld=M|1`;
     return `<img src="${src}" width="${size}" height="${size}" style="display:block"/>`;
   };
   const qrDirectionsSvg = mapsUrl ? makeQRImg(mapsUrl, 36) : '';
