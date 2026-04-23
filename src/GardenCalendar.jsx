@@ -1944,6 +1944,24 @@ const PLANT_ILLUSTRATIONS = {
   'strawberry':   'Fragaria_vesca_-_Köhler–s_Medizinal-Pflanzen-065.jpg',
   'almond':       'Prunus_dulcis_-_Köhler–s_Medizinal-Pflanzen-177.jpg',
   'quince':       'Cydonia_oblonga_-_Köhler–s_Medizinal-Pflanzen-047.jpg',
+  'raspberry':    'Rubus_idaeus_-_Köhler–s_Medizinal-Pflanzen-237.jpg',
+  'blackcurrant': 'Ribes_nigrum_-_Köhler–s_Medizinal-Pflanzen-213.jpg',
+  'gooseberry':   'Ribes_uva-crispa_-_Köhler–s_Medizinal-Pflanzen-214.jpg',
+  'blackberry':   'Rubus_fruticosus_-_Köhler–s_Medizinal-Pflanzen-238.jpg',
+  'pine':         'Pinus_sylvestris_-_Köhler–s_Medizinal-Pflanzen-164.jpg',
+  'sweet pea':    'Lathyrus_odoratus_-_Köhler–s_Medizinal-Pflanzen-090.jpg',
+  'phlox':        'Phlox_paniculata_-_Köhler–s_Medizinal-Pflanzen-170.jpg',
+  'echinacea':    'Echinacea_purpurea_-_Köhler–s_Medizinal-Pflanzen-053.jpg',
+  'verbena':      'Verbena_officinalis_-_Köhler–s_Medizinal-Pflanzen-277.jpg',
+  'borage':       'Borago_officinalis_-_Köhler–s_Medizinal-Pflanzen-023.jpg',
+  'nasturtium':   'Tropaeolum_majus_-_Köhler–s_Medizinal-Pflanzen-273.jpg',
+  'snapdragon':   'Antirrhinum_majus_-_Köhler–s_Medizinal-Pflanzen-013.jpg',
+  'pansy':        'Viola_tricolor_-_Köhler–s_Medizinal-Pflanzen-278.jpg',
+  'viola':        'Viola_tricolor_-_Köhler–s_Medizinal-Pflanzen-278.jpg',
+  'valerian':     'Valeriana_officinalis_-_Köhler–s_Medizinal-Pflanzen-275.jpg',
+  'lemon balm':   'Melissa_officinalis_-_Köhler–s_Medizinal-Pflanzen-108.jpg',
+  'elderflower':  'Sambucus_nigra_-_Köhler–s_Medizinal-Pflanzen-247.jpg',
+  'elder':        'Sambucus_nigra_-_Köhler–s_Medizinal-Pflanzen-247.jpg',
   'mulberry':     'Morus_nigra_-_Köhler–s_Medizinal-Pflanzen-119.jpg',
   'lemon':        'Citrus_limon_-_Köhler–s_Medizinal-Pflanzen-036.jpg',
   'orange':       'Citrus_sinensis_-_Köhler–s_Medizinal-Pflanzen-037.jpg',
@@ -2061,24 +2079,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     return await trySummary('en') || await trySearch('en') || await trySummary('fr') || await trySearch('fr');
   };
 
-  // Scientific names for illustration lookup (same mapping as PLANT_ILLUSTRATIONS keys)
-  const PLANT_SCI_NAMES = {
-    'rose':'Rosa centifolia','wisteria':'Wisteria sinensis','lavender':'Lavandula angustifolia',
-    'peony':'Paeonia officinalis','iris':'Iris germanica','tulip':'Tulipa gesneriana',
-    'sunflower':'Helianthus annuus','dahlia':'Dahlia pinnata','camellia':'Camellia japonica',
-    'magnolia':'Magnolia grandiflora','oleander':'Nerium oleander','foxglove':'Digitalis purpurea',
-    'rosemary':'Rosmarinus officinalis','thyme':'Thymus vulgaris','basil':'Ocimum basilicum',
-    'mint':'Mentha piperita','sage':'Salvia officinalis','parsley':'Petroselinum crispum',
-    'chives':'Allium schoenoprasum','tarragon':'Artemisia dracunculus','fennel':'Foeniculum vulgare',
-    'oregano':'Origanum vulgare','apple':'Malus domestica','fig':'Ficus carica',
-    'grape':'Vitis vinifera','peach':'Prunus persica','cherry':'Prunus cerasus',
-    'apricot':'Prunus armeniaca','strawberry':'Fragaria vesca','almond':'Prunus dulcis',
-    'olive':'Olea europaea','tomato':'Solanum lycopersicum','courgette':'Cucurbita pepo',
-    'aubergine':'Solanum melongena','pepper':'Capsicum annuum','carrot':'Daucus carota',
-    'lettuce':'Lactuca sativa','lemon':'Citrus limon','orange':'Citrus sinensis',
-    'mulberry':'Morus nigra','hydrangea':'Hydrangea macrophylla','allium':'Allium cepa',
-    'lupin':'Lupinus polyphyllus','marigold':'Tagetes erecta','pelargonium':'Pelargonium zonale',
-  };
+  // PLANT_SCI_NAMES removed — illustrations now use PLANT_ILLUSTRATIONS lookup directly
 
   // Tasks and enjoy
   const tasks  = monthData?.tasks  || [];
@@ -2100,14 +2101,17 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const enjoyText = (monthData?.enjoy || []).join(' ').toLowerCase();
   const enjoyPlants = allPlantsList.filter(p => enjoyText.includes(p.toLowerCase()));
 
-  // Vegetables and herbs show food photos on Wikipedia, not plants — skip for illustrations
-  // Also exclude plants not in the current garden's inventory (guards against stale lensData)
-  const VEG_HERB_CATEGORIES = ['vegetables', 'herbs'];
+  // Vegetables excluded — their Köhler plates show roots/produce not beautiful flowering
+  // Herbs INCLUDED if they have a Köhler plate entry — rosemary, thyme, lavender etc. are stunning
+  const EXCLUDE_CATEGORIES = ['vegetables'];
   const currentInventory = new Set(allPlantsList);
   const illustratable = allPlantsList.filter(p => {
     if (!currentInventory.has(p)) return false; // stale data guard
     const cat = Object.entries(allPlants).find(([, arr]) => arr.includes(p))?.[0];
-    return !VEG_HERB_CATEGORIES.includes(cat);
+    if (EXCLUDE_CATEGORIES.includes(cat)) return false;
+    // For herbs: only include if we have a known good Köhler plate
+    if (cat === 'herbs') return !!PLANT_ILLUSTRATIONS[p.toLowerCase().trim()];
+    return true;
   });
 
   // Detect "habitat" mentions — plant named as perch/backdrop for wildlife, not as subject
@@ -2116,9 +2120,10 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const enjoyLines = monthData?.enjoy || [];
   const enjoyPlantsFiltered = illustratable.filter(p => {
     const pLower = p.toLowerCase();
+    const wordRe = new RegExp(`\\b${pLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
     return enjoyLines.some(line => {
       const l = line.toLowerCase();
-      if (!l.includes(pLower)) return false;
+      if (!wordRe.test(l)) return false;
       // Check if it's a habitat mention — plant preceded by "the X tree/bush/hedge" pattern
       // Habitat: plant used as location/perch for wildlife ("from the olive tree", "in the rose hedge")
       // Also catch "X tree" patterns where plant IS the tree noun
@@ -2139,11 +2144,12 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const visualTaskKeywords = ['prune', 'trim', 'stake', 'train', 'tie', 'deadhead', 'feed', 'mulch', 'protect'];
   const taskPlants = illustratable.filter(p => {
     const pLower = p.toLowerCase();
-    if (!taskText.includes(pLower)) return false;
-    // Only include if the task is a visual/care task, not planting/sowing
+    // Use word boundary to prevent "rose" matching "rosemary" etc.
+    const wordRe = new RegExp(`\\b${pLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (!wordRe.test(taskText)) return false;
     return (monthData?.tasks || []).some(t => {
       const tl = t.toLowerCase();
-      return tl.includes(pLower) && visualTaskKeywords.some(kw => tl.includes(kw));
+      return wordRe.test(tl) && visualTaskKeywords.some(kw => tl.includes(kw));
     });
   });
 
@@ -2180,27 +2186,16 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     } catch { return null; }
   };
 
-  // Fetch illustration URLs via Wikipedia REST API — try each candidate until we get 2 images
-  const fetchWikiThumbForPlant = async (plantName) => {
-    const key = plantName.toLowerCase().trim();
-    const sci = PLANT_SCI_NAMES[key];
-    // Try in order: scientific name, genus, common name capitalised, common name as-is
-    // Also try with "blossom" or "flower" appended for flowering plants — often better images
-    const candidates = sci
-      ? [sci, sci.split(' ')[0], plantName, plantName + ' blossom', plantName + ' flower']
-      : [plantName, plantName.charAt(0).toUpperCase() + plantName.slice(1), plantName + ' flower'];
-    for (const c of candidates) {
-      const url = await fetchWikiThumb(c);
-      if (url) return url;
-    }
-    return null;
-  };
-
+  // Use curated PLANT_ILLUSTRATIONS lookup only — known good botanical plates, no Wikipedia search
+  // This avoids unpredictable Wikipedia results (fruit photos, landscapes, bands etc.)
   const illus = [];
   for (const p of illustrationCandidates) {
     if (illus.length >= 2) break;
-    const url = await fetchWikiThumbForPlant(p);
-    if (url) illus.push({ plant: p, url, licence: 'Wikimedia Commons · Public Domain' });
+    const url = getIllustrationUrl(p);
+    if (url) {
+      // Fetch the actual image via Wikimedia Commons FilePath redirect (CORS-friendly)
+      illus.push({ plant: p, url, licence: 'Köhler's Medizinal-Pflanzen · Public Domain' });
+    }
   }
 
   // Wildlife fallback: if we have fewer than 2 plant illustrations, add wildlife
