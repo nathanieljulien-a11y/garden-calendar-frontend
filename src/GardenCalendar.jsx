@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import QRCodeLib from 'qrcode';
 import { readGardens, saveGarden, touchGarden, renameGarden, deleteGarden, migrateLegacyFavourites, hasSavedGardens, createGardenObject } from './gardenStorage.js';
 import { HomeScreen, HOME_SCREEN_STYLES } from './HomeScreen.jsx';
 import { fetchWeatherForecast, computeUrgencySignals, readWeatherCache, writeWeatherCache } from './weatherService.js';
@@ -2206,17 +2205,14 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 
   const gardenUrl = `https://garden-calendar.vercel.app`;
 
-  // Generate QR codes as inline SVG — no CDN dependency
-  const makeQRSvgInline = async (url, size) => {
-    try {
-      return await QRCodeLib.toString(url, {
-        type: 'svg', width: size, margin: 1,
-        color: { dark: '#2C1A0A', light: '#ffffff' }
-      });
-    } catch { return ''; }
+  // Generate QR codes as data-URI images via Google Charts API (free, no key, CORS-friendly)
+  const makeQRImg = (url, size) => {
+    const encoded = encodeURIComponent(url);
+    const src = `https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${encoded}&chco=2C1A0A&chf=bg,s,ffffff&chld=M|1`;
+    return `<img src="${src}" width="${size}" height="${size}" style="display:block"/>`;
   };
-  const qrDirectionsSvg = mapsUrl ? await makeQRSvgInline(mapsUrl, 36) : '';
-  const qrAppSvg = await makeQRSvgInline(gardenUrl, 28);
+  const qrDirectionsSvg = mapsUrl ? makeQRImg(mapsUrl, 36) : '';
+  const qrAppSvg = makeQRImg(gardenUrl, 28);
 
   return `<!DOCTYPE html>
 <html>
