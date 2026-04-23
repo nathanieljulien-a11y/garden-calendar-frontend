@@ -2301,7 +2301,7 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
 </html>`;
 }
 
-({value,onChange,placeholder,onAdd}) {
+function TagInput({value,onChange,placeholder,onAdd}) {
   const [inp,setInp]=useState("");
   const add=()=>{
     const v=inp.trim();
