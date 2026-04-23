@@ -2066,16 +2066,6 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     'lupin':'Lupinus polyphyllus','marigold':'Tagetes erecta','pelargonium':'Pelargonium zonale',
   };
 
-  // Fetch up to 2 illustration URLs concurrently
-  const illustrationUrls = await Promise.all(
-    illus.slice(0, 2).map(async ({ plant }) => {
-      const sci = PLANT_SCI_NAMES[plant.toLowerCase()];
-      if (!sci) return null;
-      // Try en first, then fr
-      return await fetchWikiThumb(sci) || await fetchWikiThumb(sci.split(' ')[0]);
-    })
-  );
-
   // Tasks and enjoy
   const tasks  = monthData?.tasks  || [];
   const enjoy  = monthData?.enjoy  || [];
@@ -2102,6 +2092,15 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     if (url) { illus.push({ plant: p, url }); }
     if (illus.length >= 2) break;
   }
+
+  // Fetch illustration URLs via Wikipedia REST API (CORS-friendly) — after illus array is built
+  const illustrationUrls = await Promise.all(
+    illus.slice(0, 2).map(async ({ plant }) => {
+      const sci = PLANT_SCI_NAMES[plant.toLowerCase()];
+      if (!sci) return null;
+      return await fetchWikiThumb(sci) || await fetchWikiThumb(sci.split(' ')[0]);
+    })
+  );
 
   // Inspo garden
   const inspo = inspoData?.state === 'done' ? inspoData.data : null;
