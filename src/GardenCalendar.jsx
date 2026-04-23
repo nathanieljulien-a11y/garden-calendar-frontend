@@ -2308,17 +2308,20 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   };
 
   // PLANT_ARTWORK_URLS — pre-computed direct upload.wikimedia.org URLs
-  // Synchronous lookup, no network call, guaranteed Köhler botanical artwork
   const illus = [];
+  console.log('[illus] candidates:', illustrationCandidates);
+  console.log('[illus] allPlants keys:', Object.keys(allPlants));
   for (const p of illustrationCandidates) {
     if (illus.length >= 1) break;
     if (usedPlants.has(p.toLowerCase())) continue;
     const url = getArtworkUrl(p);
+    console.log('[illus] plant:', p, 'url:', url ? url.slice(0,60) : 'NOT FOUND');
     if (url) {
       illus.push({ plant: p, url, licence: "Köhler's Medizinal-Pflanzen · Public Domain" });
       usedPlants.add(p.toLowerCase());
     }
   }
+  console.log('[illus] result:', illus.length, illus[0]?.plant);
   // Wildlife fallback via iNaturalist if no artwork found for this month
   if (illus.length < 1 && foundWildlife) {
     const wPhoto = await fetchWildlifePhoto(foundWildlife);
