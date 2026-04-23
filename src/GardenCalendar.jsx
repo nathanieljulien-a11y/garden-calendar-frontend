@@ -2231,12 +2231,12 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   // 1. Plants as subjects in enjoy lines
   // 2. Plants in visual care tasks
   // 3. Any other illustratable plant (last resort fallback only)
-  // Strictly from this page's content — no fallback to full inventory
-  // This prevents off-page plants (olive, mulberry etc.) appearing
+  // Enjoy plants first, then task plants — never full inventory fallback
   const illustrationCandidates = [
     ...enjoyPlantsFiltered,
     ...taskPlants.filter(p => !enjoyPlantsFiltered.includes(p)),
   ];
+  // Wildlife fallback only (no general plant fallback — blank is better than wrong plant)
 
   // Wildlife mentioned in enjoy lines — fallback if not enough plant illustrations
   const WILDLIFE_WORDS = ['blackbird','robin','blue tit','great tit','sparrow','wren','chaffinch',
@@ -2363,7 +2363,13 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     const src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encoded}&margin=2`;
     return `<img src="${src}" width="${size}" height="${size}" style="display:block"/>`;
   };
-  const qrDirectionsSvg = mapsUrl ? makeQRImg(mapsUrl, 120) : '';
+  // QR: website if confident, else Google search for the garden — same logic as in-app
+  const inspoQrUrl = inspo?.website
+    ? (inspo.website.startsWith('http') ? inspo.website : `https://${inspo.website}`)
+    : inspo?.name
+      ? `https://www.google.com/search?q=${encodeURIComponent(inspo.name + ' ' + (inspo.location || '') + ' official website')}`
+      : null;
+  const qrDirectionsSvg = inspoQrUrl ? makeQRImg(inspoQrUrl, 120) : '';
   const qrAppSvg = makeQRImg(gardenUrl, 80);
 
   return `<!DOCTYPE html>
@@ -2386,13 +2392,11 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   .col-section:last-child { border-bottom:none; }
   .col-inspo { grid-column:3; grid-row:2; padding:13px 16px 12px 13px; display:flex; flex-direction:column; gap:8px; overflow:hidden; }
   .illus-slot { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
-  .illus-slot:only-child .illus-img-wrap { flex:1; }
-  .illus-img-wrap { flex:1; min-height:0; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#F0EAD8; }
-  .illus-img-wrap img { width:100%; height:100%; object-fit:contain; mix-blend-mode:multiply; filter:sepia(12%) contrast(1.05); display:block; }
-  .illus-caption { font-style:italic; font-size:9px; color:#7A5C2A; padding:4px 10px 3px; background:#EDE8DC; border-top:1px solid rgba(139,105,20,.15); line-height:1.35; }
-  .illus-caption-name { font-size:10px; color:#4A3520; display:block; }
-  .illus-caption-licence { font-size:8.5px; color:#9A8060; opacity:.7; }
-  .illus-divider { height:1px; background:rgba(139,105,20,.2); flex-shrink:0; }
+  .illus-img-wrap { flex:1; min-height:0; overflow:hidden; background:#F7F2E8; }
+  .illus-img-wrap img { width:100%; height:100%; object-fit:contain; mix-blend-mode:multiply; filter:sepia(8%) contrast(1.08) brightness(1.02); display:block; }
+  .illus-caption { font-style:italic; font-size:9px; color:#7A5C2A; padding:5px 14px 4px; background:#EDE8DC; border-top:1px solid rgba(139,105,20,.15); line-height:1.4; display:flex; justify-content:space-between; align-items:baseline; }
+  .illus-caption-name { font-size:10.5px; color:#4A3520; font-family:"Playfair Display",serif; font-style:italic; }
+  .illus-caption-licence { font-size:8px; color:#9A8060; opacity:.65; }
   .illus-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#F0EAD8; }
   .illus-placeholder-text { font-style:italic; font-size:11px; color:#A08050; text-align:center; padding:8px; }
   .weather-box { background:linear-gradient(135deg,#1E3A2A,#2C4A1A,#1A2C1A); border-radius:3px; padding:10px 12px; color:#D4EAC4; display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px 10px; border:1px solid rgba(90,140,60,.3); flex-shrink:0; }
@@ -2457,8 +2461,8 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   <div class="hdr-garden">${gardenName || city || 'Your Garden'}</div>
 </header>
 
-<!-- LEFT: ILLUSTRATIONS -->
-<div class="col-illus">
+<!-- LEFT: BOTANICAL ILLUSTRATION -->
+<div class="col-illus" style="padding:0">
   ${illus[0] ? `
   <div class="illus-slot">
     <div class="illus-img-wrap">
@@ -2574,10 +2578,24 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   <div class="inspo-detail">${inspo.location || ''}${inspo.distance ? ` · ${inspo.distance}` : ''}</div>
   ${inspo.highlight ? `<div class="inspo-highlight">${inspo.highlight}</div>` : ''}
 
-  ${mapsUrl ? `
+  ${(meta?.lat && meta?.lng) ? `
+  <div style="margin-top:6px;border-radius:2px;overflow:hidden;border:1px solid rgba(139,105,20,.2)">
+    <img
+      src="https://staticmap.openstreetmap.de/staticmap.php?center=${meta.lat},${meta.lng}&zoom=9&size=200x80&markers=${meta.lat},${meta.lng},red"
+      width="100%" style="display:block"
+      alt="Map"
+      onerror="this.parentElement.style.display='none'"
+    />
+    <div style="font-size:8px;color:#7A5C2A;padding:3px 8px;background:#F0EBE0;font-style:italic;display:flex;justify-content:space-between">
+      <span>📍 ${city}</span>
+      <span style="opacity:.7">${inspo?.location ? inspo.location.split(',')[0] : ''}</span>
+    </div>
+  </div>` : ''}
+
+  ${inspoQrUrl ? `
   <div class="qr-row">
     <div class="qr-box">${qrDirectionsSvg}</div>
-    <div class="qr-label">Directions<br>to ${(inspo.name?.split(' ')[0] || 'garden')} ↗</div>
+    <div class="qr-label">${inspo.website ? "Visit website ↗" : "Find online ↗"}</div>
   </div>` : ''}` : `
   <div class="inspo-detail" style="font-style:italic;opacity:.6">Generate inspo gardens<br>in the app to populate<br>this section</div>`}
 
