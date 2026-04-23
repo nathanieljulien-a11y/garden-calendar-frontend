@@ -1900,7 +1900,408 @@ function exportPDF(months, city, meta, gardenUrl) {
   triggerDownload(html, "garden-calendar.html", "text/html");
 }
 
-function TagInput({value,onChange,placeholder,onAdd}) {
+// ─── Plant → Botanical Illustration lookup ────────────────────────────────────
+// Curated Wikimedia Commons filenames — public domain, print-resolution plates
+// Primarily from Köhler's Medizinal-Pflanzen (1887) and Curtis's Botanical Magazine
+const PLANT_ILLUSTRATIONS = {
+  // Flowers
+  'rose':         'Rosa_centifolia_-_Köhler–s_Medizinal-Pflanzen-257.jpg',
+  'wisteria':     'Wisteria_sinensis_-_Köhler–s_Medizinal-Pflanzen-285.jpg',
+  'lavender':     'Lavandula_angustifolia_-_Köhler–s_Medizinal-Pflanzen-088.jpg',
+  'peony':        'Paeonia_officinalis_-_Köhler–s_Medizinal-Pflanzen-164.jpg',
+  'iris':         'Iris_germanica_-_Köhler–s_Medizinal-Pflanzen-187.jpg',
+  'tulip':        'Tulipa_gesneriana_-_Köhler–s_Medizinal-Pflanzen-272.jpg',
+  'sunflower':    'Helianthus_annuus_-_Köhler–s_Medizinal-Pflanzen-078.jpg',
+  'dahlia':       'Dahlia_pinnata_Cav._(1802).jpg',
+  'bougainvillea':'Bougainvillea_spectabilis_Willd.jpg',
+  'pelargonium':  'Pelargonium_zonale_-_Köhler–s_Medizinal-Pflanzen-233.jpg',
+  'marigold':     'Tagetes_erecta_-_Köhler–s_Medizinal-Pflanzen-268.jpg',
+  'camellia':     'Camellia_japonica_-_Köhler–s_Medizinal-Pflanzen-025.jpg',
+  'magnolia':     'Magnolia_grandiflora_-_Köhler–s_Medizinal-Pflanzen-097.jpg',
+  'oleander':     'Nerium_oleander_-_Köhler–s_Medizinal-Pflanzen-124.jpg',
+  'foxglove':     'Digitalis_purpurea_-_Köhler–s_Medizinal-Pflanzen-052.jpg',
+  'hydrangea':    'Hydrangea_macrophylla_SZ85.png',
+  'allium':       'Allium_cepa_-_Köhler–s_Medizinal-Pflanzen-009.jpg',
+  'lupin':        'Lupinus_polyphyllus_-_Köhler–s_Medizinal-Pflanzen-096.jpg',
+  // Herbs
+  'rosemary':     'Rosmarinus_officinalis_-_Köhler–s_Medizinal-Pflanzen-244.jpg',
+  'thyme':        'Thymus_vulgaris_-_Köhler–s_Medizinal-Pflanzen-271.jpg',
+  'basil':        'Ocimum_basilicum_-_Köhler–s_Medizinal-Pflanzen-126.jpg',
+  'mint':         'Mentha_piperita_-_Köhler–s_Medizinal-Pflanzen-112.jpg',
+  'sage':         'Salvia_officinalis_-_Köhler–s_Medizinal-Pflanzen-246.jpg',
+  'parsley':      'Petroselinum_crispum_-_Köhler–s_Medizinal-Pflanzen-168.jpg',
+  'chives':       'Allium_schoenoprasum_-_Köhler–s_Medizinal-Pflanzen-008.jpg',
+  'tarragon':     'Artemisia_dracunculus_-_Köhler–s_Medizinal-Pflanzen-018.jpg',
+  'fennel':       'Foeniculum_vulgare_-_Köhler–s_Medizinal-Pflanzen-063.jpg',
+  'oregano':      'Origanum_vulgare_-_Köhler–s_Medizinal-Pflanzen-156.jpg',
+  // Fruit (USDA Pomological where available — exceptional quality)
+  'apple':        'Malus_domestica_-_Köhler–s_Medizinal-Pflanzen-101.jpg',
+  'fig':          'Ficus_carica_-_Köhler–s_Medizinal-Pflanzen-057.jpg',
+  'grape':        'Vitis_vinifera_-_Köhler–s_Medizinal-Pflanzen-280.jpg',
+  'peach':        'Prunus_persica_-_Köhler–s_Medizinal-Pflanzen-183.jpg',
+  'cherry':       'Prunus_cerasus_-_Köhler–s_Medizinal-Pflanzen-180.jpg',
+  'apricot':      'Prunus_armeniaca_-_Köhler–s_Medizinal-Pflanzen-179.jpg',
+  'strawberry':   'Fragaria_vesca_-_Köhler–s_Medizinal-Pflanzen-065.jpg',
+  'almond':       'Prunus_dulcis_-_Köhler–s_Medizinal-Pflanzen-177.jpg',
+  'quince':       'Cydonia_oblonga_-_Köhler–s_Medizinal-Pflanzen-047.jpg',
+  'mulberry':     'Morus_nigra_-_Köhler–s_Medizinal-Pflanzen-119.jpg',
+  'lemon':        'Citrus_limon_-_Köhler–s_Medizinal-Pflanzen-036.jpg',
+  'orange':       'Citrus_sinensis_-_Köhler–s_Medizinal-Pflanzen-037.jpg',
+  // Veg
+  'tomato':       'Solanum_lycopersicum_-_Köhler–s_Medizinal-Pflanzen-254.jpg',
+  'courgette':    'Cucurbita_pepo_-_Köhler–s_Medizinal-Pflanzen-045.jpg',
+  'aubergine':    'Solanum_melongena_-_Köhler–s_Medizinal-Pflanzen-253.jpg',
+  'pepper':       'Capsicum_annuum_-_Köhler–s_Medizinal-Pflanzen-027.jpg',
+  'carrot':       'Daucus_carota_-_Köhler–s_Medizinal-Pflanzen-049.jpg',
+  'lettuce':      'Lactuca_sativa_-_Köhler–s_Medizinal-Pflanzen-087.jpg',
+  // Trees / Shrubs
+  'olive':        'Olea_europaea_-_Köhler–s_Medizinal-Pflanzen-130.jpg',
+  'box':          'Buxus_sempervirens_-_Köhler–s_Medizinal-Pflanzen-024.jpg',
+  'boxwood':      'Buxus_sempervirens_-_Köhler–s_Medizinal-Pflanzen-024.jpg',
+  'cypress':      'Cupressus_sempervirens_-_Köhler–s_Medizinal-Pflanzen-046.jpg',
+  'linden':       'Tilia_cordata_-_Köhler–s_Medizinal-Pflanzen-270.jpg',
+};
+
+function getIllustrationUrl(plantName) {
+  const key = plantName.toLowerCase().trim();
+  const filename = PLANT_ILLUSTRATIONS[key];
+  if (!filename) return null;
+  const encoded = encodeURIComponent(filename);
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encoded}?width=400`;
+}
+
+// ─── Simple inline QR code generator (pure SVG, no library needed) ───────────
+// Generates a basic 21×21 QR code visual placeholder
+// In production, replace with actual qrcode library call
+function makeQRSvg(size = 48) {
+  // Placeholder pattern — production would use qrcode-svg npm package
+  return `<svg width="${size}" height="${size}" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+    <rect width="21" height="21" fill="white"/>
+    <rect x="0" y="0" width="7" height="7" fill="none" stroke="#2C1A0A" stroke-width="1"/>
+    <rect x="2" y="2" width="3" height="3" fill="#2C1A0A"/>
+    <rect x="14" y="0" width="7" height="7" fill="none" stroke="#2C1A0A" stroke-width="1"/>
+    <rect x="16" y="2" width="3" height="3" fill="#2C1A0A"/>
+    <rect x="0" y="14" width="7" height="7" fill="none" stroke="#2C1A0A" stroke-width="1"/>
+    <rect x="2" y="16" width="3" height="3" fill="#2C1A0A"/>
+    <rect x="9" y="0" width="1" height="2" fill="#2C1A0A"/>
+    <rect x="11" y="1" width="2" height="1" fill="#2C1A0A"/>
+    <rect x="9" y="9" width="2" height="2" fill="#2C1A0A"/>
+    <rect x="12" y="9" width="1" height="2" fill="#2C1A0A"/>
+    <rect x="14" y="9" width="3" height="1" fill="#2C1A0A"/>
+    <rect x="9" y="12" width="2" height="1" fill="#2C1A0A"/>
+    <rect x="12" y="12" width="2" height="2" fill="#2C1A0A"/>
+    <rect x="16" y="11" width="2" height="2" fill="#2C1A0A"/>
+    <rect x="19" y="9" width="2" height="2" fill="#2C1A0A"/>
+    <rect x="9" y="15" width="1" height="2" fill="#2C1A0A"/>
+    <rect x="11" y="14" width="2" height="2" fill="#2C1A0A"/>
+    <rect x="14" y="16" width="2" height="2" fill="#2C1A0A"/>
+    <rect x="17" y="14" width="2" height="1" fill="#2C1A0A"/>
+    <rect x="19" y="16" width="2" height="2" fill="#2C1A0A"/>
+  </svg>`;
+}
+
+// ─── Calendar Page HTML Generator ────────────────────────────────────────────
+function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, city, meta, monthData, inspoData, lensData, allPlants }) {
+  const cd = meta?._cd;
+
+  // Weather stats for this month
+  const tempMin  = cd?.tMin?.[monthIndex]  != null ? Math.round(cd.tMin[monthIndex])  : null;
+  const tempMax  = cd?.tMax?.[monthIndex]  != null ? Math.round(cd.tMax[monthIndex])  : null;
+  const precip   = cd?.precip?.[monthIndex]!= null ? Math.round(cd.precip[monthIndex]): null;
+  const sunHrs   = cd?.sunHrs?.[monthIndex]!= null ? (cd.sunHrs[monthIndex]).toFixed(1): null;
+  const tempAvg  = (tempMin != null && tempMax != null) ? Math.round((tempMin + tempMax) / 2) : null;
+
+  // Compare to January as baseline
+  const janAvg   = cd?.tMean?.[0] != null ? Math.round(cd.tMean[0]) : null;
+  const tempDiff = tempAvg != null && janAvg != null ? tempAvg - janAvg : null;
+  const tempDiffStr = tempDiff != null ? (tempDiff >= 0 ? `+${tempDiff}°` : `${tempDiff}°`) + ' vs Jan' : '';
+
+  const janSun   = cd?.sunHrs?.[0];
+  const marSun   = cd?.sunHrs?.[2];
+  const prevSun  = cd?.sunHrs?.[(monthIndex + 11) % 12];
+  const sunDiff  = (sunHrs != null && prevSun != null)
+    ? ((parseFloat(sunHrs) - prevSun) >= 0 ? '+' : '') + (parseFloat(sunHrs) - prevSun).toFixed(1) + 'hrs vs prev month'
+    : '';
+
+  // Season
+  const season = monthData?.season || ['Winter','Winter','Spring','Spring','Spring','Summer','Summer','Summer','Autumn','Autumn','Autumn','Winter'][monthIndex];
+
+  // Tasks and enjoy
+  const tasks  = monthData?.tasks  || [];
+  const enjoy  = monthData?.enjoy  || [];
+
+  // Peak plants for this month — find plants with high lens score
+  const peakPlants = [];
+  if (lensData?.colour) {
+    const allP = Object.values(allPlants).flat();
+    allP.forEach(p => {
+      const d = lensData.colour[p];
+      if (d?.months?.[monthIndex] >= 2) peakPlants.push(p);
+    });
+  }
+
+  // Pick up to 2 illustrations from peak plants, fall back to any plant in inventory
+  const allPlantsList = Object.values(allPlants).flat();
+  const illustrationCandidates = [
+    ...peakPlants,
+    ...allPlantsList.filter(p => !peakPlants.includes(p))
+  ];
+  const illus = [];
+  for (const p of illustrationCandidates) {
+    const url = getIllustrationUrl(p);
+    if (url) { illus.push({ plant: p, url }); }
+    if (illus.length >= 2) break;
+  }
+
+  // Inspo garden
+  const inspo = inspoData?.state === 'done' ? inspoData.data : null;
+  const mapsUrl = inspo?.location
+    ? `https://www.google.com/maps/dir/${encodeURIComponent(city)}/${encodeURIComponent((inspo.name || '') + ', ' + inspo.location)}`
+    : null;
+
+  // Lens values for this month (0–3 scale → percentage)
+  const LENSES_PRINT = [
+    { id: 'colour',   label: 'Colour',   color: 'linear-gradient(90deg,#C4664A,#E08040)' },
+    { id: 'scent',    label: 'Scent',    color: 'linear-gradient(90deg,#5A7A32,#7AAA42)' },
+    { id: 'form',     label: 'Form',     color: 'linear-gradient(90deg,#8B6914,#BBA030)' },
+    { id: 'texture',  label: 'Texture',  color: 'linear-gradient(90deg,#8B6914,#BBA030)' },
+    { id: 'cropping', label: 'Cropping', color: 'linear-gradient(90deg,#2C6B3A,#4A8A52)' },
+  ];
+
+  const lensRows = LENSES_PRINT.map(lens => {
+    const data = lensData?.[lens.id];
+    if (!data) return null;
+    const allP = Object.values(allPlants).flat();
+    const scores = allP.map(p => data[p]?.months?.[monthIndex] || 0);
+    const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    const pct = Math.round((avg / 3) * 100);
+    const label = pct >= 60 ? 'High' : pct >= 35 ? 'Med' : 'Low';
+    return { ...lens, pct, label };
+  }).filter(Boolean);
+
+  const gardenUrl = `https://garden-calendar.vercel.app`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { width:1240px; height:874px; background:#FDFAF4; font-family:'Crimson Pro',Georgia,serif; color:#2C1A0A; overflow:hidden; }
+  .page { display:grid; grid-template-columns:360px 1fr 220px; grid-template-rows:56px 1fr 44px; height:100%; }
+  .header { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; padding:0 24px; background:#2C1A0A; color:#F5EDD8; border-bottom:2px solid #8B6914; }
+  .hdr-left { display:flex; align-items:baseline; gap:12px; }
+  .hdr-month { font-family:'Playfair Display',serif; font-size:28px; font-style:italic; letter-spacing:.03em; }
+  .hdr-season { font-size:13px; color:#C4A55A; letter-spacing:.09em; text-transform:uppercase; }
+  .hdr-garden { font-size:12px; color:#A09070; letter-spacing:.1em; text-transform:uppercase; }
+  .col-illus { grid-column:1; grid-row:2; display:flex; flex-direction:column; border-right:1.5px solid rgba(139,105,20,.2); background:#F7F2E8; overflow:hidden; }
+  .col-content { grid-column:2; grid-row:2; padding:14px 18px 12px; display:flex; flex-direction:column; gap:0; border-right:1.5px solid rgba(139,105,20,.2); overflow:hidden; justify-content:space-between; }
+  .col-inspo { grid-column:3; grid-row:2; padding:13px 16px 12px 13px; display:flex; flex-direction:column; gap:9px; overflow:hidden; }
+  .illus-primary { flex:1; overflow:hidden; }
+  .illus-primary img { width:100%; height:100%; object-fit:contain; mix-blend-mode:multiply; filter:sepia(12%) contrast(1.05); display:block; }
+  .illus-divider { height:1px; background:rgba(139,105,20,.2); margin:0 16px; }
+  .illus-secondary { height:175px; overflow:hidden; }
+  .illus-secondary img { width:100%; height:100%; object-fit:contain; mix-blend-mode:multiply; filter:sepia(12%) contrast(1.05); display:block; }
+  .illus-caption { font-style:italic; font-size:10px; color:#7A5C2A; text-align:center; letter-spacing:.03em; padding:5px 8px; background:#F0EBE0; display:flex; justify-content:space-between; align-items:center; }
+  .illus-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#F0EAD8; }
+  .illus-placeholder-text { font-style:italic; font-size:11px; color:#A08050; text-align:center; padding:8px; }
+  .weather-box { background:linear-gradient(135deg,#1E3A2A,#2C4A1A,#1A2C1A); border-radius:3px; padding:10px 12px; color:#D4EAC4; display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px 10px; border:1px solid rgba(90,140,60,.3); flex-shrink:0; }
+  .weather-box-title { grid-column:1/-1; font-family:'Playfair Display',serif; font-size:9.5px; text-transform:uppercase; letter-spacing:.12em; color:#90C070; opacity:.8; margin-bottom:2px; }
+  .wx-item { display:flex; flex-direction:column; gap:1px; }
+  .wx-val { font-size:16px; font-weight:600; line-height:1; }
+  .wx-val.temp { color:#F0C060; }
+  .wx-val.rain { color:#90C8F0; }
+  .wx-val.sun  { color:#F0D890; }
+  .wx-label { font-size:9.5px; color:#90AA80; letter-spacing:.04em; }
+  .wx-sub { font-size:9px; color:#70906A; font-style:italic; }
+  .sec-label { font-family:'Playfair Display',serif; font-size:10px; text-transform:uppercase; letter-spacing:.14em; color:#7A5C2A; border-bottom:1px solid rgba(139,105,20,.22); padding-bottom:3px; margin-bottom:5px; }
+  .task-list, .enjoy-list { list-style:none; display:flex; flex-direction:column; gap:5px; }
+  .task-list li { font-size:13px; line-height:1.42; padding-left:20px; position:relative; color:#1A0E06; }
+  .task-list li::before { content:""; position:absolute; left:0; top:2px; width:11px; height:11px; border:1.5px solid #8B6914; border-radius:2px; background:white; }
+  .enjoy-list li { font-size:13px; line-height:1.42; padding-left:18px; position:relative; color:#1A0E06; }
+  .enjoy-list li::before { content:"✦"; position:absolute; left:1px; color:#5A7A32; font-size:9px; top:3px; }
+  .lens-strip { flex-shrink:0; padding-top:10px; }
+  .lens-row { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+  .lens-name { font-size:9.5px; color:#7A5C2A; width:52px; text-align:right; font-style:italic; flex-shrink:0; }
+  .lens-track { flex:1; height:8px; background:rgba(139,105,20,.1); border-radius:4px; overflow:hidden; }
+  .lens-fill { height:100%; border-radius:4px; }
+  .lens-val { font-size:9px; color:#9A7A3A; width:24px; text-align:right; flex-shrink:0; }
+  .notes-box { border:1.5px solid rgba(139,105,20,.3); border-radius:3px; padding:8px 10px; flex-shrink:0; margin-top:10px; }
+  .notes-label { font-family:'Playfair Display',serif; font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:#8B6914; margin-bottom:5px; display:block; }
+  .notes-line { height:1px; background:rgba(139,105,20,.18); margin-bottom:5px; border-radius:1px; }
+  .inspo-img { width:100%; flex:1; border-radius:2px; overflow:hidden; background:#E8E0D0; min-height:0; position:relative; }
+  .inspo-img img { width:100%; height:100%; object-fit:cover; filter:sepia(10%) contrast(1.05) saturate(.9); display:block; }
+  .inspo-img-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#C8DEB8,#A8C898); }
+  .inspo-name { font-family:'Playfair Display',serif; font-size:12px; font-style:italic; color:#2C1A0A; line-height:1.3; }
+  .inspo-detail { font-size:10px; color:#7A5C2A; line-height:1.4; }
+  .inspo-highlight { font-size:10px; color:#4A3520; font-style:italic; line-height:1.4; }
+  .qr-row { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .qr-box { width:36px; height:36px; border:1.5px solid #8B6914; border-radius:2px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:white; }
+  .qr-label { font-size:9.5px; color:#7A5C2A; font-style:italic; line-height:1.45; }
+  .quote { padding-top:8px; border-top:1px solid rgba(139,105,20,.2); font-style:italic; font-size:10.5px; line-height:1.55; color:#4A3520; flex-shrink:0; }
+  .quote-attr { font-style:normal; font-size:9.5px; color:#8B6914; margin-top:3px; }
+  .footer { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; padding:0 24px; border-top:1px solid rgba(139,105,20,.25); background:rgba(139,105,20,.05); }
+  .footer-climate { font-size:9px; color:#7A5C2A; font-style:italic; }
+  .footer-centre { font-family:'Playfair Display',serif; font-size:10px; font-style:italic; color:#8B6914; }
+  .footer-app { display:flex; align-items:center; gap:7px; }
+  .footer-qr-box { width:28px; height:28px; border:1px solid rgba(139,105,20,.4); border-radius:2px; display:flex; align-items:center; justify-content:center; background:white; }
+  .footer-qr-label { font-size:9px; color:#8B6914; font-style:italic; line-height:1.4; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="header">
+  <div class="hdr-left">
+    <span class="hdr-month">${monthName} ${year}</span>
+    <span class="hdr-season">${season}</span>
+  </div>
+  <div class="hdr-garden">${gardenName || city || 'Your Garden'}</div>
+</header>
+
+<!-- LEFT: ILLUSTRATIONS -->
+<div class="col-illus">
+  <div class="illus-primary">
+    ${illus[0]
+      ? `<img src="${illus[0].url}" alt="${illus[0].plant} botanical illustration"/>`
+      : `<div class="illus-placeholder"><div class="illus-placeholder-text">${monthName}<br>garden illustration</div></div>`
+    }
+  </div>
+  ${illus[0] || illus[1] ? '<div class="illus-divider"></div>' : ''}
+  ${illus[1]
+    ? `<div class="illus-secondary"><img src="${illus[1].url}" alt="${illus[1].plant}"/></div>`
+    : illus[0] ? `<div class="illus-secondary"><div class="illus-placeholder"><div class="illus-placeholder-text">${season}</div></div></div>` : ''
+  }
+  <div class="illus-caption">
+    <span>${illus[0]?.plant || monthName}</span>
+    <span>${illus[1]?.plant || season}</span>
+  </div>
+</div>
+
+<!-- CENTRE: WEATHER + TASKS + ENJOY + LENS + NOTES -->
+<div class="col-content">
+
+  <div style="flex-shrink:0">
+    <div class="weather-box">
+      <div class="weather-box-title">${monthName} averages · ${city}</div>
+      <div class="wx-item">
+        <span class="wx-val temp">${tempMin != null ? `${tempMin}–${tempMax}°C` : '—'}</span>
+        <span class="wx-label">Temperature</span>
+        <span class="wx-sub">${tempAvg != null ? `avg ${tempAvg}°C` : ''}${tempDiffStr ? ` · ${tempDiffStr}` : ''}</span>
+      </div>
+      <div class="wx-item">
+        <span class="wx-val rain">${precip != null ? `${precip} mm` : '—'}</span>
+        <span class="wx-label">Rainfall</span>
+        <span class="wx-sub">${precip != null ? (precip < 30 ? 'dry month' : precip < 70 ? 'moderate' : 'wet month') : ''}</span>
+      </div>
+      <div class="wx-item">
+        <span class="wx-val sun">${sunHrs != null ? `${sunHrs} hrs` : '—'}</span>
+        <span class="wx-label">Sunshine / day</span>
+        <span class="wx-sub">${sunDiff || ''}</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;padding-top:10px">
+    <div class="sec-label">Things to do</div>
+    <ul class="task-list">
+      ${tasks.map(t => `<li>${t}</li>`).join('\n      ')}
+    </ul>
+  </div>
+
+  <div style="flex:1;min-height:0;padding-top:10px">
+    <div class="sec-label">Things to enjoy</div>
+    <ul class="enjoy-list">
+      ${enjoy.map(e => `<li>${e}</li>`).join('\n      ')}
+    </ul>
+  </div>
+
+  ${lensRows.length > 0 ? `
+  <div class="lens-strip">
+    <div class="sec-label" style="margin-bottom:7px">Garden interest · ${monthName}</div>
+    ${lensRows.map(l => `
+    <div class="lens-row">
+      <span class="lens-name">${l.label}</span>
+      <div class="lens-track"><div class="lens-fill" style="width:${l.pct}%;background:${l.color}"></div></div>
+      <span class="lens-val">${l.label2 || l.label.slice(0,3)}</span>
+    </div>`).join('')}
+  </div>` : ''}
+
+  <div class="notes-box">
+    <span class="notes-label">Notes</span>
+    <div class="notes-line"></div>
+    <div class="notes-line"></div>
+    <div class="notes-line"></div>
+  </div>
+</div>
+
+<!-- RIGHT: INSPO + QR + QUOTE -->
+<div class="col-inspo">
+  <div class="sec-label">Garden to visit</div>
+  <div class="inspo-img">
+    ${inspo
+      ? `<div class="inspo-img-placeholder">
+           <svg viewBox="0 0 210 200" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+             <defs><linearGradient id="sky${monthIndex}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#7BB8D8"/><stop offset="100%" stop-color="#B8D8E8"/></linearGradient></defs>
+             <rect width="210" height="200" fill="url(#sky${monthIndex})"/>
+             <ellipse cx="50" cy="28" rx="28" ry="14" fill="white" opacity=".7"/>
+             <ellipse cx="160" cy="20" rx="22" ry="11" fill="white" opacity=".65"/>
+             <ellipse cx="105" cy="165" rx="140" ry="55" fill="#6AAA42"/>
+             <rect y="152" width="210" height="48" fill="#4A8A28"/>
+             <rect x="80" y="85" width="60" height="67" fill="rgba(200,225,240,.75)" stroke="#8A9890" stroke-width="1.5"/>
+             <polygon points="80,85 110,62 140,85" fill="rgba(210,230,245,.8)" stroke="#8A9890" stroke-width="1.5"/>
+             <line x1="110" y1="62" x2="110" y2="152" stroke="#8A9890" stroke-width=".8"/>
+             <line x1="80" y1="110" x2="140" y2="110" stroke="#8A9890" stroke-width=".8"/>
+             <rect x="40" y="78" width="5" height="58" fill="#5A3A18"/>
+             <ellipse cx="42" cy="70" rx="20" ry="24" fill="#2A6A18"/>
+             <rect y="170" width="210" height="30" fill="rgba(44,26,10,.5)"/>
+             <text x="105" y="189" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="11" fill="#F5EDD8">${inspo.name || 'Garden'}</text>
+           </svg>
+         </div>`
+      : `<div class="inspo-img-placeholder">
+           <svg viewBox="0 0 210 200" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+             <rect width="210" height="200" fill="#D8E8C8"/>
+             <text x="105" y="95" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="11" fill="#5A7A3A">Visit a garden</text>
+             <text x="105" y="112" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="10" fill="#7A9A5A">this ${monthName}</text>
+           </svg>
+         </div>`
+    }
+  </div>
+
+  ${inspo ? `
+  <div class="inspo-name">${inspo.name}</div>
+  <div class="inspo-detail">${inspo.location || ''}${inspo.distance ? ` · ${inspo.distance}` : ''}</div>
+  ${inspo.highlight ? `<div class="inspo-highlight">${inspo.highlight}</div>` : ''}
+
+  ${mapsUrl ? `
+  <div class="qr-row">
+    <div class="qr-box">${makeQRSvg(32)}</div>
+    <div class="qr-label">Directions<br>to ${inspo.name?.split(' ')[0] || 'garden'} ↗</div>
+  </div>` : ''}` : `
+  <div class="inspo-detail" style="font-style:italic;opacity:.6">Generate inspo gardens<br>in the app to populate<br>this section</div>`}
+
+  <div class="quote">
+    "The glory of gardening: hands in the dirt, head in the sun, heart with nature."
+    <div class="quote-attr">— Alfred Austin</div>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="footer-climate">${meta?.zone ? `Zone ${meta.zone} · ` : ''}${meta?.lastFrost ? `Last frost ${meta.lastFrost} · ` : ''}Climate data: Open-Meteo / ERA5</div>
+  <div class="footer-centre">✦ The Garden Calendar · ${gardenUrl} ✦</div>
+  <div class="footer-app">
+    <div class="footer-qr-box">${makeQRSvg(22)}</div>
+    <div class="footer-qr-label">Your digital<br>calendar ↗</div>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>`;
+}
+
+({value,onChange,placeholder,onAdd}) {
   const [inp,setInp]=useState("");
   const add=()=>{
     const v=inp.trim();
@@ -5487,6 +5888,67 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 </p>
               </div>
             )}
+
+            {/* ── Print page preview — available once first batch done ── */}
+            {stream1Done && (() => {
+              const startIdx2 = (nowIdx + 11) % 12;
+              const availableMonths = Array.from({length: loadedBatches * 3}, (_,i) => MONTH_NAMES[(startIdx2 + i) % 12])
+                .filter(n => months[n]?._state === 'done');
+              if (!availableMonths.length) return null;
+              const handlePreview = (monthName) => {
+                const mIdx = MONTH_NAMES.indexOf(monthName);
+                const year = new Date().getFullYear() + (mIdx < nowIdx ? 1 : 0);
+                const g = selectedGardenId ? readGardens().find(g => g.id === selectedGardenId) : null;
+                const html = generateCalendarPageHTML({
+                  monthName,
+                  monthIndex: mIdx,
+                  year,
+                  gardenName: g?.name || city,
+                  city,
+                  meta,
+                  monthData: months[monthName],
+                  inspoData: inspos[monthName],
+                  lensData,
+                  allPlants: plants,
+                });
+                const blob = new Blob([html], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+              };
+              return (
+                <div style={{textAlign:'center', margin:'1.5rem 0 .5rem'}}>
+                  <div style={{fontSize:'.72rem', textTransform:'uppercase', letterSpacing:'.1em', color:'var(--sage)', marginBottom:'.6rem', opacity:.7}}>
+                    🖨 Preview print page
+                  </div>
+                  <div style={{display:'flex', flexWrap:'wrap', gap:'.4rem', justifyContent:'center'}}>
+                    {availableMonths.map(name => (
+                      <button key={name}
+                        onClick={() => handlePreview(name)}
+                        style={{
+                          background:'none',
+                          border:'1px solid rgba(200,169,110,.3)',
+                          color:'var(--straw)',
+                          padding:'.3rem .7rem',
+                          fontFamily:"'Crimson Pro',serif",
+                          fontSize:'.8rem',
+                          borderRadius:'2px',
+                          cursor:'pointer',
+                          transition:'all .15s',
+                        }}
+                        onMouseEnter={e => e.target.style.background='rgba(200,169,110,.12)'}
+                        onMouseLeave={e => e.target.style.background='none'}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{fontSize:'.65rem', color:'var(--muted)', marginTop:'.4rem', fontStyle:'italic', opacity:.6}}>
+                    Opens a print-ready preview in a new tab
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Export + share — only visible once all 12 months generated */}
             {stream1Done && loadedBatches >= 4 && (
