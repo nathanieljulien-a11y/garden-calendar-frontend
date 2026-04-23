@@ -2001,7 +2001,7 @@ function makeQRSvg(size = 48) {
 }
 
 // ─── Calendar Page HTML Generator ────────────────────────────────────────────
-function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, city, meta, monthData, inspoData, lensData, allPlants }) {
+async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, city, meta, monthData, inspoData, lensData, allPlants, insights }) {
   const cd = meta?._cd;
 
   // Weather stats for this month
@@ -2011,20 +2011,70 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
   const sunHrs   = cd?.sunHrs?.[monthIndex]!= null ? (cd.sunHrs[monthIndex]).toFixed(1): null;
   const tempAvg  = (tempMin != null && tempMax != null) ? Math.round((tempMin + tempMax) / 2) : null;
 
-  // Compare to January as baseline
-  const janAvg   = cd?.tMean?.[0] != null ? Math.round(cd.tMean[0]) : null;
-  const tempDiff = tempAvg != null && janAvg != null ? tempAvg - janAvg : null;
-  const tempDiffStr = tempDiff != null ? (tempDiff >= 0 ? `+${tempDiff}°` : `${tempDiff}°`) + ' vs Jan' : '';
-
-  const janSun   = cd?.sunHrs?.[0];
-  const marSun   = cd?.sunHrs?.[2];
-  const prevSun  = cd?.sunHrs?.[(monthIndex + 11) % 12];
-  const sunDiff  = (sunHrs != null && prevSun != null)
-    ? ((parseFloat(sunHrs) - prevSun) >= 0 ? '+' : '') + (parseFloat(sunHrs) - prevSun).toFixed(1) + 'hrs vs prev month'
+  // Compare to previous month
+  const prevIdx  = (monthIndex + 11) % 12;
+  const prevAvg  = cd?.tMean?.[prevIdx] != null ? Math.round(cd.tMean[prevIdx]) : null;
+  const prevName = MONTH_NAMES[prevIdx].slice(0, 3);
+  const tempDiff = tempAvg != null && prevAvg != null ? tempAvg - prevAvg : null;
+  const tempDiffStr = tempDiff != null
+    ? (tempDiff >= 0 ? `+${tempDiff}°` : `${tempDiff}°`) + ` vs ${prevName}`
     : '';
+
+  const prevSun  = cd?.sunHrs?.[prevIdx];
+  const sunDiff  = (sunHrs != null && prevSun != null)
+    ? ((parseFloat(sunHrs) - prevSun) >= 0 ? '+' : '') + (parseFloat(sunHrs) - prevSun).toFixed(1) + `hrs vs ${prevName}`
+    : '';
+
+  const prevPrecip = cd?.precip?.[prevIdx] != null ? Math.round(cd.precip[prevIdx]) : null;
+  const precipDiff = precip != null && prevPrecip != null ? precip - prevPrecip : null;
+  const precipDiffStr = precipDiff != null
+    ? (precipDiff >= 0 ? `+${precipDiff}mm` : `${precipDiff}mm`) + ` vs ${prevName}`
+    : (precip != null ? (precip < 30 ? 'dry month' : precip < 70 ? 'moderate' : 'wet month') : '');
 
   // Season
   const season = monthData?.season || ['Winter','Winter','Spring','Spring','Spring','Summer','Summer','Summer','Autumn','Autumn','Autumn','Winter'][monthIndex];
+
+  // Fetch illustration URLs via Wikipedia REST API (CORS-friendly)
+  const fetchWikiThumb = async (scientificName) => {
+    try {
+      const slug = encodeURIComponent(scientificName.replace(/ /g, '_'));
+      const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`, {
+        headers: { Accept: 'application/json' }
+      });
+      if (!r.ok) return null;
+      const d = await r.json();
+      return d?.thumbnail?.source || null;
+    } catch { return null; }
+  };
+
+  // Scientific names for illustration lookup (same mapping as PLANT_ILLUSTRATIONS keys)
+  const PLANT_SCI_NAMES = {
+    'rose':'Rosa centifolia','wisteria':'Wisteria sinensis','lavender':'Lavandula angustifolia',
+    'peony':'Paeonia officinalis','iris':'Iris germanica','tulip':'Tulipa gesneriana',
+    'sunflower':'Helianthus annuus','dahlia':'Dahlia pinnata','camellia':'Camellia japonica',
+    'magnolia':'Magnolia grandiflora','oleander':'Nerium oleander','foxglove':'Digitalis purpurea',
+    'rosemary':'Rosmarinus officinalis','thyme':'Thymus vulgaris','basil':'Ocimum basilicum',
+    'mint':'Mentha piperita','sage':'Salvia officinalis','parsley':'Petroselinum crispum',
+    'chives':'Allium schoenoprasum','tarragon':'Artemisia dracunculus','fennel':'Foeniculum vulgare',
+    'oregano':'Origanum vulgare','apple':'Malus domestica','fig':'Ficus carica',
+    'grape':'Vitis vinifera','peach':'Prunus persica','cherry':'Prunus cerasus',
+    'apricot':'Prunus armeniaca','strawberry':'Fragaria vesca','almond':'Prunus dulcis',
+    'olive':'Olea europaea','tomato':'Solanum lycopersicum','courgette':'Cucurbita pepo',
+    'aubergine':'Solanum melongena','pepper':'Capsicum annuum','carrot':'Daucus carota',
+    'lettuce':'Lactuca sativa','lemon':'Citrus limon','orange':'Citrus sinensis',
+    'mulberry':'Morus nigra','hydrangea':'Hydrangea macrophylla','allium':'Allium cepa',
+    'lupin':'Lupinus polyphyllus','marigold':'Tagetes erecta','pelargonium':'Pelargonium zonale',
+  };
+
+  // Fetch up to 2 illustration URLs concurrently
+  const illustrationUrls = await Promise.all(
+    illus.slice(0, 2).map(async ({ plant }) => {
+      const sci = PLANT_SCI_NAMES[plant.toLowerCase()];
+      if (!sci) return null;
+      // Try en first, then fr
+      return await fetchWikiThumb(sci) || await fetchWikiThumb(sci.split(' ')[0]);
+    })
+  );
 
   // Tasks and enjoy
   const tasks  = monthData?.tasks  || [];
@@ -2079,6 +2129,10 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
     return { ...lens, pct, label };
   }).filter(Boolean);
 
+  // Insights — pick up to 3 most relevant items for this month's plants
+  const insightItems = insights?.state === 'done' ? (insights.items || []).slice(0, 3) : [];
+  const companions   = insights?.state === 'done' ? (insights.companions || []).slice(0, 2) : [];
+
   const gardenUrl = `https://garden-calendar.vercel.app`;
 
   return `<!DOCTYPE html>
@@ -2086,6 +2140,7 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
 <head>
 <meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
   body { width:1240px; height:874px; background:#FDFAF4; font-family:'Crimson Pro',Georgia,serif; color:#2C1A0A; overflow:hidden; }
@@ -2116,20 +2171,20 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
   .wx-label { font-size:9.5px; color:#90AA80; letter-spacing:.04em; }
   .wx-sub { font-size:9px; color:#70906A; font-style:italic; }
   .sec-label { font-family:'Playfair Display',serif; font-size:10px; text-transform:uppercase; letter-spacing:.14em; color:#7A5C2A; border-bottom:1px solid rgba(139,105,20,.22); padding-bottom:3px; margin-bottom:5px; }
-  .task-list, .enjoy-list { list-style:none; display:flex; flex-direction:column; gap:5px; }
-  .task-list li { font-size:13px; line-height:1.42; padding-left:20px; position:relative; color:#1A0E06; }
-  .task-list li::before { content:""; position:absolute; left:0; top:2px; width:11px; height:11px; border:1.5px solid #8B6914; border-radius:2px; background:white; }
-  .enjoy-list li { font-size:13px; line-height:1.42; padding-left:18px; position:relative; color:#1A0E06; }
-  .enjoy-list li::before { content:"✦"; position:absolute; left:1px; color:#5A7A32; font-size:9px; top:3px; }
-  .lens-strip { flex-shrink:0; padding-top:10px; }
-  .lens-row { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+  .task-list, .enjoy-list { list-style:none; display:flex; flex-direction:column; gap:7px; }
+  .task-list li { font-size:13.5px; line-height:1.5; padding-left:20px; position:relative; color:#1A0E06; }
+  .task-list li::before { content:""; position:absolute; left:0; top:3px; width:11px; height:11px; border:1.5px solid #8B6914; border-radius:2px; background:white; }
+  .enjoy-list li { font-size:13.5px; line-height:1.5; padding-left:18px; position:relative; color:#1A0E06; }
+  .enjoy-list li::before { content:"✦"; position:absolute; left:1px; color:#5A7A32; font-size:9px; top:4px; }
+  .lens-strip { flex-shrink:0; padding-top:8px; }
+  .lens-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
   .lens-name { font-size:9.5px; color:#7A5C2A; width:52px; text-align:right; font-style:italic; flex-shrink:0; }
   .lens-track { flex:1; height:8px; background:rgba(139,105,20,.1); border-radius:4px; overflow:hidden; }
   .lens-fill { height:100%; border-radius:4px; }
   .lens-val { font-size:9px; color:#9A7A3A; width:24px; text-align:right; flex-shrink:0; }
-  .notes-box { border:1.5px solid rgba(139,105,20,.3); border-radius:3px; padding:8px 10px; flex-shrink:0; margin-top:10px; }
-  .notes-label { font-family:'Playfair Display',serif; font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:#8B6914; margin-bottom:5px; display:block; }
-  .notes-line { height:1px; background:rgba(139,105,20,.18); margin-bottom:5px; border-radius:1px; }
+  .notes-box { border:1.5px solid rgba(139,105,20,.3); border-radius:3px; padding:10px 12px; flex-shrink:0; margin-top:8px; }
+  .notes-label { font-family:'Playfair Display',serif; font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:#8B6914; margin-bottom:8px; display:block; }
+  .notes-line { height:1px; background:rgba(139,105,20,.2); margin-bottom:10px; border-radius:1px; }
   .inspo-img { width:100%; flex:1; border-radius:2px; overflow:hidden; background:#E8E0D0; min-height:0; position:relative; }
   .inspo-img img { width:100%; height:100%; object-fit:cover; filter:sepia(10%) contrast(1.05) saturate(.9); display:block; }
   .inspo-img-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#C8DEB8,#A8C898); }
@@ -2147,6 +2202,14 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
   .footer-app { display:flex; align-items:center; gap:7px; }
   .footer-qr-box { width:28px; height:28px; border:1px solid rgba(139,105,20,.4); border-radius:2px; display:flex; align-items:center; justify-content:center; background:white; }
   .footer-qr-label { font-size:9px; color:#8B6914; font-style:italic; line-height:1.4; }
+  .insights-section { margin-top:8px; padding:8px 10px; background:rgba(139,105,20,.05); border-radius:3px; border:1px solid rgba(139,105,20,.18); flex-shrink:0; }
+  .insight-item-print { margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid rgba(139,105,20,.12); }
+  .insight-item-print:last-child { margin-bottom:0; padding-bottom:0; border-bottom:none; }
+  .insight-plant-print { font-family:'Playfair Display',serif; font-size:10.5px; font-style:italic; color:#2C1A0A; margin-bottom:1px; }
+  .insight-tip-print { font-size:10px; color:#4A3520; line-height:1.4; }
+  .companion-print { font-size:10px; line-height:1.4; }
+  .companion-good { color:#3A6A20; }
+  .companion-warn { color:#8A3A10; }
 </style>
 </head>
 <body>
@@ -2163,14 +2226,14 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
 <!-- LEFT: ILLUSTRATIONS -->
 <div class="col-illus">
   <div class="illus-primary">
-    ${illus[0]
-      ? `<img src="${illus[0].url}" alt="${illus[0].plant} botanical illustration"/>`
+    ${illustrationUrls[0] || illus[0]?.url
+      ? `<img src="${illustrationUrls[0] || illus[0]?.url}" alt="${illus[0]?.plant} botanical illustration" style="width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:sepia(12%) contrast(1.05);display:block"/>`
       : `<div class="illus-placeholder"><div class="illus-placeholder-text">${monthName}<br>garden illustration</div></div>`
     }
   </div>
   ${illus[0] || illus[1] ? '<div class="illus-divider"></div>' : ''}
   ${illus[1]
-    ? `<div class="illus-secondary"><img src="${illus[1].url}" alt="${illus[1].plant}"/></div>`
+    ? `<div class="illus-secondary"><img src="${illustrationUrls[1] || illus[1]?.url}" alt="${illus[1]?.plant}" style="width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:sepia(12%) contrast(1.05);display:block"/></div>`
     : illus[0] ? `<div class="illus-secondary"><div class="illus-placeholder"><div class="illus-placeholder-text">${season}</div></div></div>` : ''
   }
   <div class="illus-caption">
@@ -2193,7 +2256,7 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
       <div class="wx-item">
         <span class="wx-val rain">${precip != null ? `${precip} mm` : '—'}</span>
         <span class="wx-label">Rainfall</span>
-        <span class="wx-sub">${precip != null ? (precip < 30 ? 'dry month' : precip < 70 ? 'moderate' : 'wet month') : ''}</span>
+        <span class="wx-sub">${precipDiffStr}</span>
       </div>
       <div class="wx-item">
         <span class="wx-val sun">${sunHrs != null ? `${sunHrs} hrs` : '—'}</span>
@@ -2230,6 +2293,8 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
 
   <div class="notes-box">
     <span class="notes-label">Notes</span>
+    <div class="notes-line"></div>
+    <div class="notes-line"></div>
     <div class="notes-line"></div>
     <div class="notes-line"></div>
     <div class="notes-line"></div>
@@ -2276,10 +2341,24 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
 
   ${mapsUrl ? `
   <div class="qr-row">
-    <div class="qr-box">${makeQRSvg(32)}</div>
-    <div class="qr-label">Directions<br>to ${inspo.name?.split(' ')[0] || 'garden'} ↗</div>
+    <div class="qr-box"><div id="qr-directions" style="width:34px;height:34px"></div></div>
+    <div class="qr-label">Directions<br>to ${(inspo.name?.split(' ')[0] || 'garden')} ↗</div>
   </div>` : ''}` : `
   <div class="inspo-detail" style="font-style:italic;opacity:.6">Generate inspo gardens<br>in the app to populate<br>this section</div>`}
+
+  ${insightItems.length > 0 ? `
+  <div class="insights-section">
+    <div class="sec-label" style="margin-bottom:6px">Garden insights</div>
+    ${insightItems.map(item => `
+    <div class="insight-item-print">
+      <div class="insight-plant-print">${item.plant}</div>
+      <div class="insight-tip-print">${item.suggestion}</div>
+    </div>`).join('')}
+    ${companions.length > 0 ? companions.map(c => `
+    <div class="companion-print ${c.type === 'good' ? 'companion-good' : 'companion-warn'}">
+      ${c.type === 'good' ? '✓' : '✗'} ${c.pair}${c.reason ? ` — ${c.reason}` : ''}
+    </div>`).join('') : ''}
+  </div>` : ''}
 
   <div class="quote">
     "The glory of gardening: hands in the dirt, head in the sun, heart with nature."
@@ -2291,12 +2370,23 @@ function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, cit
   <div class="footer-climate">${meta?.zone ? `Zone ${meta.zone} · ` : ''}${meta?.lastFrost ? `Last frost ${meta.lastFrost} · ` : ''}Climate data: Open-Meteo / ERA5</div>
   <div class="footer-centre">✦ The Garden Calendar · ${gardenUrl} ✦</div>
   <div class="footer-app">
-    <div class="footer-qr-box">${makeQRSvg(22)}</div>
+    <div class="footer-qr-box"><div id="qr-app" style="width:26px;height:26px"></div></div>
     <div class="footer-qr-label">Your digital<br>calendar ↗</div>
   </div>
 </footer>
 
 </div>
+<script>
+  (function() {
+    function makeQR(id, url, size) {
+      var el = document.getElementById(id);
+      if (!el || typeof QRCode === 'undefined') return;
+      try { new QRCode(el, { text: url, width: size, height: size, colorDark: '#2C1A0A', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M }); } catch(e) {}
+    }
+    ${mapsUrl ? `makeQR('qr-directions', '${mapsUrl}', 34);` : ''}
+    makeQR('qr-app', '${gardenUrl}', 26);
+  })();
+</script>
 </body>
 </html>`;
 }
@@ -5895,11 +5985,11 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               const availableMonths = Array.from({length: loadedBatches * 3}, (_,i) => MONTH_NAMES[(startIdx2 + i) % 12])
                 .filter(n => months[n]?._state === 'done');
               if (!availableMonths.length) return null;
-              const handlePreview = (monthName) => {
+              const handlePreview = async (monthName) => {
                 const mIdx = MONTH_NAMES.indexOf(monthName);
                 const year = new Date().getFullYear() + (mIdx < nowIdx ? 1 : 0);
                 const g = selectedGardenId ? readGardens().find(g => g.id === selectedGardenId) : null;
-                const html = generateCalendarPageHTML({
+                const html = await generateCalendarPageHTML({
                   monthName,
                   monthIndex: mIdx,
                   year,
@@ -5910,6 +6000,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                   inspoData: inspos[monthName],
                   lensData,
                   allPlants: plants,
+                  insights,
                 });
                 const blob = new Blob([html], { type: 'text/html' });
                 const url = URL.createObjectURL(blob);
