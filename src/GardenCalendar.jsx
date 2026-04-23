@@ -2282,9 +2282,17 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   // 2. Plants in visual care tasks
   // 3. Any other illustratable plant (last resort fallback only)
   // Enjoy plants first, then task plants — never full inventory fallback
+  // Prefer flowering ornamentals over utilitarian plants (conifers, root veg, olives etc.)
+  const LESS_PREFERRED = new Set(['cypress','olive','fig','grape','lemon','orange','mulberry',
+    'almond','quince','elderflower','valerian','tarragon','fennel','oregano','parsley',
+    'chives','basil','mint']);
+  const sortedCandidates = (arr) => [
+    ...arr.filter(p => !LESS_PREFERRED.has(p.toLowerCase())),
+    ...arr.filter(p => LESS_PREFERRED.has(p.toLowerCase())),
+  ];
   const illustrationCandidates = [
-    ...enjoyPlantsFiltered,
-    ...taskPlants.filter(p => !enjoyPlantsFiltered.includes(p)),
+    ...sortedCandidates(enjoyPlantsFiltered),
+    ...sortedCandidates(taskPlants.filter(p => !enjoyPlantsFiltered.includes(p))),
   ];
   // Wildlife fallback only (no general plant fallback — blank is better than wrong plant)
 
@@ -2309,19 +2317,18 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 
   // PLANT_ARTWORK_URLS — pre-computed direct upload.wikimedia.org URLs
   const illus = [];
-  console.log('[illus] candidates:', illustrationCandidates);
-  console.log('[illus] allPlants keys:', Object.keys(allPlants));
+
   for (const p of illustrationCandidates) {
     if (illus.length >= 1) break;
     if (usedPlants.has(p.toLowerCase())) continue;
     const url = getArtworkUrl(p);
-    console.log('[illus] plant:', p, 'url:', url ? url.slice(0,60) : 'NOT FOUND');
+
     if (url) {
       illus.push({ plant: p, url, licence: "Köhler's Medizinal-Pflanzen · Public Domain" });
       usedPlants.add(p.toLowerCase());
     }
   }
-  console.log('[illus] result:', illus.length, illus[0]?.plant);
+
   // Wildlife fallback via iNaturalist if no artwork found for this month
   if (illus.length < 1 && foundWildlife) {
     const wPhoto = await fetchWildlifePhoto(foundWildlife);
@@ -2339,6 +2346,11 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   // Fetch inspo garden photo using same approach as WikimediaPhoto component
   const fetchInspoPhoto = async () => {
     if (!inspo) return null;
+    // Clean garden name: strip leading "Jardin de/du/des/le/les" which are often not in article title
+    const cleanTitle = (t) => t
+      .replace(/^(Jardin|Jardins|Parc|Parcs)\s+(de\s+la\s+|du\s+|des\s+|de\s+l['’]\s*|de\s+|d['’]\s*)/i, '')
+      .replace(/^(Le\s+|La\s+|Les\s+|L['’])/i, '')
+      .trim();
     const trySummary = async (title, lang='en') => {
       try {
         const slug = encodeURIComponent(title.trim().replace(/ /g, '_'));
@@ -2364,10 +2376,18 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
         return null;
       } catch { return null; }
     };
-    return await trySummary(inspo.wikipedia || inspo.name)
-        || await trySearch('en', inspo.name)
-        || await trySummary(inspo.name, 'fr')
+    const name = inspo.wikipedia || inspo.name;
+    const cleaned = cleanTitle(name);
+    // Try full name first — never discard "Jardin du Luxembourg" etc. as primary
+    // Only try cleaned version if full name 404s, as a fallback
+    // Also search with location context for better image results
+    const location = inspo.location ? inspo.location.split(',')[0] : '';
+    return await trySummary(name)
+        || await trySummary(name, 'fr')
+        || await trySearch('en', inspo.name + (location ? ' ' + location : ''))
         || await trySearch('fr', inspo.name)
+        || (cleaned !== name ? await trySummary(cleaned) : null)
+        || (cleaned !== name ? await trySummary(cleaned, 'fr') : null)
         || null;
   };
   const inspoPhotoUrl = await fetchInspoPhoto();
@@ -2434,8 +2454,8 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   .col-section:last-child { border-bottom:none; }
   .col-inspo { grid-column:3; grid-row:2; padding:13px 16px 12px 13px; display:flex; flex-direction:column; gap:8px; overflow:hidden; }
   .illus-slot { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
-  .illus-img-wrap { flex:1; min-height:0; overflow:hidden; background:#F7F2E8; }
-  .illus-img-wrap img { width:100%; height:100%; object-fit:contain; mix-blend-mode:multiply; filter:sepia(8%) contrast(1.08) brightness(1.02); display:block; }
+  .illus-img-wrap { flex:1; min-height:0; overflow:hidden; background:#F7F2E8; display:flex; align-items:center; }
+  .illus-img-wrap img { width:100%; height:100%; object-fit:contain; filter:sepia(8%) contrast(1.05); display:block; }
   .illus-caption { font-style:italic; font-size:9px; color:#7A5C2A; padding:5px 14px 4px; background:#EDE8DC; border-top:1px solid rgba(139,105,20,.15); line-height:1.4; display:flex; justify-content:space-between; align-items:baseline; }
   .illus-caption-name { font-size:10.5px; color:#4A3520; font-family:"Playfair Display",serif; font-style:italic; }
   .illus-caption-licence { font-size:8px; color:#9A8060; opacity:.65; }
@@ -2622,12 +2642,11 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 
   ${(meta?.lat && meta?.lng) ? `
   <div style="margin-top:6px;border-radius:2px;overflow:hidden;border:1px solid rgba(139,105,20,.2)">
-    <img
-      src="https://staticmap.openstreetmap.de/staticmap.php?center=${meta.lat},${meta.lng}&zoom=9&size=200x80&markers=${meta.lat},${meta.lng},red"
-      width="100%" style="display:block"
-      alt="Map"
-      onerror="this.parentElement.style.display='none'"
-    />
+    <iframe
+      src="https://www.openstreetmap.org/export/embed.html?bbox=${meta.lng - 0.4},${meta.lat - 0.25},${meta.lng + 0.4},${meta.lat + 0.25}&layer=mapnik&marker=${meta.lat},${meta.lng}"
+      width="100%" height="90" frameborder="0" scrolling="no"
+      style="display:block;border:none"
+    ></iframe>
     <div style="font-size:8px;color:#7A5C2A;padding:3px 8px;background:#F0EBE0;font-style:italic;display:flex;justify-content:space-between">
       <span>📍 ${city}</span>
       <span style="opacity:.7">${inspo?.location ? inspo.location.split(',')[0] : ''}</span>
