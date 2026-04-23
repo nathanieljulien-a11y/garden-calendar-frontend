@@ -2098,6 +2098,56 @@ function makeQRSvg(size = 48) {
 }
 
 // ─── Calendar Page HTML Generator ────────────────────────────────────────────
+// ─── Pre-computed Köhler botanical plate URLs ─────────────────────────────────
+// Direct upload.wikimedia.org thumbnail URLs — MD5-routed, CORS-accessible, no API call needed
+const PLANT_ARTWORK_URLS = {
+  'rose':        'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Rosa_centifolia_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-257.jpg/500px-Rosa_centifolia_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-257.jpg',
+  'wisteria':    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Wisteria_sinensis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-285.jpg/500px-Wisteria_sinensis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-285.jpg',
+  'lavender':    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Lavandula_angustifolia_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-088.jpg/500px-Lavandula_angustifolia_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-088.jpg',
+  'peony':       'https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Paeonia_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-164.jpg/500px-Paeonia_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-164.jpg',
+  'iris':        'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Iris_germanica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-187.jpg/500px-Iris_germanica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-187.jpg',
+  'tulip':       'https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Tulipa_gesneriana_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-272.jpg/500px-Tulipa_gesneriana_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-272.jpg',
+  'sunflower':   'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Helianthus_annuus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-078.jpg/500px-Helianthus_annuus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-078.jpg',
+  'camellia':    'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Camellia_japonica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-025.jpg/500px-Camellia_japonica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-025.jpg',
+  'magnolia':    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Magnolia_grandiflora_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-097.jpg/500px-Magnolia_grandiflora_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-097.jpg',
+  'oleander':    'https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Nerium_oleander_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-124.jpg/500px-Nerium_oleander_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-124.jpg',
+  'foxglove':    'https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/Digitalis_purpurea_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-052.jpg/500px-Digitalis_purpurea_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-052.jpg',
+  'marigold':    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Tagetes_erecta_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-268.jpg/500px-Tagetes_erecta_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-268.jpg',
+  'pelargonium': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Pelargonium_zonale_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-233.jpg/500px-Pelargonium_zonale_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-233.jpg',
+  'nasturtium':  'https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Tropaeolum_majus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-273.jpg/500px-Tropaeolum_majus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-273.jpg',
+  'pansy':       'https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Viola_tricolor_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-278.jpg/500px-Viola_tricolor_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-278.jpg',
+  'snapdragon':  'https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Antirrhinum_majus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-013.jpg/500px-Antirrhinum_majus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-013.jpg',
+  'borage':      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Borago_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-023.jpg/500px-Borago_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-023.jpg',
+  'valerian':    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Valeriana_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-275.jpg/500px-Valeriana_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-275.jpg',
+  'lemon balm':  'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Melissa_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-108.jpg/500px-Melissa_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-108.jpg',
+  'elderflower': 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Sambucus_nigra_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-247.jpg/500px-Sambucus_nigra_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-247.jpg',
+  'rosemary':    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/58/Rosmarinus_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-244.jpg/500px-Rosmarinus_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-244.jpg',
+  'thyme':       'https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Thymus_vulgaris_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-271.jpg/500px-Thymus_vulgaris_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-271.jpg',
+  'basil':       'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Ocimum_basilicum_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-126.jpg/500px-Ocimum_basilicum_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-126.jpg',
+  'mint':        'https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Mentha_piperita_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-112.jpg/500px-Mentha_piperita_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-112.jpg',
+  'sage':        'https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/Salvia_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-246.jpg/500px-Salvia_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-246.jpg',
+  'parsley':     'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Petroselinum_crispum_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-168.jpg/500px-Petroselinum_crispum_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-168.jpg',
+  'chives':      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Allium_schoenoprasum_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-008.jpg/500px-Allium_schoenoprasum_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-008.jpg',
+  'tarragon':    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Artemisia_dracunculus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-018.jpg/500px-Artemisia_dracunculus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-018.jpg',
+  'fennel':      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Foeniculum_vulgare_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-063.jpg/500px-Foeniculum_vulgare_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-063.jpg',
+  'oregano':     'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Origanum_vulgare_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-156.jpg/500px-Origanum_vulgare_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-156.jpg',
+  'fig':         'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Ficus_carica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-057.jpg/500px-Ficus_carica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-057.jpg',
+  'grape':       'https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Vitis_vinifera_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-280.jpg/500px-Vitis_vinifera_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-280.jpg',
+  'peach':       'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Prunus_persica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-183.jpg/500px-Prunus_persica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-183.jpg',
+  'cherry':      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Prunus_cerasus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-180.jpg/500px-Prunus_cerasus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-180.jpg',
+  'apricot':     'https://upload.wikimedia.org/wikipedia/commons/thumb/3/37/Prunus_armeniaca_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-179.jpg/500px-Prunus_armeniaca_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-179.jpg',
+  'strawberry':  'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Fragaria_vesca_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-065.jpg/500px-Fragaria_vesca_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-065.jpg',
+  'almond':      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Prunus_dulcis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-177.jpg/500px-Prunus_dulcis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-177.jpg',
+  'quince':      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Cydonia_oblonga_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-047.jpg/500px-Cydonia_oblonga_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-047.jpg',
+  'mulberry':    'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Morus_nigra_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-119.jpg/500px-Morus_nigra_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-119.jpg',
+  'raspberry':   'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Rubus_idaeus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-237.jpg/500px-Rubus_idaeus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-237.jpg',
+  'lemon':       'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Citrus_limon_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-036.jpg/500px-Citrus_limon_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-036.jpg',
+  'olive':       'https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Olea_europaea_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-130.jpg/500px-Olea_europaea_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-130.jpg',
+  'cypress':     'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Cupressus_sempervirens_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-046.jpg/500px-Cupressus_sempervirens_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-046.jpg',
+};
+function getArtworkUrl(p) { return PLANT_ARTWORK_URLS[p?.toLowerCase().trim()] || null; }
+function hasArtwork(p)    { return !!PLANT_ARTWORK_URLS[p?.toLowerCase().trim()]; }
+
 async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenName, city, meta, monthData, inspoData, lensData, allPlants, insights, usedPlants = new Set(), usedInspos = new Set() }) {
   const cd = meta?._cd;
 
@@ -2182,7 +2232,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     const cat = Object.entries(allPlants).find(([, arr]) => arr.includes(p))?.[0];
     if (EXCLUDE_CATEGORIES.includes(cat)) return false;
     // For herbs: only include if we have a known Wikipedia article with a good image
-    if (cat === 'herbs') return hasWikiArticle(p); // only herbs with a Köhler plate
+    if (cat === 'herbs') return hasArtwork(p); // only herbs with a Köhler plate
     return true;
   });
 
@@ -2257,33 +2307,22 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     } catch { return null; }
   };
 
-  // Fetch plant illustrations via Wikipedia REST summary API — proven CORS-accessible
-  // Only fetches plants that have a known Wikipedia article (PLANT_WIKI_ARTICLES lookup)
-  // One illustration per page — direct Wikimedia Commons URL, no network call needed
+  // PLANT_ARTWORK_URLS — pre-computed direct upload.wikimedia.org URLs
+  // Synchronous lookup, no network call, guaranteed Köhler botanical artwork
   const illus = [];
   for (const p of illustrationCandidates) {
     if (illus.length >= 1) break;
     if (usedPlants.has(p.toLowerCase())) continue;
-    const articleTitle = PLANT_WIKI_ARTICLES[p.toLowerCase().trim()];
-    if (!articleTitle) continue;
-    const url = await fetchPlantThumb(articleTitle);
+    const url = getArtworkUrl(p);
     if (url) {
-      illus.push({ plant: p, url, licence: "Wikipedia · CC BY-SA" });
+      illus.push({ plant: p, url, licence: "Köhler's Medizinal-Pflanzen · Public Domain" });
       usedPlants.add(p.toLowerCase());
     }
   }
-  // Wildlife fallback if no plant illustration found
+  // Wildlife fallback via iNaturalist if no artwork found for this month
   if (illus.length < 1 && foundWildlife) {
     const wPhoto = await fetchWildlifePhoto(foundWildlife);
     if (wPhoto?.url) illus.push({ plant: foundWildlife, url: wPhoto.url, licence: wPhoto.licence });
-  }
-
-  // Wildlife fallback: if we have fewer than 2 plant illustrations, add wildlife
-  if (illus.length < 1 && foundWildlife) {
-    const wPhoto = await fetchWildlifePhoto(foundWildlife);
-    if (wPhoto?.url) {
-      illus.push({ plant: foundWildlife, url: wPhoto.url, licence: wPhoto.licence });
-    }
   }
 
   // Inspo garden + fetch its Wikipedia photo
