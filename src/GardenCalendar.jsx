@@ -2194,7 +2194,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     const url = getIllustrationUrl(p);
     if (url) {
       // Fetch the actual image via Wikimedia Commons FilePath redirect (CORS-friendly)
-      illus.push({ plant: p, url, licence: 'Köhler's Medizinal-Pflanzen · Public Domain' });
+      illus.push({ plant: p, url, licence: "Köhler's Medizinal-Pflanzen · Public Domain" });
     }
   }
 
