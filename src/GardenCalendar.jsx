@@ -2035,16 +2035,30 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const season = monthData?.season || ['Winter','Winter','Spring','Spring','Spring','Summer','Summer','Summer','Autumn','Autumn','Autumn','Winter'][monthIndex];
 
   // Fetch illustration URLs via Wikipedia REST API (CORS-friendly)
-  const fetchWikiThumb = async (scientificName) => {
-    try {
-      const slug = encodeURIComponent(scientificName.replace(/ /g, '_'));
-      const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`, {
-        headers: { Accept: 'application/json' }
-      });
-      if (!r.ok) return null;
-      const d = await r.json();
-      return d?.thumbnail?.source || null;
-    } catch { return null; }
+  // Multi-lang Wikipedia thumbnail fetch — same strategy as WikimediaPhoto component
+  const fetchWikiThumb = async (title) => {
+    if (!title) return null;
+    const slug = encodeURIComponent(title.trim().replace(/ /g, '_'));
+    const titleEnc = encodeURIComponent(title.trim());
+    const trySummary = async (lang) => {
+      try {
+        const r = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${slug}`, { headers: { Accept: 'application/json' } });
+        if (!r.ok) return null;
+        const d = await r.json();
+        return d?.thumbnail?.source || null;
+      } catch { return null; }
+    };
+    const trySearch = async (lang) => {
+      try {
+        const r = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${titleEnc}&gsrlimit=1&prop=pageimages&piprop=thumbnail&pithumbsize=400&format=json&origin=*`, { headers: { Accept: 'application/json' } });
+        if (!r.ok) return null;
+        const d = await r.json();
+        const pages = d?.query?.pages;
+        if (!pages) return null;
+        return Object.values(pages)[0]?.thumbnail?.source || null;
+      } catch { return null; }
+    };
+    return await trySummary('en') || await trySearch('en') || await trySummary('fr') || await trySearch('fr');
   };
 
   // Scientific names for illustration lookup (same mapping as PLANT_ILLUSTRATIONS keys)
@@ -2086,12 +2100,22 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const enjoyText = (monthData?.enjoy || []).join(' ').toLowerCase();
   const enjoyPlants = allPlantsList.filter(p => enjoyText.includes(p.toLowerCase()));
 
-  // Candidate order: plants in enjoy text first (most visually relevant this month),
-  // then peak lens plants, then rest of inventory — all filtered to plants only (no wildlife)
+  // Also check tasks text for plant mentions
+  const taskText = (monthData?.tasks || []).join(' ').toLowerCase();
+  const taskPlants = allPlantsList.filter(p => taskText.includes(p.toLowerCase()));
+  const activeThisMonth = [...new Set([...enjoyPlants, ...taskPlants])];
+
+  // Candidate order:
+  // 1. Plants mentioned in enjoy (most visually relevant — flowering, fruiting, interesting)
+  // 2. Plants mentioned in tasks (being worked on this month)
+  // 3. Peak lens plants (high interest score)
+  // 4. Rest of inventory as final fallback
+  // Never show a plant that has zero connection to this month's content
   const illustrationCandidates = [
     ...enjoyPlants,
-    ...peakPlants.filter(p => !enjoyPlants.includes(p)),
-    ...allPlantsList.filter(p => !enjoyPlants.includes(p) && !peakPlants.includes(p)),
+    ...taskPlants.filter(p => !enjoyPlants.includes(p)),
+    ...peakPlants.filter(p => !activeThisMonth.includes(p)),
+    ...(activeThisMonth.length === 0 ? allPlantsList : []), // fallback only if nothing active
   ];
 
   // Fetch illustration URLs via Wikipedia REST API — try each candidate until we get 2 images
@@ -2108,7 +2132,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   for (const p of illustrationCandidates) {
     if (illus.length >= 2) break;
     const url = await fetchWikiThumbForPlant(p);
-    if (url) illus.push({ plant: p, url });
+    if (url) illus.push({ plant: p, url, licence: 'Wikimedia Commons · Public Domain' });
   }
 
   // Inspo garden + fetch its Wikipedia photo
@@ -2164,14 +2188,18 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   .hdr-season { font-size:13px; color:#C4A55A; letter-spacing:.09em; text-transform:uppercase; }
   .hdr-garden { font-size:12px; color:#A09070; letter-spacing:.1em; text-transform:uppercase; }
   .col-illus { grid-column:1; grid-row:2; display:flex; flex-direction:column; border-right:1.5px solid rgba(139,105,20,.2); background:#F7F2E8; overflow:hidden; }
-  .col-content { grid-column:2; grid-row:2; padding:14px 18px 12px; display:flex; flex-direction:column; gap:0; border-right:1.5px solid rgba(139,105,20,.2); overflow:hidden; justify-content:space-between; }
-  .col-inspo { grid-column:3; grid-row:2; padding:13px 16px 12px 13px; display:flex; flex-direction:column; gap:9px; overflow:hidden; }
-  .illus-primary { flex:1; overflow:hidden; }
-  .illus-primary img { width:100%; height:100%; object-fit:contain; mix-blend-mode:multiply; filter:sepia(12%) contrast(1.05); display:block; }
-  .illus-divider { height:1px; background:rgba(139,105,20,.2); margin:0 16px; }
-  .illus-secondary { height:175px; overflow:hidden; }
-  .illus-secondary img { width:100%; height:100%; object-fit:contain; mix-blend-mode:multiply; filter:sepia(12%) contrast(1.05); display:block; }
-  .illus-caption { font-style:italic; font-size:10px; color:#7A5C2A; text-align:center; letter-spacing:.03em; padding:5px 8px; background:#F0EBE0; display:flex; justify-content:space-between; align-items:center; }
+  .col-content { grid-column:2; grid-row:2; padding:0; display:flex; flex-direction:column; border-right:1.5px solid rgba(139,105,20,.2); overflow:hidden; }
+  .col-section { flex:1; padding:10px 16px; display:flex; flex-direction:column; border-bottom:1px solid rgba(139,105,20,.12); overflow:hidden; }
+  .col-section:last-child { border-bottom:none; }
+  .col-inspo { grid-column:3; grid-row:2; padding:13px 16px 12px 13px; display:flex; flex-direction:column; gap:8px; overflow:hidden; }
+  .illus-slot { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
+  .illus-slot:only-child .illus-img-wrap { flex:1; }
+  .illus-img-wrap { flex:1; min-height:0; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#F0EAD8; }
+  .illus-img-wrap img { width:100%; height:100%; object-fit:contain; mix-blend-mode:multiply; filter:sepia(12%) contrast(1.05); display:block; }
+  .illus-caption { font-style:italic; font-size:9px; color:#7A5C2A; padding:4px 10px 3px; background:#EDE8DC; border-top:1px solid rgba(139,105,20,.15); line-height:1.35; }
+  .illus-caption-name { font-size:10px; color:#4A3520; display:block; }
+  .illus-caption-licence { font-size:8.5px; color:#9A8060; opacity:.7; }
+  .illus-divider { height:1px; background:rgba(139,105,20,.2); flex-shrink:0; }
   .illus-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#F0EAD8; }
   .illus-placeholder-text { font-style:italic; font-size:11px; color:#A08050; text-align:center; padding:8px; }
   .weather-box { background:linear-gradient(135deg,#1E3A2A,#2C4A1A,#1A2C1A); border-radius:3px; padding:10px 12px; color:#D4EAC4; display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px 10px; border:1px solid rgba(90,140,60,.3); flex-shrink:0; }
@@ -2198,9 +2226,9 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   .notes-box { border:1.5px solid rgba(139,105,20,.3); border-radius:3px; padding:10px 12px; flex-shrink:0; margin-top:8px; }
   .notes-label { font-family:'Playfair Display',serif; font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:#8B6914; margin-bottom:8px; display:block; }
   .notes-line { height:1px; background:rgba(139,105,20,.2); margin-bottom:10px; border-radius:1px; }
-  .inspo-img { width:100%; flex:1; border-radius:2px; overflow:hidden; background:#E8E0D0; min-height:0; position:relative; }
-  .inspo-img img { width:100%; height:100%; object-fit:cover; filter:sepia(10%) contrast(1.05) saturate(.9); display:block; }
-  .inspo-img-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#C8DEB8,#A8C898); }
+  .inspo-img { width:100%; border-radius:2px; overflow:hidden; background:#E8E0D0; }
+  .inspo-img img { width:100%; height:auto; max-height:200px; object-fit:cover; filter:sepia(10%) contrast(1.05) saturate(.9); display:block; }
+  .inspo-img-placeholder { width:100%; height:120px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#C8DEB8,#A8C898); }
   .inspo-name { font-family:'Playfair Display',serif; font-size:12px; font-style:italic; color:#2C1A0A; line-height:1.3; }
   .inspo-detail { font-size:10px; color:#7A5C2A; line-height:1.4; }
   .inspo-highlight { font-size:10px; color:#4A3520; font-style:italic; line-height:1.4; }
@@ -2238,27 +2266,36 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 
 <!-- LEFT: ILLUSTRATIONS -->
 <div class="col-illus">
-  <div class="illus-primary">
-    ${illus[0]?.url
-      ? `<img src="${illus[0]?.url}" alt="${illus[0]?.plant} botanical illustration" style="width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:sepia(12%) contrast(1.05);display:block"/>`
-      : `<div class="illus-placeholder"><div class="illus-placeholder-text">${monthName}<br>garden illustration</div></div>`
-    }
-  </div>
-  ${illus[0] || illus[1] ? '<div class="illus-divider"></div>' : ''}
-  ${illus[1]
-    ? `<div class="illus-secondary"><img src="${illus[1]?.url}" alt="${illus[1]?.plant}" style="width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:sepia(12%) contrast(1.05);display:block"/></div>`
-    : illus[0] ? `<div class="illus-secondary"><div class="illus-placeholder"><div class="illus-placeholder-text">${season}</div></div></div>` : ''
-  }
-  <div class="illus-caption">
-    <span>${illus[0]?.plant || monthName}</span>
-    <span>${illus[1]?.plant || season}</span>
-  </div>
+  ${illus[0] ? `
+  <div class="illus-slot">
+    <div class="illus-img-wrap">
+      <img src="${illus[0].url}" alt="${illus[0].plant}"/>
+    </div>
+    <div class="illus-caption">
+      <span class="illus-caption-name">${illus[0].plant.charAt(0).toUpperCase() + illus[0].plant.slice(1)}</span>
+      <span class="illus-caption-licence">${illus[0].licence}</span>
+    </div>
+  </div>` : `
+  <div class="illus-slot">
+    <div class="illus-img-wrap"><div class="illus-placeholder"><div class="illus-placeholder-text">${monthName}</div></div></div>
+  </div>`}
+  ${illus[1] ? `
+  <div class="illus-divider"></div>
+  <div class="illus-slot">
+    <div class="illus-img-wrap">
+      <img src="${illus[1].url}" alt="${illus[1].plant}"/>
+    </div>
+    <div class="illus-caption">
+      <span class="illus-caption-name">${illus[1].plant.charAt(0).toUpperCase() + illus[1].plant.slice(1)}</span>
+      <span class="illus-caption-licence">${illus[1].licence}</span>
+    </div>
+  </div>` : ''}
 </div>
 
 <!-- CENTRE: WEATHER + TASKS + ENJOY + LENS + NOTES -->
 <div class="col-content">
 
-  <div style="flex-shrink:0">
+  <div class="col-section" style="flex:none;padding:10px 16px">
     <div class="weather-box">
       <div class="weather-box-title">${monthName} averages · ${city}</div>
       <div class="wx-item">
@@ -2279,38 +2316,39 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     </div>
   </div>
 
-  <div style="flex:1;min-height:0;padding-top:10px">
+  <div class="col-section">
     <div class="sec-label">Things to do</div>
     <ul class="task-list">
       ${tasks.map(t => `<li>${t}</li>`).join('\n      ')}
     </ul>
   </div>
 
-  <div style="flex:1;min-height:0;padding-top:10px">
+  <div class="col-section">
     <div class="sec-label">Things to enjoy</div>
     <ul class="enjoy-list">
       ${enjoy.map(e => `<li>${e}</li>`).join('\n      ')}
     </ul>
   </div>
 
-  ${lensRows.length > 0 ? `
-  <div class="lens-strip">
-    <div class="sec-label" style="margin-bottom:7px">Garden interest · ${monthName}</div>
-    ${lensRows.map(l => `
-    <div class="lens-row">
-      <span class="lens-name">${l.label}</span>
-      <div class="lens-track"><div class="lens-fill" style="width:${l.pct}%;background:${l.color}"></div></div>
-      <span class="lens-val">${l.label2 || l.label.slice(0,3)}</span>
-    </div>`).join('')}
-  </div>` : ''}
-
-  <div class="notes-box">
-    <span class="notes-label">Notes</span>
-    <div class="notes-line"></div>
-    <div class="notes-line"></div>
-    <div class="notes-line"></div>
-    <div class="notes-line"></div>
-    <div class="notes-line"></div>
+  <div class="col-section">
+    ${lensRows.length > 0 ? `
+    <div class="lens-strip" style="margin-bottom:8px">
+      <div class="sec-label" style="margin-bottom:6px">Garden interest · ${monthName}</div>
+      ${lensRows.map(l => `
+      <div class="lens-row">
+        <span class="lens-name">${l.label}</span>
+        <div class="lens-track"><div class="lens-fill" style="width:${l.pct}%;background:${l.color}"></div></div>
+        <span class="lens-val">${l.label.slice(0,3)}</span>
+      </div>`).join('')}
+    </div>` : ''}
+    <div class="sec-label" style="margin-bottom:6px">Notes</div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:space-around">
+      <div class="notes-line"></div>
+      <div class="notes-line"></div>
+      <div class="notes-line"></div>
+      <div class="notes-line"></div>
+      <div class="notes-line"></div>
+    </div>
   </div>
 </div>
 
@@ -2360,20 +2398,6 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     <div class="qr-label">Directions<br>to ${(inspo.name?.split(' ')[0] || 'garden')} ↗</div>
   </div>` : ''}` : `
   <div class="inspo-detail" style="font-style:italic;opacity:.6">Generate inspo gardens<br>in the app to populate<br>this section</div>`}
-
-  ${insightItems.length > 0 ? `
-  <div class="insights-section">
-    <div class="sec-label" style="margin-bottom:6px">Garden insights</div>
-    ${insightItems.map(item => `
-    <div class="insight-item-print">
-      <div class="insight-plant-print">${item.plant}</div>
-      <div class="insight-tip-print">${item.suggestion}</div>
-    </div>`).join('')}
-    ${companions.length > 0 ? companions.map(c => `
-    <div class="companion-print ${c.type === 'good' ? 'companion-good' : 'companion-warn'}">
-      ${c.type === 'good' ? '✓' : '✗'} ${c.pair}${c.reason ? ` — ${c.reason}` : ''}
-    </div>`).join('') : ''}
-  </div>` : ''}
 
   <div class="quote">
     "The glory of gardening: hands in the dirt, head in the sun, heart with nature."
