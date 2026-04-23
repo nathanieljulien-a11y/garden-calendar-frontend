@@ -2239,14 +2239,14 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 <!-- LEFT: ILLUSTRATIONS -->
 <div class="col-illus">
   <div class="illus-primary">
-    ${illustrationUrls[0] || illus[0]?.url
-      ? `<img src="${illustrationUrls[0] || illus[0]?.url}" alt="${illus[0]?.plant} botanical illustration" style="width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:sepia(12%) contrast(1.05);display:block"/>`
+    ${illus[0]?.url
+      ? `<img src="${illus[0]?.url}" alt="${illus[0]?.plant} botanical illustration" style="width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:sepia(12%) contrast(1.05);display:block"/>`
       : `<div class="illus-placeholder"><div class="illus-placeholder-text">${monthName}<br>garden illustration</div></div>`
     }
   </div>
   ${illus[0] || illus[1] ? '<div class="illus-divider"></div>' : ''}
   ${illus[1]
-    ? `<div class="illus-secondary"><img src="${illustrationUrls[1] || illus[1]?.url}" alt="${illus[1]?.plant}" style="width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:sepia(12%) contrast(1.05);display:block"/></div>`
+    ? `<div class="illus-secondary"><img src="${illus[1]?.url}" alt="${illus[1]?.plant}" style="width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:sepia(12%) contrast(1.05);display:block"/></div>`
     : illus[0] ? `<div class="illus-secondary"><div class="illus-placeholder"><div class="illus-placeholder-text">${season}</div></div></div>` : ''
   }
   <div class="illus-caption">
