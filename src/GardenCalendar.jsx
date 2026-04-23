@@ -2033,23 +2033,38 @@ const PLANT_COMMONS_FILES = {
 };
 
 // Returns a direct Wikimedia Commons image URL for the plate
-// Fetch direct image URL via Wikimedia Commons API (CORS-friendly with origin=*)
-async function fetchCommonsImageUrl(filename) {
+// Fetch plant illustration via Wikipedia REST summary API (proven CORS-accessible)
+async function fetchPlantThumb(articleTitle) {
   try {
-    const title = `File:${decodeURIComponent(filename)}`;
-    const r = await fetch(
-      `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=imageinfo&iiprop=url&iiurlwidth=500&format=json&origin=*`,
-      { headers: { Accept: 'application/json' } }
-    );
+    const slug = encodeURIComponent(articleTitle.replace(/ /g, '_'));
+    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`, { headers: { Accept: 'application/json' } });
     if (!r.ok) return null;
     const d = await r.json();
-    const pages = Object.values(d?.query?.pages || {});
-    return pages[0]?.imageinfo?.[0]?.thumburl || pages[0]?.imageinfo?.[0]?.url || null;
+    return d?.thumbnail?.source || null;
   } catch { return null; }
 }
 
+// Wikipedia article titles for REST summary thumbnail fetch
+const PLANT_WIKI_ARTICLES = {
+  'rose':'Rosa centifolia','wisteria':'Wisteria sinensis','lavender':'Lavandula angustifolia',
+  'peony':'Paeonia officinalis','iris':'Iris germanica','tulip':'Tulip',
+  'sunflower':'Helianthus annuus','camellia':'Camellia japonica',
+  'magnolia':'Magnolia liliiflora','oleander':'Nerium oleander','foxglove':'Digitalis purpurea',
+  'hydrangea':'Hydrangea macrophylla','marigold':'Tagetes erecta','pelargonium':'Pelargonium zonale',
+  'nasturtium':'Tropaeolum majus','pansy':'Viola tricolor','snapdragon':'Antirrhinum majus',
+  'borage':'Borago officinalis','valerian':'Valeriana officinalis','lemon balm':'Melissa officinalis',
+  'elderflower':'Sambucus nigra','rosemary':'Rosmarinus officinalis','thyme':'Thymus vulgaris',
+  'basil':'Ocimum basilicum','mint':'Mentha piperita','sage':'Salvia officinalis',
+  'parsley':'Petroselinum crispum','chives':'Allium schoenoprasum','tarragon':'Artemisia dracunculus',
+  'fennel':'Foeniculum vulgare','oregano':'Origanum vulgare','fig':'Ficus carica',
+  'grape':'Vitis vinifera','peach':'Prunus persica','cherry':'Prunus cerasus',
+  'apricot':'Prunus armeniaca','strawberry':'Fragaria vesca','almond':'Prunus dulcis',
+  'quince':'Cydonia oblonga','mulberry':'Morus nigra','raspberry':'Rubus idaeus',
+  'lemon':'Citrus limon','olive':'Olea europaea','cypress':'Cupressus sempervirens',
+};
+
 function hasWikiArticle(plantName) {
-  return !!PLANT_COMMONS_FILES[plantName.toLowerCase().trim()];
+  return !!PLANT_WIKI_ARTICLES[plantName.toLowerCase().trim()];
 }
 
 // ─── Simple inline QR code generator (pure SVG, no library needed) ───────────
@@ -2249,11 +2264,11 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   for (const p of illustrationCandidates) {
     if (illus.length >= 1) break;
     if (usedPlants.has(p.toLowerCase())) continue;
-    const file = PLANT_COMMONS_FILES[p.toLowerCase().trim()];
-    if (!file) continue;
-    const url = await fetchCommonsImageUrl(file);
+    const articleTitle = PLANT_WIKI_ARTICLES[p.toLowerCase().trim()];
+    if (!articleTitle) continue;
+    const url = await fetchPlantThumb(articleTitle);
     if (url) {
-      illus.push({ plant: p, url, licence: "Köhler's Medizinal-Pflanzen · Public Domain" });
+      illus.push({ plant: p, url, licence: "Wikipedia · CC BY-SA" });
       usedPlants.add(p.toLowerCase());
     }
   }
@@ -2279,10 +2294,10 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const mapsUrl = inspo?.location
     ? `https://www.google.com/maps/dir/${encodeURIComponent(city)}/${encodeURIComponent((inspo.name || '') + ', ' + inspo.location)}`
     : null;
-  // Fetch inspo garden photo — filter out logos (square <200px) and banners (w/h > 4)
+  // Fetch inspo garden photo using same approach as WikimediaPhoto component
   const fetchInspoPhoto = async () => {
     if (!inspo) return null;
-    const tryTitle = async (title, lang='en') => {
+    const trySummary = async (title, lang='en') => {
       try {
         const slug = encodeURIComponent(title.trim().replace(/ /g, '_'));
         const r = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${slug}`, { headers: { Accept: 'application/json' } });
@@ -2290,32 +2305,26 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
         const d = await r.json();
         const t = d?.thumbnail;
         if (!t?.source) return null;
-        const w = t.width || 0, h = t.height || 0;
-        if (w === h && w < 250) return null; // likely a logo
-        if (w > 0 && h > 0 && w / h > 4) return null; // likely a banner
+        // Only filter obvious logos (square AND small AND likely icon dimensions)
+        if (t.width && t.height && t.width === t.height && t.width <= 100) return null;
         return t.source;
       } catch { return null; }
     };
     const trySearch = async (lang, q) => {
       try {
-        const r = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrlimit=5&prop=pageimages&piprop=thumbnail&pithumbsize=400&format=json&origin=*`, { headers: { Accept: 'application/json' } });
+        const r = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrlimit=3&prop=pageimages&piprop=thumbnail&pithumbsize=400&format=json&origin=*`, { headers: { Accept: 'application/json' } });
         if (!r.ok) return null;
         const pages = Object.values((await r.json())?.query?.pages || {});
         for (const p of pages) {
           const t = p?.thumbnail;
-          if (!t?.source) continue;
-          const w = t.width || 0, h = t.height || 0;
-          if (w === h && w < 250) continue;
-          if (w > 0 && h > 0 && w / h > 4) continue;
-          return t.source;
+          if (t?.source) return t.source;
         }
         return null;
       } catch { return null; }
     };
-    const name = inspo.wikipedia || inspo.name;
-    return await tryTitle(name)
-        || await trySearch('en', inspo.name + ' garden')
-        || await tryTitle(inspo.name, 'fr')
+    return await trySummary(inspo.wikipedia || inspo.name)
+        || await trySearch('en', inspo.name)
+        || await trySummary(inspo.name, 'fr')
         || await trySearch('fr', inspo.name)
         || null;
   };
