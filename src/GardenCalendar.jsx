@@ -1980,12 +1980,32 @@ const PLANT_ILLUSTRATIONS = {
   'linden':       'Tilia_cordata_-_Köhler–s_Medizinal-Pflanzen-270.jpg',
 };
 
-function getIllustrationUrl(plantName) {
-  const key = plantName.toLowerCase().trim();
-  const filename = PLANT_ILLUSTRATIONS[key];
-  if (!filename) return null;
-  const encoded = encodeURIComponent(filename);
-  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encoded}?width=400`;
+// Maps plant common name → Wikipedia article title for REST API thumbnail fetch
+// Only plants with known good botanical article images
+const PLANT_WIKI_ARTICLES = {
+  'rose':'Rosa_centifolia','wisteria':'Wisteria_sinensis','lavender':'Lavandula_angustifolia',
+  'peony':'Paeonia_officinalis','iris':'Iris_germanica','tulip':'Tulipa_gesneriana',
+  'sunflower':'Helianthus_annuus','dahlia':'Dahlia_pinnata','camellia':'Camellia_japonica',
+  'magnolia':'Magnolia_grandiflora','oleander':'Nerium_oleander','foxglove':'Digitalis_purpurea',
+  'hydrangea':'Hydrangea_macrophylla','allium':'Allium_cepa','lupin':'Lupinus_polyphyllus',
+  'marigold':'Tagetes_erecta','pelargonium':'Pelargonium_zonale','snapdragon':'Antirrhinum_majus',
+  'pansy':'Viola_tricolor','borage':'Borago_officinalis','nasturtium':'Tropaeolum_majus',
+  'sweet pea':'Lathyrus_odoratus','verbena':'Verbena_officinalis','valerian':'Valeriana_officinalis',
+  'rosemary':'Rosmarinus_officinalis','thyme':'Thymus_vulgaris','basil':'Ocimum_basilicum',
+  'mint':'Mentha_piperita','sage':'Salvia_officinalis','parsley':'Petroselinum_crispum',
+  'chives':'Allium_schoenoprasum','tarragon':'Artemisia_dracunculus','fennel':'Foeniculum_vulgare',
+  'oregano':'Origanum_vulgare','lemon balm':'Melissa_officinalis','elderflower':'Sambucus_nigra',
+  'apple':'Malus_domestica','fig':'Ficus_carica','grape':'Vitis_vinifera',
+  'peach':'Prunus_persica','cherry':'Prunus_cerasus','apricot':'Prunus_armeniaca',
+  'strawberry':'Fragaria_vesca','almond':'Prunus_dulcis','quince':'Cydonia_oblonga',
+  'mulberry':'Morus_nigra','raspberry':'Rubus_idaeus','blackcurrant':'Ribes_nigrum',
+  'gooseberry':'Ribes_uva-crispa','blackberry':'Rubus_fruticosus','lemon':'Citrus_limon',
+  'olive':'Olea_europaea','magnolia':'Magnolia_grandiflora',
+  'camellia':'Camellia_japonica','cypress':'Cupressus_sempervirens','linden':'Tilia_cordata',
+};
+
+function hasWikiArticle(plantName) {
+  return !!PLANT_WIKI_ARTICLES[plantName.toLowerCase().trim()];
 }
 
 // ─── Simple inline QR code generator (pure SVG, no library needed) ───────────
@@ -2085,15 +2105,8 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const tasks  = monthData?.tasks  || [];
   const enjoy  = monthData?.enjoy  || [];
 
-  // Peak plants for this month — find plants with high lens score
-  const peakPlants = [];
-  if (lensData?.colour) {
-    const allP = Object.values(allPlants).flat();
-    allP.forEach(p => {
-      const d = lensData.colour[p];
-      if (d?.months?.[monthIndex] >= 2) peakPlants.push(p);
-    });
-  }
+  // (lensData used for lens strip display only, not for illustration selection)
+  const peakPlants = []; // kept for lens strip compatibility
 
   // Extract plant names mentioned in enjoy lines — filters out wildlife (birds, insects etc.)
   // by only matching names that are in the garden inventory
@@ -2109,8 +2122,8 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     if (!currentInventory.has(p)) return false; // stale data guard
     const cat = Object.entries(allPlants).find(([, arr]) => arr.includes(p))?.[0];
     if (EXCLUDE_CATEGORIES.includes(cat)) return false;
-    // For herbs: only include if we have a known good Köhler plate
-    if (cat === 'herbs') return !!PLANT_ILLUSTRATIONS[p.toLowerCase().trim()];
+    // For herbs: only include if we have a known Wikipedia article with a good image
+    if (cat === 'herbs') return hasWikiArticle(p);
     return true;
   });
 
@@ -2155,16 +2168,14 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 
   const activeThisMonth = [...new Set([...enjoyPlantsFiltered, ...taskPlants])];
 
-  // Candidate order:
-  // 1. Plants as subjects in enjoy lines (not as habitat)
-  // 2. Plants in visual care tasks (pruning, staking, training)
-  // 3. Peak lens plants (high interest score this month)
-  // 4. Any other illustratable plant as final fallback
+  // Candidate order — strictly from this page's content:
+  // 1. Plants as subjects in enjoy lines
+  // 2. Plants in visual care tasks
+  // 3. Any other illustratable plant (last resort fallback only)
   const illustrationCandidates = [
     ...enjoyPlantsFiltered,
     ...taskPlants.filter(p => !enjoyPlantsFiltered.includes(p)),
-    ...peakPlants.filter(p => !activeThisMonth.includes(p) && illustratable.includes(p)),
-    ...illustratable.filter(p => !activeThisMonth.includes(p) && !peakPlants.includes(p)),
+    ...illustratable.filter(p => !activeThisMonth.includes(p)),
   ];
 
   // Wildlife mentioned in enjoy lines — fallback if not enough plant illustrations
@@ -2186,16 +2197,15 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     } catch { return null; }
   };
 
-  // Use curated PLANT_ILLUSTRATIONS lookup only — known good botanical plates, no Wikipedia search
-  // This avoids unpredictable Wikipedia results (fruit photos, landscapes, bands etc.)
+  // Fetch plant illustrations via Wikipedia REST summary API — proven CORS-accessible
+  // Only fetches plants that have a known Wikipedia article (PLANT_WIKI_ARTICLES lookup)
   const illus = [];
   for (const p of illustrationCandidates) {
     if (illus.length >= 2) break;
-    const url = getIllustrationUrl(p);
-    if (url) {
-      // Fetch the actual image via Wikimedia Commons FilePath redirect (CORS-friendly)
-      illus.push({ plant: p, url, licence: "Köhler's Medizinal-Pflanzen · Public Domain" });
-    }
+    const articleTitle = PLANT_WIKI_ARTICLES[p.toLowerCase().trim()];
+    if (!articleTitle) continue;
+    const url = await fetchWikiThumb(articleTitle);
+    if (url) illus.push({ plant: p, url, licence: "Wikipedia · CC BY-SA" });
   }
 
   // Wildlife fallback: if we have fewer than 2 plant illustrations, add wildlife
@@ -2246,8 +2256,8 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   // Generate QR codes as data-URI images via Google Charts API (free, no key, CORS-friendly)
   const makeQRImg = (url, size) => {
     const encoded = encodeURIComponent(url);
-    // Note: no colour params — chco/chf are unreliable and cause blank renders
-    const src = `https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${encoded}&chld=M|1`;
+    // api.qrserver.com — free, no key, CORS-friendly, actively maintained
+    const src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encoded}&margin=2`;
     return `<img src="${src}" width="${size}" height="${size}" style="display:block"/>`;
   };
   const qrDirectionsSvg = mapsUrl ? makeQRImg(mapsUrl, 36) : '';
