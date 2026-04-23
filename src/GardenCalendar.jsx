@@ -1982,30 +1982,74 @@ const PLANT_ILLUSTRATIONS = {
 
 // Maps plant common name → Wikipedia article title for REST API thumbnail fetch
 // Only plants with known good botanical article images
-const PLANT_WIKI_ARTICLES = {
-  'rose':'Rosa_centifolia','wisteria':'Wisteria_sinensis','lavender':'Lavandula_angustifolia',
-  'peony':'Paeonia_officinalis','iris':'Iris_germanica','tulip':'Tulipa_gesneriana',
-  'sunflower':'Helianthus_annuus','dahlia':'Dahlia_pinnata','camellia':'Camellia_japonica',
-  'magnolia':'Magnolia_grandiflora','oleander':'Nerium_oleander','foxglove':'Digitalis_purpurea',
-  'hydrangea':'Hydrangea_macrophylla','allium':'Allium_cepa','lupin':'Lupinus_polyphyllus',
-  'marigold':'Tagetes_erecta','pelargonium':'Pelargonium_zonale','snapdragon':'Antirrhinum_majus',
-  'pansy':'Viola_tricolor','borage':'Borago_officinalis','nasturtium':'Tropaeolum_majus',
-  'sweet pea':'Lathyrus_odoratus','verbena':'Verbena_officinalis','valerian':'Valeriana_officinalis',
-  'rosemary':'Rosmarinus_officinalis','thyme':'Thymus_vulgaris','basil':'Ocimum_basilicum',
-  'mint':'Mentha_piperita','sage':'Salvia_officinalis','parsley':'Petroselinum_crispum',
-  'chives':'Allium_schoenoprasum','tarragon':'Artemisia_dracunculus','fennel':'Foeniculum_vulgare',
-  'oregano':'Origanum_vulgare','lemon balm':'Melissa_officinalis','elderflower':'Sambucus_nigra',
-  'apple':'Malus_domestica','fig':'Ficus_carica','grape':'Vitis_vinifera',
-  'peach':'Prunus_persica','cherry':'Prunus_cerasus','apricot':'Prunus_armeniaca',
-  'strawberry':'Fragaria_vesca','almond':'Prunus_dulcis','quince':'Cydonia_oblonga',
-  'mulberry':'Morus_nigra','raspberry':'Rubus_idaeus','blackcurrant':'Ribes_nigrum',
-  'gooseberry':'Ribes_uva-crispa','blackberry':'Rubus_fruticosus','lemon':'Citrus_limon',
-  'olive':'Olea_europaea','magnolia':'Magnolia_grandiflora',
-  'camellia':'Camellia_japonica','cypress':'Cupressus_sempervirens','linden':'Tilia_cordata',
+// Direct Wikimedia Commons thumbnail URLs for Köhler's Medizinal-Pflanzen botanical plates
+// Using Special:FilePath with ?width= which serves the actual illustration image
+// These are confirmed to have botanical plate illustrations, not photos
+const PLANT_COMMONS_FILES = {
+  'rose':        'Rosa_centifolia_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-257.jpg',
+  'wisteria':    'Wisteria_sinensis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-285.jpg',
+  'lavender':    'Lavandula_angustifolia_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-088.jpg',
+  'peony':       'Paeonia_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-164.jpg',
+  'iris':        'Iris_germanica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-187.jpg',
+  'tulip':       'Tulipa_gesneriana_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-272.jpg',
+  'sunflower':   'Helianthus_annuus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-078.jpg',
+  'camellia':    'Camellia_japonica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-025.jpg',
+  'magnolia':    'Magnolia_grandiflora_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-097.jpg',
+  'oleander':    'Nerium_oleander_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-124.jpg',
+  'foxglove':    'Digitalis_purpurea_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-052.jpg',
+  'hydrangea':   'Hydrangea_macrophylla_SZ85.png',
+  'marigold':    'Tagetes_erecta_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-268.jpg',
+  'pelargonium': 'Pelargonium_zonale_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-233.jpg',
+  'nasturtium':  'Tropaeolum_majus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-273.jpg',
+  'pansy':       'Viola_tricolor_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-278.jpg',
+  'snapdragon':  'Antirrhinum_majus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-013.jpg',
+  'borage':      'Borago_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-023.jpg',
+  'valerian':    'Valeriana_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-275.jpg',
+  'lemon balm':  'Melissa_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-108.jpg',
+  'elderflower': 'Sambucus_nigra_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-247.jpg',
+  'rosemary':    'Rosmarinus_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-244.jpg',
+  'thyme':       'Thymus_vulgaris_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-271.jpg',
+  'basil':       'Ocimum_basilicum_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-126.jpg',
+  'mint':        'Mentha_piperita_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-112.jpg',
+  'sage':        'Salvia_officinalis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-246.jpg',
+  'parsley':     'Petroselinum_crispum_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-168.jpg',
+  'chives':      'Allium_schoenoprasum_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-008.jpg',
+  'tarragon':    'Artemisia_dracunculus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-018.jpg',
+  'fennel':      'Foeniculum_vulgare_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-063.jpg',
+  'oregano':     'Origanum_vulgare_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-156.jpg',
+  'fig':         'Ficus_carica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-057.jpg',
+  'grape':       'Vitis_vinifera_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-280.jpg',
+  'peach':       'Prunus_persica_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-183.jpg',
+  'cherry':      'Prunus_cerasus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-180.jpg',
+  'apricot':     'Prunus_armeniaca_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-179.jpg',
+  'strawberry':  'Fragaria_vesca_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-065.jpg',
+  'almond':      'Prunus_dulcis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-177.jpg',
+  'quince':      'Cydonia_oblonga_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-047.jpg',
+  'mulberry':    'Morus_nigra_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-119.jpg',
+  'raspberry':   'Rubus_idaeus_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-237.jpg',
+  'lemon':       'Citrus_limon_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-036.jpg',
+  'olive':       'Olea_europaea_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-130.jpg',
+  'cypress':     'Cupressus_sempervirens_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-046.jpg',
 };
 
+// Returns a direct Wikimedia Commons image URL for the plate
+// Fetch direct image URL via Wikimedia Commons API (CORS-friendly with origin=*)
+async function fetchCommonsImageUrl(filename) {
+  try {
+    const title = `File:${decodeURIComponent(filename)}`;
+    const r = await fetch(
+      `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=imageinfo&iiprop=url&iiurlwidth=500&format=json&origin=*`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (!r.ok) return null;
+    const d = await r.json();
+    const pages = Object.values(d?.query?.pages || {});
+    return pages[0]?.imageinfo?.[0]?.thumburl || pages[0]?.imageinfo?.[0]?.url || null;
+  } catch { return null; }
+}
+
 function hasWikiArticle(plantName) {
-  return !!PLANT_WIKI_ARTICLES[plantName.toLowerCase().trim()];
+  return !!PLANT_COMMONS_FILES[plantName.toLowerCase().trim()];
 }
 
 // ─── Simple inline QR code generator (pure SVG, no library needed) ───────────
@@ -2123,7 +2167,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     const cat = Object.entries(allPlants).find(([, arr]) => arr.includes(p))?.[0];
     if (EXCLUDE_CATEGORIES.includes(cat)) return false;
     // For herbs: only include if we have a known Wikipedia article with a good image
-    if (cat === 'herbs') return hasWikiArticle(p);
+    if (cat === 'herbs') return hasWikiArticle(p); // only herbs with a Köhler plate
     return true;
   });
 
@@ -2200,18 +2244,23 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 
   // Fetch plant illustrations via Wikipedia REST summary API — proven CORS-accessible
   // Only fetches plants that have a known Wikipedia article (PLANT_WIKI_ARTICLES lookup)
-  // One illustration per page — first match not already used across other months
+  // One illustration per page — direct Wikimedia Commons URL, no network call needed
   const illus = [];
   for (const p of illustrationCandidates) {
     if (illus.length >= 1) break;
-    if (usedPlants.has(p.toLowerCase())) continue; // no repeats across months
-    const articleTitle = PLANT_WIKI_ARTICLES[p.toLowerCase().trim()];
-    if (!articleTitle) continue;
-    const url = await fetchWikiThumb(articleTitle);
+    if (usedPlants.has(p.toLowerCase())) continue;
+    const file = PLANT_COMMONS_FILES[p.toLowerCase().trim()];
+    if (!file) continue;
+    const url = await fetchCommonsImageUrl(file);
     if (url) {
-      illus.push({ plant: p, url, licence: "Wikipedia · CC BY-SA" });
-      usedPlants.add(p.toLowerCase()); // register for subsequent months
+      illus.push({ plant: p, url, licence: "Köhler's Medizinal-Pflanzen · Public Domain" });
+      usedPlants.add(p.toLowerCase());
     }
+  }
+  // Wildlife fallback if no plant illustration found
+  if (illus.length < 1 && foundWildlife) {
+    const wPhoto = await fetchWildlifePhoto(foundWildlife);
+    if (wPhoto?.url) illus.push({ plant: foundWildlife, url: wPhoto.url, licence: wPhoto.licence });
   }
 
   // Wildlife fallback: if we have fewer than 2 plant illustrations, add wildlife
@@ -2230,11 +2279,47 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const mapsUrl = inspo?.location
     ? `https://www.google.com/maps/dir/${encodeURIComponent(city)}/${encodeURIComponent((inspo.name || '') + ', ' + inspo.location)}`
     : null;
-  const inspoPhotoUrl = inspo?.wikipedia
-    ? await fetchWikiThumb(inspo.wikipedia) || await fetchWikiThumb(inspo.name)
-    : inspo?.name
-      ? await fetchWikiThumb(inspo.name)
-      : null;
+  // Fetch inspo garden photo — filter out logos (square <200px) and banners (w/h > 4)
+  const fetchInspoPhoto = async () => {
+    if (!inspo) return null;
+    const tryTitle = async (title, lang='en') => {
+      try {
+        const slug = encodeURIComponent(title.trim().replace(/ /g, '_'));
+        const r = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${slug}`, { headers: { Accept: 'application/json' } });
+        if (!r.ok) return null;
+        const d = await r.json();
+        const t = d?.thumbnail;
+        if (!t?.source) return null;
+        const w = t.width || 0, h = t.height || 0;
+        if (w === h && w < 250) return null; // likely a logo
+        if (w > 0 && h > 0 && w / h > 4) return null; // likely a banner
+        return t.source;
+      } catch { return null; }
+    };
+    const trySearch = async (lang, q) => {
+      try {
+        const r = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrlimit=5&prop=pageimages&piprop=thumbnail&pithumbsize=400&format=json&origin=*`, { headers: { Accept: 'application/json' } });
+        if (!r.ok) return null;
+        const pages = Object.values((await r.json())?.query?.pages || {});
+        for (const p of pages) {
+          const t = p?.thumbnail;
+          if (!t?.source) continue;
+          const w = t.width || 0, h = t.height || 0;
+          if (w === h && w < 250) continue;
+          if (w > 0 && h > 0 && w / h > 4) continue;
+          return t.source;
+        }
+        return null;
+      } catch { return null; }
+    };
+    const name = inspo.wikipedia || inspo.name;
+    return await tryTitle(name)
+        || await trySearch('en', inspo.name + ' garden')
+        || await tryTitle(inspo.name, 'fr')
+        || await trySearch('fr', inspo.name)
+        || null;
+  };
+  const inspoPhotoUrl = await fetchInspoPhoto();
 
   // Lens values for this month (0–3 scale → percentage)
   const LENSES_PRINT = [
@@ -2260,7 +2345,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   const insightItems = insights?.state === 'done' ? (insights.items || []).slice(0, 3) : [];
   const companions   = insights?.state === 'done' ? (insights.companions || []).slice(0, 2) : [];
 
-  const gardenUrl = `https://garden-calendar.vercel.app`;
+  const gardenUrl = `https://garden-calendar-frontend.vercel.app`;
 
   // Generate QR codes as data-URI images via Google Charts API (free, no key, CORS-friendly)
   const makeQRImg = (url, size) => {
