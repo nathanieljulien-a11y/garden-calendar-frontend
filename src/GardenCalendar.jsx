@@ -2080,33 +2080,47 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
     });
   }
 
-  // Pick up to 2 illustrations from peak plants, fall back to any plant in inventory
+  // Extract plant names mentioned in enjoy lines — filters out wildlife (birds, insects etc.)
+  // by only matching names that are in the garden inventory
   const allPlantsList = Object.values(allPlants).flat();
+  const enjoyText = (monthData?.enjoy || []).join(' ').toLowerCase();
+  const enjoyPlants = allPlantsList.filter(p => enjoyText.includes(p.toLowerCase()));
+
+  // Candidate order: plants in enjoy text first (most visually relevant this month),
+  // then peak lens plants, then rest of inventory — all filtered to plants only (no wildlife)
   const illustrationCandidates = [
-    ...peakPlants,
-    ...allPlantsList.filter(p => !peakPlants.includes(p))
+    ...enjoyPlants,
+    ...peakPlants.filter(p => !enjoyPlants.includes(p)),
+    ...allPlantsList.filter(p => !enjoyPlants.includes(p) && !peakPlants.includes(p)),
   ];
+
+  // Fetch illustration URLs via Wikipedia REST API — try each candidate until we get 2 images
+  const fetchWikiThumbForPlant = async (plantName) => {
+    const sci = PLANT_SCI_NAMES[plantName.toLowerCase()];
+    if (!sci) return null;
+    // Try full scientific name, then genus only, then common name directly
+    return await fetchWikiThumb(sci)
+        || await fetchWikiThumb(sci.split(' ')[0])
+        || await fetchWikiThumb(plantName);
+  };
+
   const illus = [];
   for (const p of illustrationCandidates) {
-    const url = getIllustrationUrl(p);
-    if (url) { illus.push({ plant: p, url }); }
     if (illus.length >= 2) break;
+    const url = await fetchWikiThumbForPlant(p);
+    if (url) illus.push({ plant: p, url });
   }
 
-  // Fetch illustration URLs via Wikipedia REST API (CORS-friendly) — after illus array is built
-  const illustrationUrls = await Promise.all(
-    illus.slice(0, 2).map(async ({ plant }) => {
-      const sci = PLANT_SCI_NAMES[plant.toLowerCase()];
-      if (!sci) return null;
-      return await fetchWikiThumb(sci) || await fetchWikiThumb(sci.split(' ')[0]);
-    })
-  );
-
-  // Inspo garden
+  // Inspo garden + fetch its Wikipedia photo
   const inspo = inspoData?.state === 'done' ? inspoData.data : null;
   const mapsUrl = inspo?.location
     ? `https://www.google.com/maps/dir/${encodeURIComponent(city)}/${encodeURIComponent((inspo.name || '') + ', ' + inspo.location)}`
     : null;
+  const inspoPhotoUrl = inspo?.wikipedia
+    ? await fetchWikiThumb(inspo.wikipedia) || await fetchWikiThumb(inspo.name)
+    : inspo?.name
+      ? await fetchWikiThumb(inspo.name)
+      : null;
 
   // Lens values for this month (0–3 scale → percentage)
   const LENSES_PRINT = [
@@ -2139,7 +2153,7 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 <head>
 <meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSe2HkjoPqABNAT1XHaUPauUpKoZwKqk9Whw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
   body { width:1240px; height:874px; background:#FDFAF4; font-family:'Crimson Pro',Georgia,serif; color:#2C1A0A; overflow:hidden; }
@@ -2304,7 +2318,9 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
 <div class="col-inspo">
   <div class="sec-label">Garden to visit</div>
   <div class="inspo-img">
-    ${inspo
+    ${inspoPhotoUrl
+      ? `<img src="${inspoPhotoUrl}" alt="${inspo?.name || 'garden'}" style="width:100%;height:100%;object-fit:cover;filter:sepia(10%) contrast(1.05) saturate(.9);display:block"/>`
+      : inspo
       ? `<div class="inspo-img-placeholder">
            <svg viewBox="0 0 210 200" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
              <defs><linearGradient id="sky${monthIndex}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#7BB8D8"/><stop offset="100%" stop-color="#B8D8E8"/></linearGradient></defs>
@@ -2379,11 +2395,25 @@ async function generateCalendarPageHTML({ monthName, monthIndex, year, gardenNam
   (function() {
     function makeQR(id, url, size) {
       var el = document.getElementById(id);
-      if (!el || typeof QRCode === 'undefined') return;
-      try { new QRCode(el, { text: url, width: size, height: size, colorDark: '#2C1A0A', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M }); } catch(e) {}
+      if (!el) return;
+      if (typeof QRCode === 'undefined') {
+        // Fallback: show URL as tiny text if library failed to load
+        el.innerHTML = '<div style="font-size:6px;word-break:break-all;color:#2C1A0A;padding:2px">' + url.slice(0,30) + '</div>';
+        return;
+      }
+      try {
+        new QRCode(el, {
+          text: url,
+          width: size, height: size,
+          colorDark: '#2C1A0A', colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } catch(e) { console.warn('QR failed:', e); }
     }
-    ${mapsUrl ? `makeQR('qr-directions', '${mapsUrl}', 34);` : ''}
-    makeQR('qr-app', '${gardenUrl}', 26);
+    window.addEventListener('load', function() {
+      ${mapsUrl ? `makeQR('qr-directions', '${mapsUrl.replace(/'/g, "\'")}', 34);` : ''}
+      makeQR('qr-app', '${gardenUrl}', 26);
+    });
   })();
 </script>
 </body>
