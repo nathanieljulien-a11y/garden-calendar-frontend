@@ -3537,7 +3537,7 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
 }
 
 // ─── AboutView ────────────────────────────────────────────────────────────────
-function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensData, lensStates, fetchLens, plants, plantTraits, city, selectedGardenId, provider, userKey, onGoCalendar, onGoEdit, months, credits }) {
+function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensData, lensStates, fetchLens, plants, plantTraits, plantMeta, totalPlants, city, selectedGardenId, provider, userKey, onGoCalendar, onGoEdit, months, credits }) {
   const hasMeta = !!meta;
   const hasPlants = Object.values(plants).flat().length > 0;
 
@@ -3569,51 +3569,18 @@ function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensD
         </div>
       )}
 
-      {/* Insights — auto-load, no unlock button */}
-      <div className="insights-panel">
-        <div className="insights-unlock">
-          <span className="insights-title">🔍 Insights about your garden</span>
-          {/* B6: only show refresh for subscribers */}
-          {insights.state === "done" && credits?.tier === 'subscriber' && (
-            <button className="btn-unlock" onClick={fetchInsights} style={{fontSize:".78rem"}}>↺ Refresh</button>
-          )}
-        </div>
-        <div className="insights-body">
-          {(insights.state === "idle" || insights.state === "loading") && <Shimmer lines={4}/>}
-          {insights.state === "error" && (
-            <div style={{fontSize:".85rem",color:"var(--bloom)",fontStyle:"italic",padding:".4rem 0"}}>
-              Couldn't load insights — <button className="btn-unlock" style={{fontSize:".78rem"}} onClick={fetchInsights}>try again</button>
-            </div>
-          )}
-          {insights.state === "done" && insights.allLookingGood && (
-            <div className="insights-good">✓ {insights.goodNewsLine || "Your plant selection looks well-suited to this location — happy growing!"}</div>
-          )}
-          {insights.state === "done" && (insights.items||[]).map((item,i) => (
-            <div key={i} className="insight-item">
-              <div className="insight-plant">{item.plant}</div>
-              <div className="insight-q">{item.question}</div>
-              <div className="insight-ctx">{item.context}</div>
-              <div className="insight-tip">{item.suggestion}</div>
-            </div>
-          ))}
-          {insights.state === "done" && (insights.companions||[]).length > 0 && (
-            <div className="companion-section">
-              <div className="companion-title">🤝 Companion planting notes</div>
-              {(insights.companions||[]).map((c,i) => (
-                <div key={i} className="companion-item">
-                  <span className={`companion-badge ${c.type==="good"?"good":"warn"}`}>{c.type==="good"?"✓ Good":"✗ Avoid"}</span>
-                  <span><span className="companion-pair">{c.pair}</span>{c.reason&&<span className="companion-reason"> — {c.reason}</span>}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {insights.state === "done" && (
-            <div style={{fontSize:".68rem",color:"rgba(180,180,160,.35)",marginTop:".6rem",fontStyle:"italic",lineHeight:1.5}}>
-              Based on general horticultural knowledge. Verify with your local nursery.
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Insights — tier-aware via InsightsPanel component */}
+      <InsightsPanel
+        insights={insights}
+        plantMeta={plantMeta || {}}
+        onFetch={fetchInsights}
+        hasPlants={Object.values(plants).flat().length > 0}
+        stream1Done={true}
+        loadedBatches={4}
+        totalPlantCount={totalPlants || Object.values(plants).flat().length}
+        tier={credits?.tier || 'free'}
+        inspoTrialAvailable={credits?.inspoTrialAvailable || false}
+      />
 
       {/* Year-round interest lens calendars */}
       <LensCalendars
@@ -6692,6 +6659,8 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               onGoEdit={() => handleTabChange("edit")}
               months={months}
               credits={credits}
+              plantMeta={plantMeta}
+              totalPlants={totalPlants}
             />
           );
         })()}
