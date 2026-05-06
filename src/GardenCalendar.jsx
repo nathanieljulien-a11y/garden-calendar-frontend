@@ -42,6 +42,18 @@ const styles = `
   .subtitle { font-size:1rem; color:var(--sage); margin-top:.6rem; font-style:italic; font-weight:300; }
 
   .demo-banner { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:.4rem .75rem; padding:.55rem 1.5rem; background:rgba(30,18,8,.85); border-bottom:1px solid rgba(200,169,110,.18); font-size:.78rem; color:var(--sage); position:sticky; top:0; z-index:100; backdrop-filter:blur(6px); }
+  .credit-badge { display:inline-flex; align-items:center; gap:.35rem; font-size:.75rem; color:var(--sage); }
+  .credit-badge-tier { font-size:.68rem; padding:.15rem .45rem; border-radius:2px; font-weight:500; letter-spacing:.04em; text-transform:uppercase; }
+  .credit-badge-tier.free { background:rgba(200,169,110,.12); color:var(--muted); }
+  .credit-badge-tier.print { background:rgba(45,106,63,.25); color:var(--fern); }
+  .credit-badge-tier.subscriber { background:rgba(60,52,137,.3); color:#a8a3e8; }
+  .credit-badge-count { color:var(--bloom); font-variant-numeric:tabular-nums; }
+  .sub-code-section { margin-top:1.25rem; padding-top:1.25rem; border-top:1px solid rgba(200,169,110,.12); }
+  .sub-code-input { width:100%; background:rgba(255,255,255,.05); border:1px solid rgba(200,169,110,.2); color:var(--cream); padding:.55rem .75rem; font-size:.88rem; border-radius:2px; margin:.5rem 0; box-sizing:border-box; }
+  .sub-code-input:focus { outline:none; border-color:rgba(200,169,110,.45); }
+  .sub-code-btn { background:var(--fern); border:1px solid var(--moss); color:var(--cream); padding:.55rem 1rem; font-size:.88rem; border-radius:2px; cursor:pointer; transition:background .2s; }
+  .sub-code-btn:hover:not(:disabled) { background:var(--moss); }
+  .sub-code-btn:disabled { opacity:.45; cursor:not-allowed; }
   .demo-name { color:var(--straw); font-weight:600; letter-spacing:.04em; font-family:'Playfair Display',serif; }
   .demo-sep { opacity:.35; }
   .demo-tag { font-style:italic; }
@@ -3662,6 +3674,9 @@ const [showHome, setShowHome] = useState(() => {
 
   // ── B4: pending action for credit warning modal ───────────────────────────
   const [pendingAction, setPendingAction] = useState(null);
+  const [subCodeDraft, setSubCodeDraft]   = useState('');
+  const [subCodeState, setSubCodeState]   = useState('idle'); // idle | checking | ok | error
+  const [subCodeMsg,   setSubCodeMsg]     = useState('');
 
   // Restore garden state from URL hash on first load
 useEffect(() => {
@@ -5228,6 +5243,21 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         </span>
         <span className="demo-sep">·</span>
         <button className="demo-about-btn" onClick={() => setShowSettings(true)}>⚙ Settings</button>
+        {credits && (
+          <>
+            <span className="demo-sep">·</span>
+            <span className="credit-badge">
+              <span className={`credit-badge-tier ${credits.tier}`}>
+                {credits.tier === 'subscriber' ? 'Subscriber' : credits.tier === 'print' ? 'Wall calendar' : 'Free'}
+              </span>
+              {credits.tier !== 'subscriber' && credits.remaining && (
+                <span className="credit-badge-count">
+                  {credits.remaining.gen}🗓 {credits.remaining.week}📋
+                </span>
+              )}
+            </span>
+          </>
+        )}
         <span className="demo-sep">·</span>
         <button className="demo-about-btn" onClick={() => setShowAbout(true)}>About</button>
       </div>
@@ -5379,6 +5409,62 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                   Continue with shared demo
                 </button>
               )}
+
+              {/* ── B5: Subscription code entry ── */}
+              <div className="sub-code-section">
+                <h3>Subscription code</h3>
+                <p style={{fontSize:".83rem",color:"var(--sage)",lineHeight:"1.5"}}>
+                  Have a wall calendar or subscription code? Enter it here to unlock your credits.
+                </p>
+                {subCodeState === 'ok' ? (
+                  <p style={{fontSize:".85rem",color:"var(--fern)",marginTop:".5rem"}}>
+                    ✓ {subCodeMsg}
+                  </p>
+                ) : (
+                  <>
+                    <input
+                      className="sub-code-input"
+                      type="text"
+                      placeholder="Paste your code here…"
+                      value={subCodeDraft}
+                      onChange={e => { setSubCodeDraft(e.target.value); setSubCodeState('idle'); setSubCodeMsg(''); }}
+                    />
+                    {subCodeState === 'error' && (
+                      <p style={{fontSize:".82rem",color:"var(--bloom)",margin:".25rem 0 .5rem"}}>⚠ {subCodeMsg}</p>
+                    )}
+                    <button
+                      className="sub-code-btn"
+                      disabled={!subCodeDraft.trim() || subCodeState === 'checking'}
+                      onClick={async () => {
+                        const t = subCodeDraft.trim();
+                        if (!t) return;
+                        setSubCodeState('checking');
+                        setSubCodeMsg('');
+                        try {
+                          const res  = await fetch(`${PROXY_BASE}/api/credits/${encodeURIComponent(t)}`);
+                          const data = await res.json();
+                          if (data.ok) {
+                            const type = data.plan === 'subscriber_6mo' ? 'subscriber' : 'print';
+                            saveToken(t, type);
+                            const fresh = await loadCredits(PROXY_BASE);
+                            setCredits(fresh);
+                            setSubCodeState('ok');
+                            setSubCodeMsg(`${type === 'subscriber' ? 'Subscriber' : 'Wall calendar'} account activated — ${fresh.remaining.gen} calendar${fresh.remaining.gen !== 1 ? 's' : ''} and ${fresh.remaining.week} weekly credits remaining.`);
+                            setSubCodeDraft('');
+                          } else {
+                            setSubCodeState('error');
+                            setSubCodeMsg(data.reason === 'token_expired' ? 'This code has expired.' : 'Code not recognised — check for typos.');
+                          }
+                        } catch {
+                          setSubCodeState('error');
+                          setSubCodeMsg('Could not reach the server — try again shortly.');
+                        }
+                      }}>
+                      {subCodeState === 'checking' ? 'Checking…' : 'Activate code'}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         );
