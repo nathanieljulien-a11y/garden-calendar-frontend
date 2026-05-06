@@ -3451,14 +3451,20 @@ Rules: 2–3 suggestions per gap, climate-appropriate, not already in the existi
   );
 }
 
-function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens, stream1Done, loadedBatches, meta, city, selectedGardenId, provider, userKey }) {
+function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens, stream1Done, loadedBatches, meta, city, selectedGardenId, provider, userKey, tier, inspoTrialAvailable }) {
   const [open, setOpen] = useState(false);
   const [expandedLens, setExpandedLens] = useState({});
   const canUnlock = stream1Done && loadedBatches >= 4 && Object.values(plants).flat().length > 0;
 
+  // ── B6: mirror InsightsPanel tier gating — lenses and insights are one bundle ──
+  const isSubscriber   = tier === 'subscriber';
+  const isPrint        = tier === 'print';
+  const isFree         = !isSubscriber && !isPrint;
+  const trialAvailable = isPrint && inspoTrialAvailable;
+
   const handleUnlock = () => {
+    if (!canUnlock) return;
     setOpen(true);
-    // Don't pre-fetch — colour fetches when user opens it via toggleLens
   };
 
   const toggleLens = (id) => {
@@ -3473,18 +3479,51 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
     <div className="lens-panel">
       <div className="lens-header">
         <span className="lens-section-title">✦ Year-round interest</span>
-        {!open ? (
+
+        {/* Subscriber — normal unlock */}
+        {isSubscriber && !open && (
           <button className="btn-unlock" onClick={handleUnlock} disabled={!canUnlock}
             title={!canUnlock ? "Available once full year is generated" : ""}>
             {canUnlock ? "Show lenses" : "Available after full year generated"}
           </button>
-        ) : (
-          <button className="btn-unlock" onClick={() => {
-              // Bust cache and refetch all expanded lenses via onFetchLens(id, true)
-              LENSES.forEach(l => { if (expandedLens[l.id]) onFetchLens(l.id, true); });
-            }}
-            style={{fontSize:".75rem"}}>
-            ↺ Refresh all
+        )}
+        {isSubscriber && open && (
+          <span style={{fontSize:".75rem",color:"var(--muted)",fontStyle:"italic"}}>Included with your subscription</span>
+        )}
+
+        {/* Print — trial available (same unlock as insights) */}
+        {trialAvailable && !open && (
+          <button className="btn-unlock" onClick={handleUnlock} disabled={!canUnlock}
+            title={!canUnlock ? "Available once full year is generated" : ""}
+            style={{background:"rgba(45,106,63,.3)",borderColor:"var(--fern)"}}>
+            {canUnlock ? "🎁 Unlock your free preview" : "Available after full year generated"}
+          </button>
+        )}
+
+        {/* Print — not yet available or trial used */}
+        {isPrint && !trialAvailable && !open && (
+          <span style={{fontSize:".78rem",color:"var(--muted)",fontStyle:"italic"}}>
+            {canUnlock ? "Unlock after 3 weekly uses · Subscribe for full access" : "Available after full year generated"}
+          </span>
+        )}
+
+        {/* Open — show label, no refresh button (D1 removes refresh) */}
+        {open && !isSubscriber && (
+          <span style={{fontSize:".75rem",color:"var(--muted)",fontStyle:"italic"}}>Free preview</span>
+        )}
+
+        {/* Free tier — hard locked */}
+        {isFree && (
+          <span style={{fontSize:".78rem",color:"var(--muted)",fontStyle:"italic"}}>
+            Subscribe to unlock
+          </span>
+        )}
+
+        {/* No tier info yet — fallback to original behaviour */}
+        {!tier && !open && (
+          <button className="btn-unlock" onClick={handleUnlock} disabled={!canUnlock}
+            title={!canUnlock ? "Available once full year is generated" : ""}>
+            {canUnlock ? "Show lenses" : "Available after full year generated"}
           </button>
         )}
       </div>
@@ -3596,6 +3635,8 @@ function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensD
         selectedGardenId={selectedGardenId}
         provider={provider}
         userKey={userKey}
+        tier={credits?.tier || 'free'}
+        inspoTrialAvailable={credits?.inspoTrialAvailable || false}
       />
 
       {/* Download insights */}
