@@ -5168,7 +5168,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
           </div>
           <div className="credit-modal-body">
             {isGen
-              ? 'Take a moment to check your plants and location are right — each generation uses one credit and you can't edit without using another.'
+              ? "Take a moment to check your plants and location are right — each generation uses one credit and you can't edit without using another."
               : 'Each "This Week" load uses one of your weekly credits.'}
             {tier !== 'free' && (
               <div className="credit-modal-counts">
