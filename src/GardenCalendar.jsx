@@ -3660,6 +3660,9 @@ const [showHome, setShowHome] = useState(() => {
   // Loaded from server (token holders) or localStorage (free users) on mount.
   const [credits, setCredits] = useState(null);
 
+  // ── B4: pending action for credit warning modal ───────────────────────────
+  const [pendingAction, setPendingAction] = useState(null);
+
   // Restore garden state from URL hash on first load
 useEffect(() => {
   // ── A3: ref param detection ───────────────────────────────────────────────
@@ -4773,19 +4776,28 @@ Return tasks for: ${batch.join(', ')}`;
 
     // This Week
     if (tab === "week") {
-      setActiveTab("week");
-      setStage("today");
-      const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
-      if (g) {
-        setTodayGarden(g);
-        if (g.city) setCity(g.city);
-        setTodayTasks(null); setTodayTasksError(null);
-        setInatData(null); setInatError(null);
-        const weatherPromise = fetchTodayWeather(g);
-        fetchNearbyObs(g);
-        weatherPromise.then(() => {
-          fetchTodayTasks(g, readWeatherCache(g.id), computeUrgencySignals(readWeatherCache(g.id)));
-        });
+      const doLoadWeek = () => {
+        setActiveTab("week");
+        setStage("today");
+        const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
+        if (g) {
+          setTodayGarden(g);
+          if (g.city) setCity(g.city);
+          setTodayTasks(null); setTodayTasksError(null);
+          setInatData(null); setInatError(null);
+          const weatherPromise = fetchTodayWeather(g);
+          fetchNearbyObs(g);
+          weatherPromise.then(() => {
+            fetchTodayTasks(g, readWeatherCache(g.id), computeUrgencySignals(readWeatherCache(g.id)));
+          });
+        }
+      };
+      const rem  = credits?.remaining?.week ?? Infinity;
+      const tier = credits?.tier || 'free';
+      if (credits && tier !== 'subscriber' && rem <= 3) {
+        setPendingAction({ type: 'week', action: doLoadWeek });
+      } else {
+        doLoadWeek();
       }
       return;
     }
@@ -5142,9 +5154,67 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
     requestAnimationFrame(step);
   };
 
+  // ── B4: Credit warning modal ─────────────────────────────────────────────
+  const CreditWarningModal = () => {
+    if (!pendingAction) return null;
+    const isGen  = pendingAction.type === 'gen';
+    const rem    = credits?.remaining || {};
+    const tier   = credits?.tier || 'free';
+    return (
+      <div className="credit-modal-backdrop" onClick={() => setPendingAction(null)}>
+        <div className="credit-modal" onClick={e => e.stopPropagation()}>
+          <div className="credit-modal-title">
+            {isGen ? '✦ Before you generate' : '✦ Before you load this week'}
+          </div>
+          <div className="credit-modal-body">
+            {isGen
+              ? 'Take a moment to check your plants and location are right — each generation uses one credit and you can't edit without using another.'
+              : 'Each "This Week" load uses one of your weekly credits.'}
+            {tier !== 'free' && (
+              <div className="credit-modal-counts">
+                <div className="credit-modal-count">
+                  <span className="credit-modal-count-num">{rem.gen ?? '—'}</span>
+                  <span className="credit-modal-count-label">Calendars left</span>
+                </div>
+                <div className="credit-modal-count">
+                  <span className="credit-modal-count-num">{rem.week ?? '—'}</span>
+                  <span className="credit-modal-count-label">This week left</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="credit-modal-actions">
+            <button className="credit-modal-cancel" onClick={() => setPendingAction(null)}>Cancel</button>
+            <button className="credit-modal-confirm" onClick={() => {
+              setPendingAction(null);
+              pendingAction.action();
+            }}>
+              {isGen ? 'Generate my calendar' : 'Load this week'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
-      <style>{styles + HOME_SCREEN_STYLES + WEATHER_SUMMARY_STYLES + VIDEO_PANEL_STYLES}</style>
+      <style>{styles + HOME_SCREEN_STYLES + WEATHER_SUMMARY_STYLES + VIDEO_PANEL_STYLES + `
+  .credit-modal-backdrop{position:fixed;inset:0;background:rgba(10,8,4,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem}
+  .credit-modal{background:#1a1208;border:1px solid rgba(200,169,110,.35);border-radius:3px;padding:1.75rem 1.5rem;max-width:380px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.7)}
+  .credit-modal-title{font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--bloom);margin:0 0 .75rem}
+  .credit-modal-body{font-size:.88rem;color:var(--parchment);line-height:1.6;margin:0 0 1.25rem;opacity:.9}
+  .credit-modal-counts{display:flex;gap:1rem;margin:.75rem 0}
+  .credit-modal-count{background:rgba(255,255,255,.05);border:1px solid rgba(200,169,110,.15);border-radius:2px;padding:.5rem .75rem;flex:1;text-align:center}
+  .credit-modal-count-num{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--bloom);display:block}
+  .credit-modal-count-label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .credit-modal-actions{display:flex;gap:.75rem}
+  .credit-modal-confirm{flex:1;background:var(--fern);border:1px solid var(--moss);color:var(--cream);padding:.65rem 1rem;font-family:'Playfair Display',serif;font-size:.95rem;font-style:italic;border-radius:2px;cursor:pointer;transition:background .2s}
+  .credit-modal-confirm:hover{background:var(--moss)}
+  .credit-modal-cancel{background:transparent;border:1px solid rgba(200,169,110,.2);color:var(--muted);padding:.65rem 1rem;font-size:.88rem;border-radius:2px;cursor:pointer;transition:border-color .2s}
+  .credit-modal-cancel:hover{border-color:rgba(200,169,110,.4)}
+`}</style>
+      <CreditWarningModal />
       <div className="grain"/>
       <div className="demo-banner">
         <span className="demo-name">NatJulien_Demo</span>
@@ -5801,7 +5871,15 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 </div>
               </div>
             ))}
-            <button className="btn-generate" onClick={handleSubmit} disabled={!city||!orientation||(isArtifact()&&!apiKey)}>
+            <button className="btn-generate" onClick={() => {
+                const rem = credits?.remaining?.gen ?? Infinity;
+                const tier = credits?.tier || 'free';
+                if (credits && tier !== 'subscriber' && rem <= 2) {
+                  setPendingAction({ type: 'gen', action: handleSubmit });
+                } else {
+                  handleSubmit();
+                }
+              }} disabled={!city||!orientation||(isArtifact()&&!apiKey)}>
               {prefetchState==="ready"?t("generateReady"):t("generateBtn")}
             </button>
           </div>
