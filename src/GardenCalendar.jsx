@@ -7,6 +7,7 @@ import { buildTodayPrompt, validateTodayResponse, readTodayCache, writeTodayCach
 import { fetchNearbyObservations, normaliseInatObservations, readInatCache, writeInatCache, relativeDate } from './nearbyObservations.js';
 import { climateToRegion, taskNeedsVideo } from './videoService.js';
 import { VideoButton, VIDEO_PANEL_STYLES } from './VideoPanel.jsx';
+import { loadCredits, useCredit, checkCredit, saveToken, initFromUrl } from './creditStore.js';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
@@ -3654,6 +3655,11 @@ const [showHome, setShowHome] = useState(() => {
   const [keyVerifying, setKeyVerifying] = useState(false);
   const [keyError, setKeyError] = useState("");
 
+  // ── B3: credit state ──────────────────────────────────────────────────────
+  // credits: { tier, plan, remaining: { gen, week }, inspoTrialAvailable, ... }
+  // Loaded from server (token holders) or localStorage (free users) on mount.
+  const [credits, setCredits] = useState(null);
+
   // Restore garden state from URL hash on first load
 useEffect(() => {
   // ── A3: ref param detection ───────────────────────────────────────────────
@@ -3664,6 +3670,11 @@ useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get('ref');
     if (ref) sessionStorage.setItem('gc_ref', ref);
   } catch {}
+  // ── B3: token from URL + credit initialisation ────────────────────────────
+  // If URL contains ?token=xxx&ref=print, save token to localStorage.
+  // Then load credit state from API (token holders) or localStorage (free).
+  initFromUrl();
+  loadCredits(PROXY_BASE).then(setCredits).catch(() => {});
   // ─────────────────────────────────────────────────────────────────────────
 
   const gs = migrateLegacyFavourites();
