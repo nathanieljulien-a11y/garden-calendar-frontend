@@ -1340,9 +1340,12 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
       ? "https://api.anthropic.com/v1/messages"
       : `${PROXY_BASE}/api/stream`;
 
+  // Include print/subscriber token so server can bypass IP daily gen limit
+  const gcToken = (() => { try { return localStorage.getItem('gc_sub_token') || localStorage.getItem('gc_print_token') || ''; } catch { return ''; } })();
+
   const headers = (useOwn && provider === "claude") || isArtifact()
     ? { "Content-Type": "application/json", "x-api-key": userKey || "", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }
-    : { "Content-Type": "application/json" };
+    : { "Content-Type": "application/json", ...(gcToken ? { "x-gc-token": gcToken } : {}) };
 
   const res = await fetch(url, {
     method: "POST", headers,
@@ -4085,6 +4088,27 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
   const handleSubmit = async () => {
     if (!city||!orientation) { setError("Please fill in city and orientation."); return; }
     setRateLimitMsg("");
+
+    // ── Credit check (all tiers) ──────────────────────────────────────────────
+    // Free users: decrements localStorage counter, blocks at 2 lifetime.
+    // Print/subscriber: decrements server-side, blocks when exhausted.
+    // BYO key / artifact mode: skips server check, allows freely (user pays own API cost).
+    if (!isArtifact() && provider === "proxy") {
+      const creditResult = await useCredit('gen', PROXY_BASE);
+      if (!creditResult.ok) {
+        const msg = creditResult.reason === 'credit_exhausted'
+          ? 'You\'ve used all your calendar generations. Subscribe to unlock more.'
+          : creditResult.reason === 'token_expired'
+            ? 'Your subscription has expired. Subscribe again to continue.'
+            : 'Could not verify your credits — please try again.';
+        setRateLimitMsg(msg);
+        return;
+      }
+      // Refresh credits display
+      loadCredits(PROXY_BASE).then(setCredits).catch(() => {});
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Abort previous stream
     if (abortRef.current) { abortRef.current.abort(); }
     if (parserRef.current) { parserRef.current.cancel(); parserRef.current = null; }
@@ -4839,7 +4863,24 @@ Return tasks for: ${batch.join(', ')}`;
 
     // This Week
     if (tab === "week") {
-      const doLoadWeek = () => {
+      const doLoadWeek = async () => {
+        // ── Credit check ───────────────────────────────────────────────────
+        if (!isArtifact() && provider === "proxy") {
+          const creditResult = await useCredit('week', PROXY_BASE);
+          if (!creditResult.ok) {
+            const msg = creditResult.reason === 'credit_exhausted'
+              ? 'You\'ve used all your weekly credits. Subscribe to unlock more.'
+              : creditResult.reason === 'token_expired'
+                ? 'Your subscription has expired. Subscribe again to continue.'
+                : 'Could not verify your credits — please try again.';
+            setActiveTab("week");
+            setStage("today");
+            setTodayTasksError(msg);
+            return;
+          }
+          loadCredits(PROXY_BASE).then(setCredits).catch(() => {});
+        }
+        // ──────────────────────────────────────────────────────────────────
         setActiveTab("week");
         setStage("today");
         const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
