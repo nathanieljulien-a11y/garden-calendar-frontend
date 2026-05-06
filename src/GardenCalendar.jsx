@@ -3656,6 +3656,16 @@ const [showHome, setShowHome] = useState(() => {
 
   // Restore garden state from URL hash on first load
 useEffect(() => {
+  // ── A3: ref param detection ───────────────────────────────────────────────
+  // Reads ?ref=print (or any ref value) from the URL on first load.
+  // Stored in sessionStorage as gc_ref — used by tier detection and event tracking.
+  // Wall calendar users arrive via ?ref=print embedded in the QR code URL.
+  try {
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) sessionStorage.setItem('gc_ref', ref);
+  } catch {}
+  // ─────────────────────────────────────────────────────────────────────────
+
   const gs = migrateLegacyFavourites();
   if (gs.length) {
     setGardens(gs);
