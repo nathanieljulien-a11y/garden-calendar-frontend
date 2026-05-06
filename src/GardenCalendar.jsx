@@ -2990,10 +2990,25 @@ const MonthPanel = React.memo(function MonthPanel({m, isCurrent, showInspoButton
 }); // React.memo — only re-renders when props change
 
 // ─── InsightsPanel ───────────────────────────────────────────────────────────
-function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, loadedBatches, totalPlantCount}) {
+function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, loadedBatches, totalPlantCount, tier, inspoTrialAvailable}) {
   const [open, setOpen] = useState(false);
   const canUnlock = stream1Done && loadedBatches >= 4 && hasPlants;
-  const handleUnlock = () => { setOpen(true); onFetch(); };
+
+  // ── B6: tier-aware unlock logic ───────────────────────────────────────────
+  // Subscribers: insights auto-run (open by default once ready)
+  // Print tier: locked until 3 weekly uses, then one free trial
+  // Free tier: locked — upsell to subscriber
+  const isSubscriber     = tier === 'subscriber';
+  const isPrint          = tier === 'print';
+  const isFree           = !isSubscriber && !isPrint;
+  const trialAvailable   = isPrint && inspoTrialAvailable;
+  const hardLocked       = isFree || (isPrint && !inspoTrialAvailable && !open);
+
+  const handleUnlock = () => {
+    if (!canUnlock) return;
+    setOpen(true);
+    onFetch();
+  };
 
   // Count how many plants have GBIF occurrence data loaded
   const gbifCount = Object.values(plantMeta||{}).filter(m => m?.occurrence != null).length;
@@ -3002,16 +3017,46 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, lo
     <div className="insights-panel">
       <div className="insights-unlock">
         <span className="insights-title">🔍 Insights about your garden</span>
-        {!open ? (
+
+        {/* Subscriber — show as normal, no lock */}
+        {isSubscriber && !open && (
           <button className="btn-unlock" onClick={handleUnlock} disabled={!canUnlock}
             title={!canUnlock ? "Available once calendar is generated" : ""}>
-            {canUnlock ? "Unlock insights" : "Available after full year generated"}
+            {canUnlock ? "View insights" : "Available after full year generated"}
           </button>
-        ) : (
-          <button className="btn-unlock" onClick={onFetch}
-            disabled={insights.state==="loading"} style={{fontSize:".78rem"}}>
-            {insights.state==="loading" ? "Thinking…" : "↺ Refresh"}
+        )}
+        {isSubscriber && open && (
+          <span style={{fontSize:".75rem",color:"var(--muted)",fontStyle:"italic"}}>Included with your subscription</span>
+        )}
+
+        {/* Print tier — trial available */}
+        {trialAvailable && !open && (
+          <button className="btn-unlock" onClick={handleUnlock} disabled={!canUnlock}
+            title={!canUnlock ? "Available once calendar is generated" : ""}
+            style={{background:"rgba(45,106,63,.3)",borderColor:"var(--fern)"}}>
+            {canUnlock ? "🎁 Unlock your free insights preview" : "Available after full year generated"}
           </button>
+        )}
+
+        {/* Print tier — trial used or not yet available */}
+        {isPrint && !trialAvailable && !open && (
+          <span style={{fontSize:".78rem",color:"var(--muted)",fontStyle:"italic"}}>
+            {canUnlock
+              ? "Unlock after 3 weekly uses · Subscribe for full access"
+              : "Available after full year generated"}
+          </span>
+        )}
+
+        {/* Open state (subscriber or after trial unlock) */}
+        {open && !isSubscriber && (
+          <span style={{fontSize:".75rem",color:"var(--muted)",fontStyle:"italic"}}>Free preview</span>
+        )}
+
+        {/* Free tier — hard locked */}
+        {isFree && (
+          <span style={{fontSize:".78rem",color:"var(--muted)",fontStyle:"italic"}}>
+            Subscribe to unlock insights
+          </span>
         )}
       </div>
 
@@ -3489,7 +3534,7 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
 }
 
 // ─── AboutView ────────────────────────────────────────────────────────────────
-function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensData, lensStates, fetchLens, plants, plantTraits, city, selectedGardenId, provider, userKey, onGoCalendar, onGoEdit, months }) {
+function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensData, lensStates, fetchLens, plants, plantTraits, city, selectedGardenId, provider, userKey, onGoCalendar, onGoEdit, months, credits }) {
   const hasMeta = !!meta;
   const hasPlants = Object.values(plants).flat().length > 0;
 
@@ -3525,7 +3570,8 @@ function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensD
       <div className="insights-panel">
         <div className="insights-unlock">
           <span className="insights-title">🔍 Insights about your garden</span>
-          {insights.state === "done" && (
+          {/* B6: only show refresh for subscribers */}
+          {insights.state === "done" && credits?.tier === 'subscriber' && (
             <button className="btn-unlock" onClick={fetchInsights} style={{fontSize:".78rem"}}>↺ Refresh</button>
           )}
         </div>
@@ -4027,7 +4073,9 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     if (!meta && city && orientation && prefetchState === "idle") {
       prefetchMeta(city, orientation);
     }
-    if (meta && insights.state === "idle") {
+    // B6: only auto-run insights for subscribers — other tiers unlock manually
+    const tier = credits?.tier || 'free';
+    if (meta && insights.state === "idle" && tier === 'subscriber') {
       fetchInsights();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -6602,6 +6650,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               onGoCalendar={() => handleTabChange("calendar")}
               onGoEdit={() => handleTabChange("edit")}
               months={months}
+              credits={credits}
             />
           );
         })()}
