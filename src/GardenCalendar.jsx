@@ -4500,14 +4500,15 @@ Other rules:
     clearInterval(uiIntervalRef.current); uiIntervalRef.current = null;
     if (rid!==submitIdRef.current) return;
     // Mark all remaining active months as done
+    // Capture final months snapshot before saving — avoids stale closure in saveCurrentGarden
     setMonths(prev => {
       const next={...prev};
       Object.keys(next).forEach(k=>{ if(next[k]._state==="active") next[k]={...next[k],_state:"done",_taskPartial:null,_enjoyPartial:null}; });
+      saveCurrentGarden(next);
       return next;
     });
     setS1Done(true); setActiveMonth(null);
     setShowArrow(false);
-    saveCurrentGarden();
   };
 
   const loadMoreMonths = async () => {
@@ -4835,6 +4836,22 @@ Return tasks for: ${batch.join(', ')}`;
     const m = snap[mName];
     if (m?.tasks?.length) calendarTasksForToday[mName] = m.tasks;
   });
+  // Save stripped months (done only, no streaming partials) for calendar restore
+  const savedMonths = {};
+  Object.entries(snap).forEach(([name, m]) => {
+    if (m?._state === 'done') {
+      savedMonths[name] = {
+        month:       m.month,
+        season:      m.season,
+        tasks:       m.tasks       || [],
+        enjoy:       m.enjoy       || [],
+        _state:      'done',
+        inspiration: m.inspiration || null,
+        sunHours:    m.sunHours    ?? null,
+      };
+    }
+  });
+
   const garden = createGardenObject({
     ...(existing || {}),
     id:          existing?.id,
@@ -4847,6 +4864,7 @@ Return tasks for: ${batch.join(', ')}`;
     climateData: meta?._cd ? { _cd: meta._cd, _derived: meta._derived } : (existing?.climateData ?? null),
     calendarTasks: Object.keys(calendarTasksForToday).length ? calendarTasksForToday : (existing?.calendarTasks ?? null),
     plantTraits: Object.keys(plantTraits).length ? plantTraits : (existing?.plantTraits ?? null),
+    savedMonths:  Object.keys(savedMonths).length ? savedMonths : (existing?.savedMonths ?? null),
   });
   const updated = saveGarden(garden);
   setGardens(updated);
@@ -4976,8 +4994,16 @@ Return tasks for: ${batch.join(', ')}`;
       setMeta(restoredMeta);
       metaRef.current = restoredMeta;
       setPfState("ready");
-      setS1Done(false);
-      setMonths({});
+
+      // Restore saved months if available — no regeneration needed
+      if (g.savedMonths && Object.keys(g.savedMonths).length) {
+        setMonths(g.savedMonths);
+        setS1Done(true);
+        setLoadedBatches(4); // mark all batches as loaded so lenses/insights unlock
+      } else {
+        setS1Done(false);
+        setMonths({});
+      }
       setActiveMonth(null);
       setActiveTab("calendar");
       setStage("calendar");
