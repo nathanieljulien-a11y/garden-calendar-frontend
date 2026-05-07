@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — The Garden Calendar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink:    #1a1a18;
+      --paper:  #f7f3ec;
+      --sage:   #6b7c5e;
+      --fern:   #2d6a3f;
+      --straw:  #c8a96e;
+      --muted:  #8a8070;
+      --rule:   rgba(107,124,94,.2);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Crimson Pro', Georgia, serif;
+      font-size: 1.05rem;
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 5rem;
+    }
+    .back {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .85rem;
+      color: var(--sage);
+      text-decoration: none;
+      letter-spacing: .04em;
+      margin-bottom: 2.5rem;
+      transition: color .15s;
+    }
+    .back:hover { color: var(--fern); }
+    .site-name {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: .8rem;
+      font-style: italic;
+      color: var(--straw);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: .75rem;
+    }
+    h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 2rem;
+      font-weight: 600;
+      line-height: 1.2;
+      margin-bottom: .5rem;
+    }
+    .updated {
+      font-size: .82rem;
+      color: var(--muted);
+      font-style: italic;
+      margin-bottom: 2.5rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--rule);
+    }
+    h2 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--fern);
+      margin: 2rem 0 .6rem;
+    }
+    p { margin-bottom: .9rem; }
+    ul {
+      margin: .4rem 0 .9rem 1.2rem;
+    }
+    ul li { margin-bottom: .35rem; }
+    a { color: var(--fern); }
+    a:hover { color: var(--straw); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+      margin: .75rem 0 1.2rem;
+    }
+    th {
+      text-align: left;
+      font-family: 'Playfair Display', serif;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--sage);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: .4rem .6rem;
+      border-bottom: 1px solid var(--rule);
+    }
+    td {
+      padding: .4rem .6rem;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    .footer-rule {
+      border: none;
+      border-top: 1px solid var(--rule);
+      margin: 3rem 0 1.5rem;
+    }
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    .footer-links a { color: var(--sage); text-decoration: none; }
+    .footer-links a:hover { color: var(--fern); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a href="/" class="back">← Back to Garden Calendar</a>
+
+    <div class="site-name">HobbyCalendar</div>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: May 2026</p>
+
+    <h2>Who we are</h2>
+    <p>The Garden Calendar web app is operated by HobbyCalendar. To contact us with a privacy request or question, please use our <a href="/contact">contact form</a>.</p>
+
+    <h2>What we collect and why</h2>
+
+    <p><strong>Free users</strong> — we store nothing about you on our servers. Usage limits are tracked in your own browser's local storage only and never leave your device.</p>
+
+    <p><strong>Wall calendar customers</strong> — when your physical calendar order is approved for print, we generate a pseudonymous token (a random ID) and embed it in the QR code on your calendar. This token, your usage counts, and your subscription expiry are stored on our server. It is not linked to your name, address, or email address.</p>
+
+    <p><strong>Subscribers</strong> — when you pay via Stripe, Stripe processes your payment and passes your email address to us solely to deliver your subscription token. We use your email once to send the token, then discard it immediately. We do not store your email. Your token record (random ID, plan, usage counts, expiry) is held on our server.</p>
+
+    <p><strong>Anonymous event analytics</strong> — we log anonymous usage events (page loads, calendar generations, exports) to understand how the app is used. No IP address, name, or email is ever recorded in these logs.</p>
+
+    <h2>What we do not collect</h2>
+    <p>We do not collect your name, postal address, or payment details. We do not use cookies. We do not currently serve advertising or sponsored content.</p>
+
+    <h2>Data we hold</h2>
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Why held</th><th>Identifiable?</th><th>Retention</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Token (UUID)</td><td>Credit tracking</td><td>No — pseudonymous</td><td>Subscription period + 90 days</td></tr>
+        <tr><td>Plan, expiry, usage counts</td><td>Credit enforcement</td><td>No</td><td>Same as token</td></tr>
+        <tr><td>Source reference (order ID / payment ID)</td><td>Links token to purchase</td><td>Indirectly</td><td>Same as token</td></tr>
+        <tr><td>Email address</td><td>Token delivery only</td><td>Yes — transient</td><td>Not persisted — used once, discarded</td></tr>
+        <tr><td>Anonymous event log entries</td><td>Usage analytics</td><td>No</td><td>90 days rolling</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Payment processing</h2>
+    <p>All payments are handled by Stripe. We never see or store your card details. Stripe's privacy policy applies to payment data: <a href="https://stripe.com/privacy" target="_blank" rel="noopener">stripe.com/privacy</a>.</p>
+
+    <h2>Where your data is stored</h2>
+    <p>Our backend is hosted on Render in the United States. UK users are covered by the UK-US adequacy framework. EU users are covered by Render's participation in the EU-US Data Privacy Framework. For users outside the UK and EU, data is processed in the US under Render's standard terms.</p>
+
+    <h2>Your rights</h2>
+    <p>You have the right to access or delete your token record at any time. To exercise this right, please use our <a href="/contact">contact form</a> and include your subscription token. We will action erasure requests within 30 days.</p>
+    <p>You can also view your remaining credits and plan details at any time by entering your token in the app's Settings panel.</p>
+
+    <h2>Lawful basis</h2>
+    <p>We process token records on the basis of contract performance — storing your token is necessary to deliver the service you have paid for. No separate consent is required.</p>
+
+    <h2>Changes to this policy</h2>
+    <p>We may update this policy from time to time. The date at the top of this page indicates when it was last changed. Continued use of the app after changes constitutes acceptance of the updated policy.</p>
+
+    <p>This project is not affiliated with any of the data sources or organisations referenced in the app. All third-party data is used in accordance with the respective open licences.</p>
+
+    <hr class="footer-rule">
+    <div class="footer-links">
+      <a href="/">← Garden Calendar</a>
+      <a href="/contact">Contact us</a>
+    </div>
+  </div>
+</body>
+</html>
