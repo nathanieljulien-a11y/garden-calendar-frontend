@@ -4603,6 +4603,11 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
         parser.onChunk(chunk);
       }, abort.signal, provider, userKey);
       parser.flush();
+      // Save after each batch so calendar persists across sessions
+      setMonths(prev => {
+        saveCurrentGarden(prev);
+        return prev;
+      });
       setLoadedBatches(b => b + 1);
     } catch(e) {
       if (e.name !== "AbortError") console.warn("loadMore failed:", e.message);
