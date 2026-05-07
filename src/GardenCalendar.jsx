@@ -4078,6 +4078,19 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     }
   },[city,orientation,apiKey,prefetchMeta,prefetchState]);
 
+  // ── Save calendar after each batch loads ────────────────────────────────────
+  // Fires whenever loadedBatches increments (after each 3-month batch completes).
+  // Uses months from state directly — by the time this effect runs, React has
+  // committed the updated months state from the batch.
+  useEffect(() => {
+    if (!s1Done && loadedBatches <= 1) return; // skip during initial generation setup
+    if (Object.keys(months).length === 0) return; // nothing to save
+    const hasDone = Object.values(months).some(m => m?._state === 'done');
+    if (!hasDone) return;
+    saveCurrentGarden(months);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedBatches]);
+
   // ── About tab — auto-fetch climate + insights ───────────────────────────────
   useEffect(() => {
     if (activeTab !== "about") return;
@@ -4603,11 +4616,6 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
         parser.onChunk(chunk);
       }, abort.signal, provider, userKey);
       parser.flush();
-      // Save after each batch so calendar persists across sessions
-      setMonths(prev => {
-        saveCurrentGarden(prev);
-        return prev;
-      });
       setLoadedBatches(b => b + 1);
     } catch(e) {
       if (e.name !== "AbortError") console.warn("loadMore failed:", e.message);
