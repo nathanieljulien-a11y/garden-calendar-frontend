@@ -3437,9 +3437,7 @@ Rules: 2–3 suggestions per gap, climate-appropriate, not already in the existi
         {gapState === "idle" && gapClusters.length > 0 && (
           <button className="btn-unlock" style={{fontSize:".75rem"}} onClick={fetchGap}>Suggest plants</button>
         )}
-        {gapState === "done" && (
-          <button className="btn-unlock" style={{fontSize:".72rem"}} onClick={() => { try { localStorage.removeItem(cacheKey); } catch {} setGapData(null); setGapState("idle"); }}>↺ Refresh</button>
-        )}
+
       </div>
       {gapClusters.length === 0 && <div className="gap-none">✓ Good colour coverage all year.</div>}
       {gapClusters.length > 0 && gapState === "idle" && (
@@ -4119,6 +4117,26 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, meta, insights.state, prefetchState]);
+
+  // ── D2: Auto-run insights after generation completes (subscriber only) ────
+  // Fires when stream1Done becomes true. plantHash guard prevents re-run if
+  // plant list unchanged. Does not require user to navigate to About tab first.
+  useEffect(() => {
+    if (!stream1Done) return;
+    if (!meta) return;
+    const tier = credits?.tier || 'free';
+    if (tier !== 'subscriber') return;
+    if (insights.state !== 'idle') return;
+    const allPlantsSorted = Object.values(plants).flat().slice().sort().join(',');
+    if (!allPlantsSorted) return;
+    const plantHash = (() => { try { return btoa(allPlantsSorted).slice(0, 20); } catch { return 'x'; } })();
+    const hashKey = 'gc_insights_hash_' + (selectedGardenId || 'anon');
+    const lastHash = (() => { try { return localStorage.getItem(hashKey); } catch { return null; } })();
+    if (lastHash === plantHash) return; // plants unchanged — skip
+    try { localStorage.setItem(hashKey, plantHash); } catch {}
+    fetchInsights();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stream1Done, meta]);
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -5452,7 +5470,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
             <button className="about-close" onClick={() => setShowAbout(false)}>×</button>
             <h2>🌿 About this Garden Calendar</h2>
 
-            <p>This is a personal learning project — a tool built to explore what's possible when AI works from real data rather than guesswork. It's shared informally with friends and family, not offered as a commercial service.</p>
+            <p>Thanks for trying out The Garden Calendar web app by HobbyCalendar. This started as a personal learning project — exploring how to build with AI and how to use it inside a data and insights product in a controlled way that defers to trusted data sources. It's freely available with usage limits, or you can bring your own API key. For regular use, you can subscribe for a usage bundle.</p>
 
             <h3>How it works</h3>
             <p>When you enter your location, the app fetches measured climate data for your exact coordinates — monthly temperatures, rainfall, frost dates, and sunshine hours — from Open-Meteo's ERA5 reanalysis archive. This grounds everything that follows: frost date advice, hardiness warnings, and sowing windows come from real measurements, not assumptions.</p>
@@ -6634,74 +6652,6 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 </p>
               </div>
             )}
-
-            {/* ── Print page preview — available once first batch done ── */}
-            {stream1Done && (() => {
-              const startIdx2 = (nowIdx + 11) % 12;
-              const availableMonths = Array.from({length: loadedBatches * 3}, (_,i) => MONTH_NAMES[(startIdx2 + i) % 12])
-                .filter(n => months[n]?._state === 'done');
-              if (!availableMonths.length) return null;
-              // Track used illustrations and inspo gardens across all months — no repeats
-              const usedPlants = new Set();
-              const usedInspos = new Set();
-
-              const handlePreview = async (monthName) => {
-                const mIdx = MONTH_NAMES.indexOf(monthName);
-                const year = new Date().getFullYear() + (mIdx < nowIdx ? 1 : 0);
-                const g = selectedGardenId ? readGardens().find(g => g.id === selectedGardenId) : null;
-                const html = await generateCalendarPageHTML({
-                  monthName,
-                  monthIndex: mIdx,
-                  year,
-                  gardenName: g?.name || city,
-                  city,
-                  meta,
-                  monthData: months[monthName],
-                  inspoData: inspos[monthName],
-                  lensData,
-                  allPlants: plants,
-                  insights,
-                  usedPlants,
-                  usedInspos,
-                });
-                const blob = new Blob([html], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                window.open(url, '_blank');
-                setTimeout(() => URL.revokeObjectURL(url), 5000);
-              };
-              return (
-                <div style={{textAlign:'center', margin:'1.5rem 0 .5rem'}}>
-                  <div style={{fontSize:'.72rem', textTransform:'uppercase', letterSpacing:'.1em', color:'var(--sage)', marginBottom:'.6rem', opacity:.7}}>
-                    🖨 Preview print page
-                  </div>
-                  <div style={{display:'flex', flexWrap:'wrap', gap:'.4rem', justifyContent:'center'}}>
-                    {availableMonths.map(name => (
-                      <button key={name}
-                        onClick={() => handlePreview(name)}
-                        style={{
-                          background:'none',
-                          border:'1px solid rgba(200,169,110,.3)',
-                          color:'var(--straw)',
-                          padding:'.3rem .7rem',
-                          fontFamily:"'Crimson Pro',serif",
-                          fontSize:'.8rem',
-                          borderRadius:'2px',
-                          cursor:'pointer',
-                          transition:'all .15s',
-                        }}
-                        onMouseEnter={e => e.target.style.background='rgba(200,169,110,.12)'}
-                        onMouseLeave={e => e.target.style.background='none'}
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{fontSize:'.65rem', color:'var(--muted)', marginTop:'.4rem', fontStyle:'italic', opacity:.6}}>
-                    Opens a print-ready preview in a new tab
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* Export + share — only visible once all 12 months generated */}
             {stream1Done && loadedBatches >= 4 && (
