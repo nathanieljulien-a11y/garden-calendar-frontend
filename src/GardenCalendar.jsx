@@ -5036,7 +5036,7 @@ confidence medium = you know the garden exists and broadly what it contains but 
 known_for: the garden defining characteristic regardless of season.
 ${[...alreadyChosen, ...chosenThisBatch].length > 0 ? "\nDo NOT suggest any of these (already recommended): " + [...alreadyChosen, ...chosenThisBatch].join(", ") + ". Choose a genuinely different garden." : ""}
 Respond entirely in ${langName()}.`,
-          500, undefined, provider, userKey);
+          800, undefined, provider, userKey);
         // Handle "none" response — no suitable garden found
         if (!result.name || result.name === "none") {
           setInspos(prev => ({ ...prev, [monthName]: { state:"none", data:null } }));
@@ -5047,7 +5047,22 @@ Respond entirely in ${langName()}.`,
         if (result.name && result.name !== "none") chosenThisBatch.push(result.name);
         setInspos(prev => ({ ...prev, [monthName]: { state:"done", data:result } }));
       } catch(e) {
-        setInspos(prev => ({ ...prev, [monthName]: { state:"error", data:null } }));
+        // Auto-retry once on JSON parse failure (typically a truncated response)
+        if (e.message && e.message.includes('JSON parse failed')) {
+          try {
+            const retry = await callClaude(`You are a garden visiting expert. Recommend ONE public garden to visit within a reasonable journey of ${city} in ${monthName}. Return ONLY valid JSON: {"name":"<Garden name>","organisation":"<operator>","location":"<Town, Region>","distance":"<journey time from ${city}>","highlight":"<seasonal highlight 10-20 words>","known_for":"<8-15 words>","confidence":"high or medium"}`,
+              800, undefined, provider, userKey);
+            if (retry.name && retry.name !== 'none') {
+              setInspos(prev => ({ ...prev, [monthName]: { state:'done', data:retry } }));
+            } else {
+              setInspos(prev => ({ ...prev, [monthName]: { state:'none', data:null } }));
+            }
+          } catch {
+            setInspos(prev => ({ ...prev, [monthName]: { state:'error', data:null } }));
+          }
+        } else {
+          setInspos(prev => ({ ...prev, [monthName]: { state:'error', data:null } }));
+        }
       }
     }
   };
