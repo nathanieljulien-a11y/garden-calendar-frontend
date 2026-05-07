@@ -4872,8 +4872,11 @@ Return tasks for: ${batch.join(', ')}`;
     // This Week
     if (tab === "week") {
       const doLoadWeek = async () => {
-        // ── Credit check ───────────────────────────────────────────────────
-        if (!isArtifact() && provider === "proxy") {
+        const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
+        // ── Credit check — only consume if no cached result for today ─────
+        // Cache is keyed per garden per day, so a repeat visit today is free.
+        const hasCached = g ? !!readTodayCache(g.id) : false;
+        if (!hasCached && !isArtifact() && provider === "proxy") {
           const creditResult = await useCredit('week', PROXY_BASE);
           if (!creditResult.ok) {
             const msg = creditResult.reason === 'credit_exhausted'
@@ -4891,7 +4894,6 @@ Return tasks for: ${batch.join(', ')}`;
         // ──────────────────────────────────────────────────────────────────
         setActiveTab("week");
         setStage("today");
-        const g = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
         if (g) {
           setTodayGarden(g);
           if (g.city) setCity(g.city);
@@ -4906,7 +4908,9 @@ Return tasks for: ${batch.join(', ')}`;
       };
       const rem  = credits?.remaining?.week ?? Infinity;
       const tier = credits?.tier || 'free';
-      if (credits && tier !== 'subscriber' && rem <= 3) {
+      const gForCache = selectedGardenId ? gardens.find(g => g.id === selectedGardenId) : gardens[0];
+      const weekCached = gForCache ? !!readTodayCache(gForCache.id) : false;
+      if (!weekCached && credits && tier !== 'subscriber' && rem <= 3) {
         setPendingAction({ type: 'week', action: doLoadWeek });
       } else {
         doLoadWeek();
