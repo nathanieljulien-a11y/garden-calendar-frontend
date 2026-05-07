@@ -1220,6 +1220,22 @@ const STRIPE_PAYMENT_LINK = (typeof import.meta !== "undefined" && import.meta.e
   ? String(import.meta.env.VITE_STRIPE_PAYMENT_LINK)
   : "";
 
+// ── trackEvent ───────────────────────────────────────────────────────────────
+// Fire-and-forget event logging. Swallows all errors — never blocks UI.
+// Automatically includes tier and ref from current session state.
+function trackEvent(event, fields = {}) {
+  if (!PROXY_BASE || isArtifact()) return;
+  try {
+    const tier = (() => { try { const c = sessionStorage.getItem('gc_credits_cache'); return c ? JSON.parse(c).tier : 'free'; } catch { return 'free'; } })();
+    const ref  = (() => { try { return sessionStorage.getItem('gc_ref') || 'direct'; } catch { return 'direct'; } })();
+    fetch(`${PROXY_BASE}/api/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, tier, ref, ts: new Date().toISOString(), ...fields }),
+    }).catch(() => {});
+  } catch {}
+}
+
 // ─── Gemini rate limiter ──────────────────────────────────────────────────────
 // Gemini free tier allows 15 RPM. The app fires several AI calls close together
 // (suggestions on prefetch, then stream on generate). This queue serialises all
@@ -3064,7 +3080,8 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, lo
           <span style={{fontSize:".78rem",color:"var(--muted)"}}>
             {STRIPE_PAYMENT_LINK
               ? <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                  style={{color:"var(--fern)",textDecoration:"underline",fontStyle:"normal"}}>
+                  style={{color:"var(--fern)",textDecoration:"underline",fontStyle:"normal"}}
+                  onClick={() => trackEvent('upsell_clicked', { trigger: 'insights' })}>
                   Subscribe — £1.49 for 6 months
                 </a>
               : <span style={{fontStyle:"italic"}}>Subscribe to unlock insights</span>
@@ -3525,7 +3542,8 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
           <span style={{fontSize:".78rem",color:"var(--muted)"}}>
             {STRIPE_PAYMENT_LINK
               ? <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                  style={{color:"var(--fern)",textDecoration:"underline",fontStyle:"normal"}}>
+                  style={{color:"var(--fern)",textDecoration:"underline",fontStyle:"normal"}}
+                  onClick={() => trackEvent('upsell_clicked', { trigger: 'lenses' })}>
                   Subscribe — £1.49 for 6 months
                 </a>
               : <span style={{fontStyle:"italic"}}>Subscribe to unlock</span>
@@ -3763,7 +3781,12 @@ useEffect(() => {
   // If URL contains ?token=xxx&ref=print, save token to localStorage.
   // Then load credit state from API (token holders) or localStorage (free).
   initFromUrl();
-  loadCredits(PROXY_BASE).then(setCredits).catch(() => {});
+  loadCredits(PROXY_BASE).then(c => {
+    setCredits(c);
+    trackEvent('page_load', { city: null });
+  }).catch(() => {
+    trackEvent('page_load', { city: null });
+  });
   // ─────────────────────────────────────────────────────────────────────────
 
   const gs = migrateLegacyFavourites();
@@ -4156,6 +4179,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
             ? 'Your subscription has expired. Subscribe again to continue.'
             : 'Could not verify your credits — please try again.';
         setRateLimitMsg(msg);
+        trackEvent('credit_exhausted', { action: 'gen', reason: creditResult.reason });
         return;
       }
       // Refresh credits display
@@ -4556,6 +4580,10 @@ Other rules:
     });
     setS1Done(true); setActiveMonth(null);
     setShowArrow(false);
+    trackEvent('calendar_generated', {
+      city,
+      plantCount: Object.values(plants).flat().length,
+    });
   };
 
   const loadMoreMonths = async () => {
@@ -4863,6 +4891,10 @@ Return tasks for: ${batch.join(', ')}`;
       } else {
         writeTodayCache(garden.id, payload);
         setTodayTasks(payload);
+        trackEvent('this_week_generated', {
+          city: garden.city || null,
+          taskCount: payload.tasks?.length || 0,
+        });
       }
     } catch (e) {
       if (!isRefresh) setTodayTasksError(e.message || 'Could not generate tasks');
@@ -4952,6 +4984,7 @@ Return tasks for: ${batch.join(', ')}`;
             setActiveTab("week");
             setStage("today");
             setTodayTasksError(msg);
+            trackEvent('credit_exhausted', { action: 'week', reason: creditResult.reason });
             return;
           }
           loadCredits(PROXY_BASE).then(setCredits).catch(() => {});
@@ -5452,7 +5485,8 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               <>
                 <span className="demo-sep">·</span>
                 <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                  className="demo-about-btn" style={{color:"var(--fern)",textDecoration:"none"}}>
+                  className="demo-about-btn" style={{color:"var(--fern)",textDecoration:"none"}}
+                  onClick={() => trackEvent('upsell_clicked', { trigger: 'banner' })}>
                   Subscribe £1.49
                 </a>
               </>
@@ -5491,6 +5525,11 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
             <p>Claude is knowledgeable but not infallible. Garden visit suggestions are based on training knowledge and should be verified on the garden's own website before you travel. Sowing windows are approximate — your microclimate, soil, and variety will always matter more than any generalisation. If something looks wrong, trust your experience and your local nursery.</p>
 
             <p className="about-note">This project is not affiliated with any of the organisations listed above. All data sources are used in accordance with their respective open licences.</p>
+            <p style={{marginTop:"1.25rem",fontSize:".82rem",color:"var(--muted)"}}>
+              <a href="/privacy" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Privacy policy</a>
+              <span style={{margin:"0 .5rem",opacity:.4}}>·</span>
+              <a href="/contact" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Contact &amp; feedback</a>
+            </p>
           </div>
         </div>
       )}
@@ -5652,6 +5691,8 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                             setSubCodeState('ok');
                             setSubCodeMsg(`${type === 'subscriber' ? 'Subscriber' : 'Wall calendar'} account activated — ${fresh.remaining.gen} calendar${fresh.remaining.gen !== 1 ? 's' : ''} and ${fresh.remaining.week} weekly credits remaining.`);
                             setSubCodeDraft('');
+                            const expiry = data.expiresAt ? Math.round((new Date(data.expiresAt) - Date.now()) / 86400000) : null;
+                            trackEvent('token_validated', { plan: data.plan, daysRemaining: expiry });
                           } else {
                             setSubCodeState('error');
                             setSubCodeMsg(data.reason === 'token_expired' ? 'This code has expired.' : 'Code not recognised — check for typos.');
@@ -6657,12 +6698,12 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
             {stream1Done && loadedBatches >= 4 && (
               <div style={{display:"flex",gap:".75rem",justifyContent:"center",margin:"1.25rem 0 .5rem",flexWrap:"wrap"}}>
                 <button
-                  onClick={() => exportPDF(months, city, meta, buildGardenUrl(city, orientation, features, plants))}
+                  onClick={() => { exportPDF(months, city, meta, buildGardenUrl(city, orientation, features, plants)); trackEvent('pdf_exported', { city, monthCount: Object.keys(months).length }); }}
                   style={{background:"#2C1A0A",color:"#F5EDD8",border:"none",borderRadius:"6px",padding:".55rem 1.2rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
                   📄 Download
                 </button>
                 <button
-                  onClick={() => exportICS(months, city, buildGardenUrl(city, orientation, features, plants))}
+                  onClick={() => { exportICS(months, city, buildGardenUrl(city, orientation, features, plants)); trackEvent('ics_exported', { city }); }}
                   style={{background:"#4a7c59",color:"#fff",border:"none",borderRadius:"6px",padding:".55rem 1.2rem",fontSize:".85rem",cursor:"pointer",display:"flex",alignItems:"center",gap:".4rem"}}>
                   📅 Export to Calendar (.ics)
                 </button>
