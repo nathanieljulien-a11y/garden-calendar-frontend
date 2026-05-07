@@ -1216,6 +1216,10 @@ const PROXY_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_
   ? String(window.__VITE_PROXY_URL__).replace(/\/$/, "")
   : "";
 
+const STRIPE_PAYMENT_LINK = (typeof import.meta !== "undefined" && import.meta.env?.VITE_STRIPE_PAYMENT_LINK)
+  ? String(import.meta.env.VITE_STRIPE_PAYMENT_LINK)
+  : "";
+
 // ─── Gemini rate limiter ──────────────────────────────────────────────────────
 // Gemini free tier allows 15 RPM. The app fires several AI calls close together
 // (suggestions on prefetch, then stream on generate). This queue serialises all
@@ -3043,10 +3047,10 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, lo
 
         {/* Print tier — trial used or not yet available */}
         {isPrint && !trialAvailable && !open && (
-          <span style={{fontSize:".78rem",color:"var(--muted)",fontStyle:"italic"}}>
+          <span style={{fontSize:".78rem",color:"var(--muted)"}}>
             {canUnlock
-              ? "Unlock after 3 weekly uses · Subscribe for full access"
-              : "Available after full year generated"}
+              ? <span style={{fontStyle:"italic"}}>Unlock after 3 weekly uses · {STRIPE_PAYMENT_LINK && <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer" style={{color:"var(--fern)",textDecoration:"underline"}}>Subscribe for full access</a>}{!STRIPE_PAYMENT_LINK && "Subscribe for full access"}</span>
+              : <span style={{fontStyle:"italic"}}>Available after full year generated</span>}
           </span>
         )}
 
@@ -3057,8 +3061,14 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, lo
 
         {/* Free tier — hard locked */}
         {isFree && (
-          <span style={{fontSize:".78rem",color:"var(--muted)",fontStyle:"italic"}}>
-            Subscribe to unlock insights
+          <span style={{fontSize:".78rem",color:"var(--muted)"}}>
+            {STRIPE_PAYMENT_LINK
+              ? <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+                  style={{color:"var(--fern)",textDecoration:"underline",fontStyle:"normal"}}>
+                  Subscribe — £1.49 for 6 months
+                </a>
+              : <span style={{fontStyle:"italic"}}>Subscribe to unlock insights</span>
+            }
           </span>
         )}
       </div>
@@ -3503,7 +3513,7 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
         {/* Print — not yet available or trial used */}
         {isPrint && !trialAvailable && !open && (
           <span style={{fontSize:".78rem",color:"var(--muted)",fontStyle:"italic"}}>
-            {canUnlock ? "Unlock after 3 weekly uses · Subscribe for full access" : "Available after full year generated"}
+            {canUnlock ? <span>Unlock after 3 weekly uses · {STRIPE_PAYMENT_LINK && <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer" style={{color:"var(--fern)",textDecoration:"underline"}}>Subscribe for full access</a>}{!STRIPE_PAYMENT_LINK && "Subscribe for full access"}</span> : "Available after full year generated"}
           </span>
         )}
 
@@ -3514,8 +3524,14 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
 
         {/* Free tier — hard locked */}
         {isFree && (
-          <span style={{fontSize:".78rem",color:"var(--muted)",fontStyle:"italic"}}>
-            Subscribe to unlock
+          <span style={{fontSize:".78rem",color:"var(--muted)"}}>
+            {STRIPE_PAYMENT_LINK
+              ? <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+                  style={{color:"var(--fern)",textDecoration:"underline",fontStyle:"normal"}}>
+                  Subscribe — £1.49 for 6 months
+                </a>
+              : <span style={{fontStyle:"italic"}}>Subscribe to unlock</span>
+            }
           </span>
         )}
 
@@ -5414,6 +5430,15 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 </span>
               )}
             </span>
+            {credits.tier !== 'subscriber' && STRIPE_PAYMENT_LINK && (
+              <>
+                <span className="demo-sep">·</span>
+                <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+                  className="demo-about-btn" style={{color:"var(--fern)",textDecoration:"none"}}>
+                  Subscribe £1.49
+                </a>
+              </>
+            )}
           </>
         )}
         <span className="demo-sep">·</span>
