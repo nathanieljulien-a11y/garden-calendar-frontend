@@ -4079,17 +4079,16 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
   },[city,orientation,apiKey,prefetchMeta,prefetchState]);
 
   // ── Save calendar after each batch loads ────────────────────────────────────
-  // Fires whenever loadedBatches increments (after each 3-month batch completes).
-  // Uses months from state directly — by the time this effect runs, React has
-  // committed the updated months state from the batch.
+  // Fires when stream1Done becomes true (first batch) or loadedBatches increments.
+  // saveCurrentGarden is NOT in the deps — intentionally called with current months snapshot.
   useEffect(() => {
-    if (!stream1Done && loadedBatches <= 1) return; // skip during initial generation setup
-    if (Object.keys(months).length === 0) return; // nothing to save
+    if (!stream1Done) return; // only save once first batch is fully done
+    if (Object.keys(months).length === 0) return;
     const hasDone = Object.values(months).some(m => m?._state === 'done');
     if (!hasDone) return;
     saveCurrentGarden(months);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadedBatches]);
+  }, [stream1Done, loadedBatches]);
 
   // ── About tab — auto-fetch climate + insights ───────────────────────────────
   useEffect(() => {
@@ -4143,6 +4142,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     setStage("calendar");
     setError("");
     setS1Done(false); setActiveMonth(null);
+    setLoadedBatches(1); // reset batch counter — may have been set to 4 by savedMonths restore
     unlockedPages.current = new Set();
     userNavigatedRef.current = false;
     setInspos({}); setInsights({state:"idle", items:[]}); setLensData({}); setLensStates({}); setPlantTraits(p => p); // preserve plantTraits across regenerations
