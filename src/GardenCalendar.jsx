@@ -5000,9 +5000,12 @@ Return tasks for: ${batch.join(', ')}`;
         setMonths(g.savedMonths);
         setS1Done(true);
         setLoadedBatches(4); // mark all batches as loaded so lenses/insights unlock
+        setShowArrow(true);  // show navigation arrow so user can scroll all 12 months
+        setPageIdx(0);       // start at first month (current month area)
       } else {
         setS1Done(false);
         setMonths({});
+        setShowArrow(false);
       }
       setActiveMonth(null);
       setActiveTab("calendar");
@@ -6494,7 +6497,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
             {/* Insights & Year-round interest — see About tab */}
             {stream1Done && (
               <div style={{textAlign:"center",margin:"1rem 0",fontSize:".82rem",color:"var(--sage)",fontStyle:"italic"}}>
-                💡 Insights and year-round interest are in the <button onClick={() => handleTabChange("about")} style={{background:"none",border:"none",color:"var(--straw)",cursor:"pointer",fontFamily:"'Crimson Pro',serif",fontSize:".82rem",fontStyle:"italic",padding:0,textDecoration:"underline"}}>About tab</button>
+                💡 Insights and year-round interest are in the <button onClick={() => handleTabChange("about")} style={{background:"none",border:"none",color:"var(--straw)",cursor:"pointer",fontFamily:"'Crimson Pro',serif",fontSize:".82rem",fontStyle:"italic",padding:0,textDecoration:"underline"}}>Insights tab</button>
               </div>
             )}
 
