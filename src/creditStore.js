@@ -254,6 +254,8 @@ export function initFromUrl() {
     const ref    = params.get('ref');
     if (token && ref === 'print') {
       saveToken(token, 'print');
+    } else if (token && ref === 'subscriber') {
+      saveToken(token, 'subscriber');
     }
   } catch {}
 }
