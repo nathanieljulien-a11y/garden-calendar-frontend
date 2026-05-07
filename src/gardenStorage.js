@@ -139,6 +139,9 @@ export function createGardenObject(overrides = {}) {
     lng:          overrides.lng          ?? null,
     climateData:  overrides.climateData  ?? null,
     encoded:      overrides.encoded      ?? null,          // legacy hash preserved
+    calendarTasks:overrides.calendarTasks ?? null,         // task data for Today view
+    plantTraits:  overrides.plantTraits  ?? null,          // GBIF/OpenFarm trait data
+    savedMonths:  overrides.savedMonths  ?? null,          // stripped months state for calendar restore
     createdAt:    overrides.createdAt    || now,
     lastAccessed: overrides.lastAccessed || now,
   };
