@@ -4083,7 +4083,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
   // Uses months from state directly — by the time this effect runs, React has
   // committed the updated months state from the batch.
   useEffect(() => {
-    if (!s1Done && loadedBatches <= 1) return; // skip during initial generation setup
+    if (!stream1Done && loadedBatches <= 1) return; // skip during initial generation setup
     if (Object.keys(months).length === 0) return; // nothing to save
     const hasDone = Object.values(months).some(m => m?._state === 'done');
     if (!hasDone) return;
