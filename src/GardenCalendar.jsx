@@ -5672,187 +5672,82 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 )}
               </div>
             ))}
+
+            {STRIPE_PAYMENT_LINK && credits?.tier !== 'subscriber' && (
+              <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+                style={{display:"block",marginTop:".5rem",padding:".85rem 1rem",background:"rgba(92,122,74,.2)",border:"1px solid rgba(92,122,74,.5)",borderRadius:"2px",color:"var(--fern)",textDecoration:"none",textAlign:"center",fontFamily:"'Playfair Display',serif",fontSize:"1rem",fontStyle:"italic",letterSpacing:".02em",transition:"background .2s"}}
+                onClick={() => trackEvent('upsell_clicked', { trigger: 'tiers' })}>
+                Become a Clockwatcher — £1.49 for 6 months →
+              </a>
+            )}
           </div>
         </div>
       )}
 
       {/* ── Settings modal ── */}
-      {showSettings && (() => {
-        const isOwn = provider !== "proxy";
-        const pct = usage ? Math.round((usage.count / usage.cap) * 100) : 0;
-        const fillCls = pct >= 90 ? "full" : pct >= 70 ? "warn" : "";
-        const providerLabel = provider === "gemini" ? "Gemini" : provider === "claude" ? "Claude" : "Shared";
-        const keyPlaceholder = provider === "gemini" ? "AIza…" : "sk-ant-…";
-        const keyLink = provider === "gemini"
-          ? "https://aistudio.google.com/app/apikey"
-          : "https://console.anthropic.com/";
+      {showSettings && (
+        <div className="settings-overlay" onClick={e => { if (e.target === e.currentTarget) setShowSettings(false); }}>
+          <div className="settings-modal">
+            <button className="settings-close" onClick={() => setShowSettings(false)}>×</button>
+            <h2>⚙ Settings</h2>
 
-        return (
-          <div className="settings-overlay" onClick={e => { if (e.target === e.currentTarget) setShowSettings(false); }}>
-            <div className="settings-modal">
-              <button className="settings-close" onClick={() => setShowSettings(false)}>×</button>
-              <h2>⚙ Settings</h2>
-
-              <h3>AI provider</h3>
-              <p>Use the shared demo (rate-limited) or connect your own API key for unlimited access.</p>
-              <div className="provider-tabs">
-                {[["proxy","🌿 Shared demo"],["claude","Claude (Anthropic)"],["gemini","Gemini (Google)"]].map(([p, label]) => (
-                  <button key={p} className={`provider-tab${provider === p ? " active" : ""}`}
-                    onClick={() => { setProvider(p); setKeyDraft(""); }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {provider === "proxy" && (
-                <>
-                  <h3>Daily usage</h3>
-                  {usage ? (
-                    <div className="usage-bar-wrap">
-                      <div className="usage-bar-label">
-                        <span>Shared pool today</span>
-                        <span>{usage.count} / {usage.cap}</span>
-                      </div>
-                      <div className="usage-bar-track">
-                        <div className={`usage-bar-fill ${fillCls}`} style={{width: `${Math.min(pct,100)}%`}}/>
-                      </div>
-                      {usage.ipCap != null && (
-                        <>
-                          <div className="usage-bar-label" style={{marginTop:".5rem"}}>
-                            <span>Your generations today</span>
-                            <span>{usage.ipCount ?? 0} / {usage.ipCap}</span>
-                          </div>
-                          <div className="usage-bar-track">
-                            <div className={`usage-bar-fill ${(usage.ipCount ?? 0) >= usage.ipCap ? "full" : (usage.ipCount ?? 0) >= usage.ipCap * 0.7 ? "warn" : ""}`}
-                              style={{width: `${Math.min(((usage.ipCount ?? 0)/usage.ipCap)*100, 100)}%`}}/>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <p style={{opacity:.6,fontStyle:"italic",fontSize:".85rem"}}>Loading usage data…</p>
-                  )}
-                  <p style={{fontSize:".8rem",color:"var(--sage)"}}>
-                    The shared demo has a daily generation cap to keep it free for everyone.
-                    Connect your own API key above for unlimited use.
-                  </p>
-                </>
-              )}
-
-              {provider !== "proxy" && (
-                <>
-                  <h3>Your {providerLabel} API key</h3>
-                  <div className="key-field">
-                    <label>{providerLabel} API key</label>
-                    <input
-                      type="password"
-                      value={keyDraft || (userKey && provider === provider ? "••••••••••••••" : "")}
-                      onChange={e => setKeyDraft(e.target.value)}
-                      placeholder={keyPlaceholder}
-                      onFocus={e => { if (!keyDraft) setKeyDraft(""); }}
-                    />
-                  </div>
-                  <p className="key-note">
-                    Your key is stored only in your browser and never sent to our servers.{" "}
-                    <a href={keyLink} target="_blank" rel="noopener">Get a key →</a>
-                  </p>
-                  {provider === "gemini" && (
-                    <p className="key-note" style={{marginTop:".35rem"}}>
-                      We'll automatically detect the best available model on your account.
-                      Free tier availability varies by region —{" "}
-                      <a href="https://aistudio.google.com/spend" target="_blank" rel="noopener">check spend limits</a>{" "}
-                      if you hit quota errors.
-                    </p>
-                  )}
-                  {keyError && (
-                    <p style={{fontSize:".82rem",color:"var(--bloom)",marginTop:".5rem",lineHeight:"1.5"}}>
-                      ⚠ {keyError}
-                    </p>
-                  )}
-                  {provider === "gemini" && userKey && !keyDraft && geminiModel && (
-                    <p className="key-note" style={{marginTop:".35rem",color:"var(--fern)"}}>
-                      ✓ Using <strong>{geminiModel}</strong>
-                    </p>
-                  )}
-                  <button
-                    className="save-key-btn"
-                    disabled={keyVerifying}
-                    onClick={() => {
-                      const k = keyDraft.trim() || userKey;
-                      saveProviderSettings(provider, k);
-                    }}>
-                    {keyVerifying ? "Checking your account…" : `Save & use ${providerLabel}`}
-                  </button>
-                </>
-              )}
-
-              {provider === "proxy" && (
-                <button className="save-key-btn" onClick={() => saveProviderSettings("proxy", "")}>
-                  Continue with shared demo
-                </button>
-              )}
-
-              {/* ── B5: Subscription code entry ── */}
-              <div className="sub-code-section">
-                <h3>Subscription code</h3>
-                <p style={{fontSize:".83rem",color:"var(--sage)",lineHeight:"1.5"}}>
-                  Have a wall calendar or subscription code? Enter it here to unlock your credits.
-                </p>
-                {subCodeState === 'ok' ? (
-                  <p style={{fontSize:".85rem",color:"var(--fern)",marginTop:".5rem"}}>
-                    ✓ {subCodeMsg}
-                  </p>
-                ) : (
-                  <>
-                    <input
-                      className="sub-code-input"
-                      type="text"
-                      placeholder="Paste your code here…"
-                      value={subCodeDraft}
-                      onChange={e => { setSubCodeDraft(e.target.value); setSubCodeState('idle'); setSubCodeMsg(''); }}
-                    />
-                    {subCodeState === 'error' && (
-                      <p style={{fontSize:".82rem",color:"var(--bloom)",margin:".25rem 0 .5rem"}}>⚠ {subCodeMsg}</p>
-                    )}
-                    <button
-                      className="sub-code-btn"
-                      disabled={!subCodeDraft.trim() || subCodeState === 'checking'}
-                      onClick={async () => {
-                        const t = subCodeDraft.trim();
-                        if (!t) return;
-                        setSubCodeState('checking');
-                        setSubCodeMsg('');
-                        try {
-                          const res  = await fetch(`${PROXY_BASE}/api/credits/${encodeURIComponent(t)}`);
-                          const data = await res.json();
-                          if (data.ok) {
-                            const type = data.plan === 'subscriber_6mo' ? 'subscriber' : 'print';
-                            saveToken(t, type);
-                            const fresh = await loadCredits(PROXY_BASE);
-                            setCredits(fresh);
-                            setSubCodeState('ok');
-                            setSubCodeMsg(`${type === 'subscriber' ? 'Clockwatcher' : 'Friend'} account activated — ${fresh.remaining.gen} calendar${fresh.remaining.gen !== 1 ? 's' : ''} and ${fresh.remaining.week} weekly credits remaining.`);
-                            setSubCodeDraft('');
-                            const expiry = data.expiresAt ? Math.round((new Date(data.expiresAt) - Date.now()) / 86400000) : null;
-                            trackEvent('token_validated', { plan: data.plan, daysRemaining: expiry });
-                          } else {
-                            setSubCodeState('error');
-                            setSubCodeMsg(data.reason === 'token_expired' ? 'This code has expired.' : 'Code not recognised — check for typos.');
-                          }
-                        } catch {
-                          setSubCodeState('error');
-                          setSubCodeMsg('Could not reach the server — try again shortly.');
-                        }
-                      }}>
-                      {subCodeState === 'checking' ? 'Checking…' : 'Activate code'}
-                    </button>
-                  </>
+            <h3>Activate a code</h3>
+            <p style={{fontSize:".83rem",color:"var(--sage)",lineHeight:"1.5"}}>
+              Have a wall calendar or Clockwatcher subscription code? Enter it here to unlock your credits.
+            </p>
+            {subCodeState === 'ok' ? (
+              <p style={{fontSize:".85rem",color:"var(--fern)",marginTop:".5rem"}}>
+                ✓ {subCodeMsg}
+              </p>
+            ) : (
+              <>
+                <input
+                  className="sub-code-input"
+                  type="text"
+                  placeholder="Paste your code here…"
+                  value={subCodeDraft}
+                  onChange={e => { setSubCodeDraft(e.target.value); setSubCodeState('idle'); setSubCodeMsg(''); }}
+                />
+                {subCodeState === 'error' && (
+                  <p style={{fontSize:".82rem",color:"var(--bloom)",margin:".25rem 0 .5rem"}}>⚠ {subCodeMsg}</p>
                 )}
-              </div>
-            </div>
+                <button
+                  className="sub-code-btn"
+                  disabled={!subCodeDraft.trim() || subCodeState === 'checking'}
+                  onClick={async () => {
+                    const t = subCodeDraft.trim();
+                    if (!t) return;
+                    setSubCodeState('checking');
+                    setSubCodeMsg('');
+                    try {
+                      const res  = await fetch(`${PROXY_BASE}/api/credits/${encodeURIComponent(t)}`);
+                      const data = await res.json();
+                      if (data.ok) {
+                        const type = data.plan === 'subscriber_6mo' ? 'subscriber' : 'print';
+                        saveToken(t, type);
+                        const fresh = await loadCredits(PROXY_BASE);
+                        setCredits(fresh);
+                        setSubCodeState('ok');
+                        setSubCodeMsg(`${type === 'subscriber' ? 'Clockwatcher' : 'Friend'} account activated — ${fresh.remaining.gen} calendar${fresh.remaining.gen !== 1 ? 's' : ''} and ${fresh.remaining.week} weekly credits remaining.`);
+                        setSubCodeDraft('');
+                        const expiry = data.expiresAt ? Math.round((new Date(data.expiresAt) - Date.now()) / 86400000) : null;
+                        trackEvent('token_validated', { plan: data.plan, daysRemaining: expiry });
+                      } else {
+                        setSubCodeState('error');
+                        setSubCodeMsg(data.reason === 'token_expired' ? 'This code has expired.' : 'Code not recognised — check for typos.');
+                      }
+                    } catch {
+                      setSubCodeState('error');
+                      setSubCodeMsg('Could not reach the server — try again shortly.');
+                    }
+                  }}>
+                  {subCodeState === 'checking' ? 'Checking…' : 'Activate code'}
+                </button>
+              </>
+            )}
           </div>
-        );
-      })()}
+        </div>
+      )}
       {showArrow && (
         <button className="float-arrow" onClick={slowScroll} title="Scroll to calendar">
           <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
