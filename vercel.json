@@ -1,6 +1,9 @@
 {
+  "cleanUrls": true,
   "rewrites": [
     { "source": "/garden-eval.html", "destination": "/garden-eval.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/contact", "destination": "/contact.html" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
