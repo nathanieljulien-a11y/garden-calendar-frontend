@@ -5549,8 +5549,9 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               {STRIPE_PAYMENT_LINK && credits && credits.tier !== 'subscriber' && (
                 <a className="hamburger-item accent" href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
                   onClick={() => trackEvent('upsell_clicked', { trigger: 'menu' })}>
-                  {/* Replace 🕰 with <img src="/clockwatcher-icon.png" ...> once icon is in public/ */}
-                  <span className="hamburger-item-icon">🕰</span> Become a Clockwatcher
+                  <span className="hamburger-item-icon">
+                    <img src="/logo_no_text.png" alt="" style={{height:"16px",width:"auto",verticalAlign:"middle",opacity:.85}} onError={e => { e.target.style.display="none"; e.target.insertAdjacentText('afterend','🕰'); }} />
+                  </span> Become a Clockwatcher
                 </a>
               )}
             </nav>
