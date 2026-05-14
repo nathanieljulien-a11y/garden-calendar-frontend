@@ -41,7 +41,32 @@ const styles = `
   h1 em { color:var(--straw); font-style:italic; }
   .subtitle { font-size:1rem; color:var(--sage); margin-top:.6rem; font-style:italic; font-weight:300; }
 
-  .demo-banner { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:.4rem .75rem; padding:.55rem 1.5rem; background:rgba(30,18,8,.85); border-bottom:1px solid rgba(200,169,110,.18); font-size:.78rem; color:var(--sage); position:sticky; top:0; z-index:100; backdrop-filter:blur(6px); }
+  /* ── Persistent app header ── */
+  .app-header { display:flex; align-items:center; justify-content:space-between; padding:.65rem 1.25rem .6rem; background:rgba(20,12,4,.97); border-bottom:1px solid rgba(200,169,110,.18); position:sticky; top:0; z-index:200; backdrop-filter:blur(10px); }
+  .app-header-title { display:flex; flex-direction:column; gap:.05rem; }
+  .app-header-title-main { font-family:'Playfair Display',serif; font-size:1.05rem; font-weight:400; color:var(--cream); letter-spacing:.02em; line-height:1.15; }
+  .app-header-title-sub  { font-size:.62rem; color:var(--sage); letter-spacing:.09em; text-transform:uppercase; opacity:.75; line-height:1; }
+  .app-header-right { display:flex; align-items:center; gap:.5rem; }
+  .hamburger-btn { background:none; border:1px solid rgba(200,169,110,.22); border-radius:2px; color:var(--sage); padding:.3rem .55rem; cursor:pointer; font-size:.9rem; line-height:1; transition:all .15s; }
+  .hamburger-btn:hover { border-color:rgba(200,169,110,.5); color:var(--cream); }
+
+  /* ── Hamburger dropdown menu ── */
+  .hamburger-menu-overlay { position:fixed; inset:0; z-index:300; }
+  .hamburger-menu { position:fixed; top:0; right:0; bottom:0; width:min(280px, 88vw); background:#1E1008; border-left:1px solid rgba(200,169,110,.2); z-index:400; display:flex; flex-direction:column; animation:slideInRight .2s ease; box-shadow:-8px 0 32px rgba(0,0,0,.5); }
+  @keyframes slideInRight { from{transform:translateX(100%)} to{transform:translateX(0)} }
+  .hamburger-menu-head { padding:1.1rem 1.25rem .9rem; border-bottom:1px solid rgba(200,169,110,.12); display:flex; align-items:center; justify-content:space-between; }
+  .hamburger-menu-brand { font-family:'Playfair Display',serif; font-size:.88rem; color:var(--straw); font-weight:400; letter-spacing:.02em; }
+  .hamburger-close { background:none; border:none; color:var(--sage); font-size:1.3rem; cursor:pointer; line-height:1; padding:.1rem; }
+  .hamburger-close:hover { color:var(--cream); }
+  .hamburger-nav { flex:1; overflow-y:auto; padding:.5rem 0; }
+  .hamburger-item { display:block; width:100%; background:none; border:none; text-align:left; padding:.8rem 1.25rem; font-family:'Crimson Pro',serif; font-size:.95rem; color:var(--sage); cursor:pointer; transition:all .15s; border-bottom:1px solid rgba(200,169,110,.05); text-decoration:none; }
+  .hamburger-item:hover { background:rgba(200,169,110,.06); color:var(--cream); }
+  .hamburger-item.accent { color:var(--fern); }
+  .hamburger-item.accent:hover { color:#8fcca0; }
+  .hamburger-item-icon { display:inline-block; width:1.4rem; opacity:.7; }
+  .hamburger-footer { padding:.9rem 1.25rem; border-top:1px solid rgba(200,169,110,.1); font-size:.72rem; color:rgba(122,140,106,.5); font-style:italic; }
+
+  .demo-banner { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:.4rem .75rem; padding:.45rem 1.25rem; background:rgba(24,14,6,.9); border-bottom:1px solid rgba(200,169,110,.1); font-size:.78rem; color:var(--sage); }
   .credit-badge { display:inline-flex; align-items:center; gap:.35rem; font-size:.75rem; color:var(--sage); }
   .credit-badge-tier { font-size:.68rem; padding:.15rem .45rem; border-radius:2px; font-weight:500; letter-spacing:.04em; text-transform:uppercase; }
   .credit-badge-tier.free { background:rgba(200,169,110,.12); color:var(--muted); }
@@ -3065,7 +3090,7 @@ function InsightsPanel({insights, plantMeta, onFetch, hasPlants, stream1Done, lo
         {isPrint && !trialAvailable && !open && (
           <span style={{fontSize:".78rem",color:"var(--muted)"}}>
             {canUnlock
-              ? <span style={{fontStyle:"italic"}}>Unlock after 3 weekly uses · {STRIPE_PAYMENT_LINK && <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer" style={{color:"var(--fern)",textDecoration:"underline"}}>Subscribe for full access</a>}{!STRIPE_PAYMENT_LINK && "Subscribe for full access"}</span>
+              ? <span style={{fontStyle:"italic"}}>Unlock after 3 weekly uses · {STRIPE_PAYMENT_LINK && <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer" style={{color:"var(--fern)",textDecoration:"underline"}}>Become a Clockwatcher for full access</a>}{!STRIPE_PAYMENT_LINK && "Become a Clockwatcher for full access"}</span>
               : <span style={{fontStyle:"italic"}}>Available after full year generated</span>}
           </span>
         )}
@@ -3528,7 +3553,7 @@ function LensCalendars({ plants, plantTraits, lensData, lensStates, onFetchLens,
         {/* Print — not yet available or trial used */}
         {isPrint && !trialAvailable && !open && (
           <span style={{fontSize:".78rem",color:"var(--muted)",fontStyle:"italic"}}>
-            {canUnlock ? <span>Unlock after 3 weekly uses · {STRIPE_PAYMENT_LINK && <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer" style={{color:"var(--fern)",textDecoration:"underline"}}>Subscribe for full access</a>}{!STRIPE_PAYMENT_LINK && "Subscribe for full access"}</span> : "Available after full year generated"}
+            {canUnlock ? <span>Unlock after 3 weekly uses · {STRIPE_PAYMENT_LINK && <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer" style={{color:"var(--fern)",textDecoration:"underline"}}>Become a Clockwatcher for full access</a>}{!STRIPE_PAYMENT_LINK && "Become a Clockwatcher for full access"}</span> : "Available after full year generated"}
           </span>
         )}
 
@@ -3738,7 +3763,9 @@ const [showHome, setShowHome] = useState(() => {
   const [inatLoading, setInatLoading]                 = useState(false);
   const [inatError, setInatError]                     = useState(null);
   const [linkCopied, setLinkCopied]   = useState(false);
-  const [showAbout, setShowAbout]     = useState(false);
+  const [showAbout, setShowAbout]         = useState(false);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showHamburger, setShowHamburger]   = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
   // AI provider — "proxy" (default, rate-limited) | "claude" | "gemini"
@@ -5456,24 +5483,18 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
 `}</style>
       <CreditWarningModal />
       <div className="grain"/>
-      <div className="demo-banner">
-        <span className="demo-name">NatJulien_Demo</span>
-        <span className="demo-sep">·</span>
-        <span className="demo-tag">AI-powered garden calendar</span>
-        <span className="demo-sep">·</span>
-        <span className="demo-tag">
-          Powered by{" "}
-          {provider === "gemini" ? `Gemini (${geminiModel})` : "Claude"}
-          {provider !== "proxy" && userKey && <span className="provider-badge">own key</span>}
-        </span>
-        <span className="demo-sep">·</span>
-        <button className="demo-about-btn" onClick={() => setShowSettings(true)}>⚙ Settings</button>
-        {credits && (
-          <>
-            <span className="demo-sep">·</span>
+
+      {/* ── Persistent app header ── */}
+      <div className="app-header">
+        <div className="app-header-title">
+          <span className="app-header-title-main">The Garden Calendar</span>
+          <span className="app-header-title-sub">by Clockwatcher Almanacs</span>
+        </div>
+        <div className="app-header-right">
+          {credits && (
             <span className="credit-badge">
               <span className={`credit-badge-tier ${credits.tier}`}>
-                {credits.tier === 'subscriber' ? 'Subscriber' : credits.tier === 'print' ? 'Wall calendar' : 'Free'}
+                {credits.tier === 'subscriber' ? 'Clockwatcher' : credits.tier === 'print' ? 'Friend' : 'Wanderer'}
               </span>
               {credits.tier !== 'subscriber' && credits.remaining && (
                 <span className="credit-badge-count">
@@ -5481,20 +5502,69 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 </span>
               )}
             </span>
-            {credits.tier !== 'subscriber' && STRIPE_PAYMENT_LINK && (
-              <>
-                <span className="demo-sep">·</span>
-                <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                  className="demo-about-btn" style={{color:"var(--fern)",textDecoration:"none"}}
+          )}
+          <button className="hamburger-btn" onClick={() => setShowHamburger(true)} aria-label="Menu">
+            ☰
+          </button>
+        </div>
+      </div>
+
+      {/* ── Hamburger menu ── */}
+      {showHamburger && (
+        <>
+          <div className="hamburger-menu-overlay" onClick={() => setShowHamburger(false)} />
+          <div className="hamburger-menu">
+            <div className="hamburger-menu-head">
+              <span className="hamburger-menu-brand">Clockwatcher Almanacs</span>
+              <button className="hamburger-close" onClick={() => setShowHamburger(false)}>×</button>
+            </div>
+            <nav className="hamburger-nav">
+              <button className="hamburger-item" onClick={() => { setShowAbout(true); setShowHamburger(false); }}>
+                <span className="hamburger-item-icon">✦</span> About
+              </button>
+              <button className="hamburger-item" onClick={() => { setShowHowItWorks(true); setShowHamburger(false); }}>
+                <span className="hamburger-item-icon">🌿</span> How it works
+              </button>
+              <button className="hamburger-item" onClick={() => { setShowSettings(true); setShowHamburger(false); }}>
+                <span className="hamburger-item-icon">⚙</span> Settings
+              </button>
+              <a className="hamburger-item" href="/contact" target="_blank" rel="noopener">
+                <span className="hamburger-item-icon">✉</span> Contact &amp; feedback
+              </a>
+              <a className="hamburger-item" href="/privacy" target="_blank" rel="noopener">
+                <span className="hamburger-item-icon">🔒</span> Privacy
+              </a>
+              {STRIPE_PAYMENT_LINK && credits && credits.tier !== 'subscriber' && (
+                <a className="hamburger-item accent" href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
                   onClick={() => trackEvent('upsell_clicked', { trigger: 'banner' })}>
-                  Subscribe £1.49
+                  <span className="hamburger-item-icon">🕰</span> Become a Clockwatcher
                 </a>
-              </>
-            )}
+              )}
+            </nav>
+            <div className="hamburger-footer">Take your time. Before somebody else does.</div>
+          </div>
+        </>
+      )}
+
+      {/* ── Credit / subscribe banner ── */}
+      <div className="demo-banner">
+        <span className="demo-tag">AI-powered garden calendar</span>
+        <span className="demo-sep">·</span>
+        <span className="demo-tag">
+          Powered by{" "}
+          {provider === "gemini" ? `Gemini (${geminiModel})` : "Claude"}
+          {provider !== "proxy" && userKey && <span className="provider-badge">own key</span>}
+        </span>
+        {credits && credits.tier !== 'subscriber' && STRIPE_PAYMENT_LINK && (
+          <>
+            <span className="demo-sep">·</span>
+            <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+              className="demo-about-btn" style={{color:"var(--fern)",textDecoration:"none"}}
+              onClick={() => trackEvent('upsell_clicked', { trigger: 'banner' })}>
+              Become a Clockwatcher £1.49
+            </a>
           </>
         )}
-        <span className="demo-sep">·</span>
-        <button className="demo-about-btn" onClick={() => setShowAbout(true)}>About</button>
       </div>
 
       {/* ── About modal ── */}
@@ -5502,29 +5572,62 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         <div className="about-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAbout(false); }}>
           <div className="about-modal">
             <button className="about-close" onClick={() => setShowAbout(false)}>×</button>
-            <h2>🌿 About this Garden Calendar</h2>
+            <h2>Clockwatcher Almanacs</h2>
 
-            <p>Thanks for trying out The Garden Calendar web app by HobbyCalendar. This started as a personal learning project — exploring how to build with AI and how to use it inside a data and insights product in a controlled way that defers to trusted data sources. It's freely available with usage limits, or you can bring your own API key. For regular use, you can subscribe for a usage bundle.</p>
+            <p style={{fontFamily:"'Playfair Display',serif",fontStyle:"italic",fontSize:"1rem",lineHeight:"1.75",color:"var(--cream)",marginBottom:"1.25rem"}}>
+              We are the Clockwatchers. Always on time. Planning ahead. Keeping the show on the road. Dotting the i's and crossing the t's. Tipping the scales, when needed. To make sure everything is lined up for that perfect outcome. And when the job is done, moving to the next thing, no less important. Time off. Well earned.
+            </p>
 
-            <h3>How it works</h3>
-            <p>When you enter your location, the app fetches measured climate data for your exact coordinates — monthly temperatures, rainfall, frost dates, and sunshine hours — from Open-Meteo's ERA5 reanalysis archive. This grounds everything that follows: frost date advice, hardiness warnings, and sowing windows come from real measurements, not assumptions.</p>
+            <p style={{fontFamily:"'Playfair Display',serif",fontStyle:"italic",fontSize:".95rem",color:"var(--straw)",marginBottom:"1.5rem",letterSpacing:".02em"}}>
+              Take your time. Before somebody else does.
+            </p>
+
+            <p>At Clockwatcher Almanacs, we advocate for Me time, Us time, Hobby time. We design personalised calendars and web apps around the interests and pursuits that define how we want to spend and balance our lives.</p>
+
+            <p className="about-note">This project is not affiliated with any of the data organisations cited in How it works. All data sources are used in accordance with their respective open licences.</p>
+            <p style={{marginTop:"1.25rem",fontSize:".82rem",color:"var(--muted)"}}>
+              <button className="demo-about-btn" style={{background:"none",border:"none",padding:0,color:"var(--dew)",cursor:"pointer",fontFamily:"'Crimson Pro',serif",fontSize:".82rem",textDecoration:"underline"}}
+                onClick={() => { setShowAbout(false); setShowHowItWorks(true); }}>How it works →</button>
+              <span style={{margin:"0 .5rem",opacity:.4}}>·</span>
+              <a href="/privacy" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Privacy policy</a>
+              <span style={{margin:"0 .5rem",opacity:.4}}>·</span>
+              <a href="/contact" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Contact &amp; feedback</a>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── How it works modal ── */}
+      {showHowItWorks && (
+        <div className="about-overlay" onClick={e => { if (e.target === e.currentTarget) setShowHowItWorks(false); }}>
+          <div className="about-modal">
+            <button className="about-close" onClick={() => setShowHowItWorks(false)}>×</button>
+            <h2>🌿 How it works</h2>
+
+            <p>Your calendar is generated by Claude (Anthropic's AI), personalised to your specific location and the plants you choose. No two calendars are the same.</p>
+
+            <h3>Climate data</h3>
+            <p>When you enter your location, the app fetches measured climate data for your exact coordinates — monthly average temperatures, rainfall, frost dates, and daylight hours — from Visual Crossing's weather archive. This grounds everything that follows: frost date advice, hardiness warnings, and sowing windows come from real measurements, not assumptions.</p>
+
+            <h3>Plant knowledge</h3>
             <p>Your plant names are validated against the Global Biodiversity Information Facility (GBIF), which draws on the World Checklist of Vascular Plants maintained by the Royal Botanic Gardens, Kew. The app also checks how many times each plant has been recorded growing near your location, flagging anything that looks climatically marginal.</p>
-            <p>For vegetables and herbs, sowing and harvest timing is grounded in <a href="https://openfarm.cc" target="_blank" rel="noopener">OpenFarm</a> — an open, community-maintained database of growing guides. Where OpenFarm has data for a plant, those sowing windows are passed directly to Claude alongside your local frost dates, so the calendar reflects real cultivation knowledge rather than a general guess.</p>
-            <p>Claude (Anthropic's AI) then acts as a synthesiser — applying horticultural knowledge to that grounded data to write your calendar tasks, enjoyment observations, and garden visit suggestions. The growing advice reflects general horticultural practice; for timing specific to your region, the RHS, Cooperative Extension, or your national horticultural society will always be the better authority.</p>
+            <p>For vegetables and herbs, sowing and harvest timing is grounded in <a href="https://openfarm.cc" target="_blank" rel="noopener">OpenFarm</a> — an open, community-maintained database of growing guides.</p>
 
             <h3>Sources &amp; licences</h3>
             <ul className="about-sources">
-              <li><span className="src-dot">◆</span><span><strong>Climate data:</strong> Open-Meteo / ERA5 (ECMWF) · CC BY 4.0 · <a href="https://open-meteo.com" target="_blank" rel="noopener">open-meteo.com</a></span></li>
-              <li><span className="src-dot">◆</span><span><strong>Plant names &amp; taxonomy:</strong> GBIF · CC BY 4.0 / CC0 · <a href="https://gbif.org" target="_blank" rel="noopener">gbif.org</a> · underpinned by WCVP (Royal Botanic Gardens, Kew) via <a href="https://powo.science.kew.org" target="_blank" rel="noopener">Plants of the World Online</a></span></li>
-              <li><span className="src-dot">◆</span><span><strong>Sowing &amp; harvest data:</strong> OpenFarm · CC BY · <a href="https://openfarm.cc" target="_blank" rel="noopener">openfarm.cc</a> · community growing guides for vegetables and herbs</span></li>
-              <li><span className="src-dot">◆</span><span><strong>Location data:</strong> OpenStreetMap contributors · ODbL · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">openstreetmap.org</a> · geocoding via Photon (komoot)</span></li>
+              <li><span className="src-dot">◆</span><span><strong>Climate data:</strong> Visual Crossing Weather · Statistical normals · <a href="https://www.visualcrossing.com" target="_blank" rel="noopener">visualcrossing.com</a></span></li>
+              <li><span className="src-dot">◆</span><span><strong>Plant names &amp; taxonomy:</strong> GBIF · CC BY 4.0 / CC0 · <a href="https://gbif.org" target="_blank" rel="noopener">gbif.org</a> · underpinned by WCVP (Royal Botanic Gardens, Kew)</span></li>
+              <li><span className="src-dot">◆</span><span><strong>Sowing &amp; harvest data:</strong> OpenFarm · CC BY · <a href="https://openfarm.cc" target="_blank" rel="noopener">openfarm.cc</a></span></li>
+              <li><span className="src-dot">◆</span><span><strong>Nearby sightings:</strong> iNaturalist · CC BY · <a href="https://inaturalist.org" target="_blank" rel="noopener">inaturalist.org</a></span></li>
+              <li><span className="src-dot">◆</span><span><strong>Garden photos:</strong> Wikipedia / Wikimedia Commons · CC licences · <a href="https://wikipedia.org" target="_blank" rel="noopener">wikipedia.org</a></span></li>
+              <li><span className="src-dot">◆</span><span><strong>Location data:</strong> OpenStreetMap contributors · ODbL · geocoding via Photon (komoot)</span></li>
               <li><span className="src-dot">◆</span><span><strong>AI:</strong> Claude by Anthropic · <a href="https://anthropic.com" target="_blank" rel="noopener">anthropic.com</a></span></li>
             </ul>
 
             <h3>A note on accuracy</h3>
-            <p>Claude is knowledgeable but not infallible. Garden visit suggestions are based on training knowledge and should be verified on the garden's own website before you travel. Sowing windows are approximate — your microclimate, soil, and variety will always matter more than any generalisation. If something looks wrong, trust your experience and your local nursery.</p>
+            <p>Claude is knowledgeable but not infallible. Garden visit suggestions should be verified on the garden's own website before you travel. Sowing windows are approximate — your microclimate, soil, and variety will always matter more than any generalisation. If something looks wrong, trust your experience and your local nursery.</p>
 
-            <p className="about-note">This project is not affiliated with any of the organisations listed above. All data sources are used in accordance with their respective open licences.</p>
+            <p className="about-note">Growing advice reflects general horticultural practice. For timing specific to your region, the RHS, Cooperative Extension, or your national horticultural society will always be the better authority.</p>
             <p style={{marginTop:"1.25rem",fontSize:".82rem",color:"var(--muted)"}}>
               <a href="/privacy" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Privacy policy</a>
               <span style={{margin:"0 .5rem",opacity:.4}}>·</span>
@@ -5689,7 +5792,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                             const fresh = await loadCredits(PROXY_BASE);
                             setCredits(fresh);
                             setSubCodeState('ok');
-                            setSubCodeMsg(`${type === 'subscriber' ? 'Subscriber' : 'Wall calendar'} account activated — ${fresh.remaining.gen} calendar${fresh.remaining.gen !== 1 ? 's' : ''} and ${fresh.remaining.week} weekly credits remaining.`);
+                            setSubCodeMsg(`${type === 'subscriber' ? 'Clockwatcher' : 'Friend'} account activated — ${fresh.remaining.gen} calendar${fresh.remaining.gen !== 1 ? 's' : ''} and ${fresh.remaining.week} weekly credits remaining.`);
                             setSubCodeDraft('');
                             const expiry = data.expiresAt ? Math.round((new Date(data.expiresAt) - Date.now()) / 86400000) : null;
                             trackEvent('token_validated', { plan: data.plan, daysRemaining: expiry });
