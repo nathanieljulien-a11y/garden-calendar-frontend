@@ -5491,19 +5491,8 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
       {/* ── Persistent app header ── */}
       <div className="app-header">
         <div className="app-header-title">
-          <img
-            src="/logo_with_text.png"
-            alt="The Garden Calendar by Clockwatcher Almanacs"
-            style={{height:"32px",width:"auto",display:"block"}}
-            onError={e => {
-              e.target.style.display = "none";
-              e.target.nextSibling.style.display = "flex";
-            }}
-          />
-          <div style={{display:"none",flexDirection:"column",gap:".05rem"}}>
-            <span className="app-header-title-main">The Garden Calendar</span>
-            <span className="app-header-title-sub">by Clockwatcher Almanacs</span>
-          </div>
+          <span className="app-header-title-main">The Garden Calendar</span>
+          <span className="app-header-title-sub">by Clockwatcher Almanacs</span>
         </div>
         <div className="app-header-right">
           {credits && (
@@ -5532,7 +5521,10 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
           <div className="hamburger-menu-overlay" onClick={() => setShowHamburger(false)} />
           <div className="hamburger-menu">
             <div className="hamburger-menu-head">
-              <span className="hamburger-menu-brand">Clockwatcher Almanacs</span>
+              <div style={{display:"flex",alignItems:"center",gap:".6rem"}}>
+                <img src="/logo_no_text.png" alt="" style={{height:"28px",width:"auto",display:"block"}} onError={e => e.target.style.display="none"} />
+                <span className="hamburger-menu-brand">Clockwatcher Almanacs</span>
+              </div>
               <button className="hamburger-close" onClick={() => setShowHamburger(false)}>×</button>
             </div>
             <nav className="hamburger-nav">
@@ -5562,10 +5554,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 </a>
               )}
             </nav>
-            <div className="hamburger-footer">
-              <img src="/logo_no_text.png" alt="Clockwatcher Almanacs" style={{height:"28px",width:"auto",opacity:.55,marginBottom:".4rem",display:"block"}} onError={e => e.target.style.display="none"} />
-              Take your time. Before somebody else does.
-            </div>
+            <div className="hamburger-footer">Take your time. Before somebody else does.</div>
           </div>
         </>
       )}
