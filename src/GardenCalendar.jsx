@@ -3766,6 +3766,7 @@ const [showHome, setShowHome] = useState(() => {
   const [showAbout, setShowAbout]         = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showHamburger, setShowHamburger]   = useState(false);
+  const [showUsageTiers, setShowUsageTiers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
   // AI provider — "proxy" (default, rate-limited) | "claude" | "gemini"
@@ -5492,7 +5493,9 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         </div>
         <div className="app-header-right">
           {credits && (
-            <span className="credit-badge">
+            <button className="credit-badge" style={{background:"none",border:"none",cursor:"pointer",padding:0}}
+              onClick={() => { setShowUsageTiers(true); setShowHamburger(true); }}
+              title="View usage tiers">
               <span className={`credit-badge-tier ${credits.tier}`}>
                 {credits.tier === 'subscriber' ? 'Clockwatcher' : credits.tier === 'print' ? 'Friend' : 'Wanderer'}
               </span>
@@ -5501,7 +5504,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                   {credits.remaining.gen}🗓 {credits.remaining.week}📋
                 </span>
               )}
-            </span>
+            </button>
           )}
           <button className="hamburger-btn" onClick={() => setShowHamburger(true)} aria-label="Menu">
             ☰
@@ -5519,11 +5522,14 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               <button className="hamburger-close" onClick={() => setShowHamburger(false)}>×</button>
             </div>
             <nav className="hamburger-nav">
-              <button className="hamburger-item" onClick={() => { setShowAbout(true); setShowHamburger(false); }}>
+              <button className="hamburger-item" onClick={() => setShowAbout(true)}>
                 <span className="hamburger-item-icon">✦</span> About
               </button>
-              <button className="hamburger-item" onClick={() => { setShowHowItWorks(true); setShowHamburger(false); }}>
+              <button className="hamburger-item" onClick={() => setShowHowItWorks(true)}>
                 <span className="hamburger-item-icon">🌿</span> How it works
+              </button>
+              <button className="hamburger-item" onClick={() => setShowUsageTiers(true)}>
+                <span className="hamburger-item-icon">🌱</span> Usage tiers
               </button>
               <button className="hamburger-item" onClick={() => { setShowSettings(true); setShowHamburger(false); }}>
                 <span className="hamburger-item-icon">⚙</span> Settings
@@ -5536,7 +5542,8 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               </a>
               {STRIPE_PAYMENT_LINK && credits && credits.tier !== 'subscriber' && (
                 <a className="hamburger-item accent" href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                  onClick={() => trackEvent('upsell_clicked', { trigger: 'banner' })}>
+                  onClick={() => trackEvent('upsell_clicked', { trigger: 'menu' })}>
+                  {/* Replace 🕰 with <img src="/clockwatcher-icon.png" ...> once icon is in public/ */}
                   <span className="hamburger-item-icon">🕰</span> Become a Clockwatcher
                 </a>
               )}
@@ -5546,32 +5553,11 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         </>
       )}
 
-      {/* ── Credit / subscribe banner ── */}
-      <div className="demo-banner">
-        <span className="demo-tag">AI-powered garden calendar</span>
-        <span className="demo-sep">·</span>
-        <span className="demo-tag">
-          Powered by{" "}
-          {provider === "gemini" ? `Gemini (${geminiModel})` : "Claude"}
-          {provider !== "proxy" && userKey && <span className="provider-badge">own key</span>}
-        </span>
-        {credits && credits.tier !== 'subscriber' && STRIPE_PAYMENT_LINK && (
-          <>
-            <span className="demo-sep">·</span>
-            <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-              className="demo-about-btn" style={{color:"var(--fern)",textDecoration:"none"}}
-              onClick={() => trackEvent('upsell_clicked', { trigger: 'banner' })}>
-              Become a Clockwatcher £1.49
-            </a>
-          </>
-        )}
-      </div>
-
-      {/* ── About modal ── */}
+      {/* ── About panel (overlays hamburger — closes back to menu) ── */}
       {showAbout && (
         <div className="about-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAbout(false); }}>
           <div className="about-modal">
-            <button className="about-close" onClick={() => setShowAbout(false)}>×</button>
+            <button className="about-close" onClick={() => setShowAbout(false)}>←</button>
             <h2>Clockwatcher Almanacs</h2>
 
             <p style={{fontFamily:"'Playfair Display',serif",fontStyle:"italic",fontSize:"1rem",lineHeight:"1.75",color:"var(--cream)",marginBottom:"1.25rem"}}>
@@ -5584,30 +5570,30 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
 
             <p>At Clockwatcher Almanacs, we advocate for Me time, Us time, Hobby time. We design personalised calendars and web apps around the interests and pursuits that define how we want to spend and balance our lives.</p>
 
-            <p className="about-note">This project is not affiliated with any of the data organisations cited in How it works. All data sources are used in accordance with their respective open licences.</p>
+            <p className="about-note">Not affiliated with any of the data organisations cited in How it works. All data sources are used in accordance with their respective open licences.</p>
             <p style={{marginTop:"1.25rem",fontSize:".82rem",color:"var(--muted)"}}>
-              <button className="demo-about-btn" style={{background:"none",border:"none",padding:0,color:"var(--dew)",cursor:"pointer",fontFamily:"'Crimson Pro',serif",fontSize:".82rem",textDecoration:"underline"}}
+              <button style={{background:"none",border:"none",padding:0,color:"var(--dew)",cursor:"pointer",fontFamily:"'Crimson Pro',serif",fontSize:".82rem",textDecoration:"underline"}}
                 onClick={() => { setShowAbout(false); setShowHowItWorks(true); }}>How it works →</button>
               <span style={{margin:"0 .5rem",opacity:.4}}>·</span>
-              <a href="/privacy" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Privacy policy</a>
+              <a href="/privacy" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Privacy</a>
               <span style={{margin:"0 .5rem",opacity:.4}}>·</span>
-              <a href="/contact" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Contact &amp; feedback</a>
+              <a href="/contact" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Contact</a>
             </p>
           </div>
         </div>
       )}
 
-      {/* ── How it works modal ── */}
+      {/* ── How it works panel (overlays hamburger — closes back to menu) ── */}
       {showHowItWorks && (
         <div className="about-overlay" onClick={e => { if (e.target === e.currentTarget) setShowHowItWorks(false); }}>
           <div className="about-modal">
-            <button className="about-close" onClick={() => setShowHowItWorks(false)}>×</button>
+            <button className="about-close" onClick={() => setShowHowItWorks(false)}>←</button>
             <h2>🌿 How it works</h2>
 
             <p>Your calendar is generated by Claude (Anthropic's AI), personalised to your specific location and the plants you choose. No two calendars are the same.</p>
 
             <h3>Climate data</h3>
-            <p>When you enter your location, the app fetches measured climate data for your exact coordinates — monthly average temperatures, rainfall, frost dates, and daylight hours — from Visual Crossing's weather archive. This grounds everything that follows: frost date advice, hardiness warnings, and sowing windows come from real measurements, not assumptions.</p>
+            <p>When you enter your location, the app fetches measured climate data for your exact coordinates — monthly average temperatures, rainfall, frost dates, and daylight hours — from Open-Meteo's ERA5 reanalysis archive. This grounds everything that follows: frost date advice, hardiness warnings, and sowing windows come from real measurements, not assumptions.</p>
 
             <h3>Plant knowledge</h3>
             <p>Your plant names are validated against the Global Biodiversity Information Facility (GBIF), which draws on the World Checklist of Vascular Plants maintained by the Royal Botanic Gardens, Kew. The app also checks how many times each plant has been recorded growing near your location, flagging anything that looks climatically marginal.</p>
@@ -5615,24 +5601,77 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
 
             <h3>Sources &amp; licences</h3>
             <ul className="about-sources">
-              <li><span className="src-dot">◆</span><span><strong>Climate data:</strong> Visual Crossing Weather · Statistical normals · <a href="https://www.visualcrossing.com" target="_blank" rel="noopener">visualcrossing.com</a></span></li>
+              <li><span className="src-dot">◆</span><span><strong>Climate data:</strong> Open-Meteo / ERA5 (ECMWF) · CC BY 4.0 · <a href="https://open-meteo.com" target="_blank" rel="noopener">open-meteo.com</a></span></li>
               <li><span className="src-dot">◆</span><span><strong>Plant names &amp; taxonomy:</strong> GBIF · CC BY 4.0 / CC0 · <a href="https://gbif.org" target="_blank" rel="noopener">gbif.org</a> · underpinned by WCVP (Royal Botanic Gardens, Kew)</span></li>
               <li><span className="src-dot">◆</span><span><strong>Sowing &amp; harvest data:</strong> OpenFarm · CC BY · <a href="https://openfarm.cc" target="_blank" rel="noopener">openfarm.cc</a></span></li>
               <li><span className="src-dot">◆</span><span><strong>Nearby sightings:</strong> iNaturalist · CC BY · <a href="https://inaturalist.org" target="_blank" rel="noopener">inaturalist.org</a></span></li>
-              <li><span className="src-dot">◆</span><span><strong>Garden photos:</strong> Wikipedia / Wikimedia Commons · CC licences · <a href="https://wikipedia.org" target="_blank" rel="noopener">wikipedia.org</a></span></li>
+              <li><span className="src-dot">◆</span><span><strong>Garden photos:</strong> Wikipedia / Wikimedia Commons · CC licences</span></li>
               <li><span className="src-dot">◆</span><span><strong>Location data:</strong> OpenStreetMap contributors · ODbL · geocoding via Photon (komoot)</span></li>
               <li><span className="src-dot">◆</span><span><strong>AI:</strong> Claude by Anthropic · <a href="https://anthropic.com" target="_blank" rel="noopener">anthropic.com</a></span></li>
             </ul>
 
             <h3>A note on accuracy</h3>
-            <p>Claude is knowledgeable but not infallible. Garden visit suggestions should be verified on the garden's own website before you travel. Sowing windows are approximate — your microclimate, soil, and variety will always matter more than any generalisation. If something looks wrong, trust your experience and your local nursery.</p>
+            <p>Claude is knowledgeable but not infallible. Garden visit suggestions should be verified on the garden's own website before you travel. Sowing windows are approximate — your microclimate, soil, and variety will always matter more than any generalisation.</p>
 
             <p className="about-note">Growing advice reflects general horticultural practice. For timing specific to your region, the RHS, Cooperative Extension, or your national horticultural society will always be the better authority.</p>
-            <p style={{marginTop:"1.25rem",fontSize:".82rem",color:"var(--muted)"}}>
-              <a href="/privacy" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Privacy policy</a>
-              <span style={{margin:"0 .5rem",opacity:.4}}>·</span>
-              <a href="/contact" style={{color:"var(--sage)"}} target="_blank" rel="noopener">Contact &amp; feedback</a>
-            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Usage tiers panel (overlays hamburger — closes back to menu) ── */}
+      {showUsageTiers && (
+        <div className="about-overlay" onClick={e => { if (e.target === e.currentTarget) setShowUsageTiers(false); }}>
+          <div className="about-modal">
+            <button className="about-close" onClick={() => setShowUsageTiers(false)}>←</button>
+            <h2>🌱 Usage tiers</h2>
+
+            <p style={{marginBottom:"1.5rem"}}>The Garden Calendar has three tiers. All tiers include PDF export, ICS calendar export, the video library, and iNaturalist nearby sightings.</p>
+
+            {[
+              {
+                name: "Wanderer",
+                badge: "free",
+                tag: "Free · web app",
+                desc: "Try the app and see what it can do.",
+                items: ["2 calendar generations (lifetime)", "10 weekly briefings (lifetime)", "Saved calendars in your browser"],
+              },
+              {
+                name: "Friend",
+                badge: "print",
+                tag: "Included with wall calendar purchase",
+                desc: "For customers who bought a printed wall calendar. Scan the QR code on your calendar to activate.",
+                items: ["5 calendar generations", "25 weekly briefings", "Insights unlock after 3 weekly uses", "Credits tracked server-side — scan QR to restore if browser cache cleared"],
+              },
+              {
+                name: "Clockwatcher",
+                badge: "subscriber",
+                tag: "£1.49 · 6 months",
+                desc: "For gardeners who want the full experience.",
+                items: ["5 calendar generations per 6 months", "26 weekly briefings per 6 months", "Garden insights & visual lenses — auto-runs on generation", "Regenerate & edit calendars", "Credits tracked server-side — enter code to restore anywhere"],
+              },
+            ].map(tier => (
+              <div key={tier.name} style={{marginBottom:"1.25rem",padding:"1rem 1.25rem",background:"rgba(30,18,8,.6)",border:"1px solid rgba(200,169,110,.15)",borderRadius:"2px"}}>
+                <div style={{display:"flex",alignItems:"baseline",gap:".6rem",marginBottom:".3rem"}}>
+                  <span style={{fontFamily:"'Playfair Display',serif",fontSize:"1rem",color:"var(--cream)"}}>{tier.name}</span>
+                  <span className={`credit-badge-tier ${tier.badge}`}>{tier.tag}</span>
+                </div>
+                <p style={{fontSize:".85rem",color:"var(--sage)",fontStyle:"italic",margin:".2rem 0 .65rem"}}>{tier.desc}</p>
+                <ul style={{listStyle:"none",display:"flex",flexDirection:"column",gap:".3rem"}}>
+                  {tier.items.map(item => (
+                    <li key={item} style={{fontSize:".85rem",color:"var(--parchment)",display:"flex",gap:".5rem",alignItems:"baseline"}}>
+                      <span style={{color:"var(--straw)",flexShrink:0,fontSize:".6rem",marginTop:".25rem"}}>◆</span>{item}
+                    </li>
+                  ))}
+                </ul>
+                {tier.badge !== 'free' && tier.badge !== 'print' && STRIPE_PAYMENT_LINK && credits?.tier !== 'subscriber' && (
+                  <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+                    style={{display:"inline-block",marginTop:".85rem",fontSize:".82rem",color:"var(--fern)",textDecoration:"none",borderBottom:"1px solid rgba(92,122,74,.4)"}}
+                    onClick={() => trackEvent('upsell_clicked', { trigger: 'tiers' })}>
+                    Become a Clockwatcher →
+                  </a>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
