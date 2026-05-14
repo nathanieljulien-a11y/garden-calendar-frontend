@@ -1,6 +1,6 @@
 {
   "name": "The Garden Calendar",
-  "short_name": "Garden Cal",
+  "short_name": "Garden",
   "description": "A personalised AI-powered garden calendar by Clockwatcher Almanacs",
   "start_url": "/",
   "display": "standalone",
