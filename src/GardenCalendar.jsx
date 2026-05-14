@@ -3644,9 +3644,12 @@ function AboutView({ garden, meta, prefetchState, insights, fetchInsights, lensD
     <div style={{maxWidth:680, margin:"0 auto"}}>
       {/* Garden summary */}
       <div className="cal-header" style={{marginBottom:"1.5rem"}}>
-        <div className="deco" style={{fontSize:"1.1rem"}}>✦ ✿ ✦</div>
-        <h2 style={{fontSize:"1.5rem"}}>{garden?.name || garden?.city || "Your garden"}</h2>
-        {garden?.city && <p style={{color:"var(--sage)",fontStyle:"italic",fontSize:".9rem",marginTop:".2rem"}}>{garden.city}</p>}
+        <h2 style={{fontSize:"1.5rem"}}>Insights about your garden</h2>
+        {(garden?.name || garden?.city) && (
+          <p style={{color:"var(--sage)",fontStyle:"italic",fontSize:".9rem",marginTop:".2rem"}}>
+            {garden.name && garden.name !== garden.city ? `${garden.name} · ` : ''}{garden.city}
+          </p>
+        )}
         <div className="meta-pills" style={{justifyContent:"center",marginTop:".75rem"}}>
           {hasPlants && <div className="pill">🌱 <b>{Object.values(plants).flat().length}</b> plants</div>}
           {meta?.zone  && <div className="pill">🌡 Zone <b>{meta.zone}</b></div>}
@@ -5488,8 +5491,19 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
       {/* ── Persistent app header ── */}
       <div className="app-header">
         <div className="app-header-title">
-          <span className="app-header-title-main">The Garden Calendar</span>
-          <span className="app-header-title-sub">by Clockwatcher Almanacs</span>
+          <img
+            src="/logo_with_text.png"
+            alt="The Garden Calendar by Clockwatcher Almanacs"
+            style={{height:"32px",width:"auto",display:"block"}}
+            onError={e => {
+              e.target.style.display = "none";
+              e.target.nextSibling.style.display = "flex";
+            }}
+          />
+          <div style={{display:"none",flexDirection:"column",gap:".05rem"}}>
+            <span className="app-header-title-main">The Garden Calendar</span>
+            <span className="app-header-title-sub">by Clockwatcher Almanacs</span>
+          </div>
         </div>
         <div className="app-header-right">
           {credits && (
@@ -5548,7 +5562,10 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 </a>
               )}
             </nav>
-            <div className="hamburger-footer">Take your time. Before somebody else does.</div>
+            <div className="hamburger-footer">
+              <img src="/logo_no_text.png" alt="Clockwatcher Almanacs" style={{height:"28px",width:"auto",opacity:.55,marginBottom:".4rem",display:"block"}} onError={e => e.target.style.display="none"} />
+              Take your time. Before somebody else does.
+            </div>
           </div>
         </>
       )}
@@ -5754,11 +5771,13 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         </button>
       )}
       <div className="app">
-        <header>
-          <div className="deco">✦ ✿ ✦</div>
-          <h1>The Garden <em>Calendar</em></h1>
-          <p className="subtitle">A personalised year of growing, tending & harvesting</p>
-        </header>
+        {(stage === "form") && (
+          <header>
+            <div className="deco">✦ ✿ ✦</div>
+            <h1>The Garden <em>Calendar</em></h1>
+            <p className="subtitle">A personalised year of growing, tending & harvesting</p>
+          </header>
+        )}
 
         {isArtifact() && stage === "form" && (
           <div className="api-banner">
@@ -6255,13 +6274,10 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
         {activeTab !== "about" && stage === "today" && todayGarden && (
           <div className="cal-wrap" style={{ maxWidth: 640, margin: '0 auto' }}>
             <div className="cal-header" style={{ marginBottom: '1.25rem' }}>
-              <div className="deco" style={{ fontSize: '1.1rem' }}>✦ ✿ ✦</div>
-              <h2 style={{ fontSize: '1.6rem' }}>
-                {todayGarden.name || todayGarden.city || 'Your garden'} today
-              </h2>
+              <h2 style={{ fontSize: '1.6rem' }}>This week in your garden</h2>
               <p style={{ color: 'var(--sage)', fontStyle: 'italic', marginTop: '.3rem', fontSize: '.9rem' }}>
-                {new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' })}
-                {todayGarden.city && todayGarden.name !== todayGarden.city ? ` · ${todayGarden.city}` : ''}
+                {todayGarden.name || todayGarden.city || 'Your garden'}
+                {' · '}{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' })}
               </p>
               {Object.values(todayGarden.plants||{}).flat().length > 0 && (
                 <div className="meta-pills" style={{ justifyContent: 'center', marginTop: '.75rem' }}>
@@ -6539,7 +6555,6 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
             <StreamBar months={months} stream1Done={stream1Done} activeMonth={activeMonth} chunkCount={chunkCount}/>
 
             <div className="cal-header">
-              <div className="deco" style={{fontSize:"1.3rem"}}>✦ ✿ ✦</div>
               <h2>{t("yourCalendar")}</h2>
               <p>{city}{orientation?` · ${orientationShort(orientation)}`:""}</p>
               {meta ? (
