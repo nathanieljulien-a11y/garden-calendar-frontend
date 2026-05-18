@@ -918,41 +918,9 @@ async function checkRegionalOccurrence(scientificName, lat, lng) {
     return null;
   }
 }
-// ─── OpenFarm crop data ───────────────────────────────────────────────────────
-// Fetches sowing/harvest timing for vegetables and herbs from OpenFarm (openfarm.cc).
-// Routed through the proxy to avoid CORS. Client-side localStorage cache (30-day TTL)
-// avoids repeat calls for the same plant — OpenFarm cultivation data is stable.
-// Source: OpenFarm · openfarm.cc · CC BY licence
-const OPENFARM_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-async function fetchOpenFarm(plantName) {
-  const key = `gc_openfarm_${plantName.trim().toLowerCase()}`;
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      const { data, cachedAt } = JSON.parse(raw);
-      if (Date.now() - cachedAt < OPENFARM_CACHE_TTL) return data;
-    }
-  } catch {}
-  if (!PROXY_BASE) return null;
-  try {
-    const res = await fetch(
-      `${PROXY_BASE}/api/openfarm?q=${encodeURIComponent(plantName)}`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-    if (!res.ok) {
-      // Cache null result for 24h so repeated generates don't hit a broken endpoint
-      try { localStorage.setItem(key, JSON.stringify({ data: null, cachedAt: Date.now() })); } catch {}
-      return null;
-    }
-    const data = await res.json();
-    if (data.error) return null;
-    try { localStorage.setItem(key, JSON.stringify({ data, cachedAt: Date.now() })); } catch {}
-    return data.found ? data : null;
-  } catch {
-    return null;
-  }
-}
+// OpenFarm (openfarm.cc) was used here for sowing/harvest timing data.
+// The service shut down in April 2025 and the API is no longer available.
+// The proxy endpoint (/api/openfarm) should also be removed from server.js.
 
 // ─── Phase 4: Horticultural society lookup ────────────────────────────────────
 // Maps ISO 3166-1 alpha-2 country codes to the leading national horticultural
@@ -3917,7 +3885,7 @@ useEffect(() => {
   const skipNextPrefetchRef = useRef(false); // set when restoring climate from storage
   const pendingCalendarGardenRef = useRef(null); // garden to use in next handleSubmit call
   const uiIntervalRef = useRef(null);
-  const openFarmCtxRef = useRef(""); // stores OpenFarm context for reuse in loadMoreMonths
+  
   const sowingLogRef   = useRef([]); // accumulates sown/planted crops across batches for reminder
   const sunByMonthRef  = useRef({}); // { "January": 1.8, ... } from Open-Meteo, replaces SUN: field
   const calTopRef     = useRef(null);
@@ -4351,52 +4319,16 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
       setError("Failed to fetch climate data."); return;
     }
 
-// ── OpenFarm: batch-fetch sowing/harvest data for vegetables and herbs ──────
-// Fires in parallel for all vegetables and herbs. fetchOpenFarm has its own
-// 5s timeout and returns null on any failure — generation always continues.
-const openFarmTargets = [
-  ...(plants.vegetables || []),
-  ...(plants.herbs || []),
-];
-let openFarmData = {};
-if (openFarmTargets.length > 0) {
-  try {
-    const results = await Promise.all(
-      openFarmTargets.map(p => fetchOpenFarm(p).then(d => ({ p, d })))
-    );
-    results.forEach(({ p, d }) => {
-      if (d && d.found) openFarmData[p.toLowerCase()] = d;
-    });
-    console.log('[OpenFarm] results:', Object.keys(openFarmData).length, 'of', openFarmTargets.length, 'found:', Object.keys(openFarmData));
-  } catch {
-    console.warn('[OpenFarm] batch fetch failed — continuing without sowing data');
-  }
-}
-    const openFarmLines = Object.entries(openFarmData)
-      .map(([, attrs]) => {
-        const parts = [];
-        if (attrs.name)          parts.push(attrs.name);
-        if (attrs.sowing_method) parts.push(attrs.sowing_method.replace(/\n+/g, " ").trim());
-        else if (attrs.description) parts.push(attrs.description.replace(/\n+/g, " ").trim().slice(0, 200));
-        return parts.length >= 2 ? parts.join(": ") : null;
-      })
-      .filter(Boolean);
-    const openFarmCtx = openFarmLines.length > 0
-      ? `\nOPENFARM GROWING DATA (use for sowing and harvest task timing — CC BY openfarm.cc):\n${openFarmLines.join("\n")}`
-      : "";
-    openFarmCtxRef.current = openFarmCtx;
-
     // ── Knowledge-limited plant detection ────────────────────────────────────
-    // Flag vegetables and herbs where cultivation data is sparse:
-    // signal 1 — OpenFarm returned nothing for this plant
-    // signal 2 — GBIF occurrence count < 10, or plant couldn't be validated
-    // If both signals fire, mark the plant as knowledge-limited so the UI can
-    // show an inline advisory to check with the local horticultural society.
+    // Flag vegetables and herbs where cultivation data is sparse.
+    // Signal: GBIF occurrence count < 10, or plant couldn't be validated.
+    // Mark as knowledge-limited so the UI can show an inline advisory to check
+    // with the local horticultural society.
     //
-    // Whitelist: well-known cultivated plants that are absent from OpenFarm/GBIF
-    // for structural reasons (OpenFarm skews North American; GBIF records wild
-    // botanical sightings not garden cultivation). These plants are widely grown
-    // and well-documented — Claude's knowledge of them is reliable.
+    // Whitelist: well-known cultivated plants that have low GBIF counts for
+    // structural reasons (GBIF records wild botanical sightings, not garden
+    // cultivation). These plants are widely grown and well-documented —
+    // Claude's knowledge of them is reliable.
     const KNOWLEDGE_WHITELIST = new Set([
       // Common European/global herbs
       "mint","thyme","oregano","rosemary","basil","parsley","chives","sage",
@@ -4420,13 +4352,11 @@ if (openFarmTargets.length > 0) {
       ...plants.herbs.map(p => ({ p, cat: "herbs" })),
     ];
     vegHerbEntries.forEach(({ p }) => {
-      // Skip whitelisted plants — absence from OpenFarm/GBIF is a database gap,
-      // not a knowledge gap
+      // Skip whitelisted plants — low GBIF counts are a database gap, not a knowledge gap
       if (KNOWLEDGE_WHITELIST.has(p.toLowerCase())) return;
-      const noOpenFarm = !openFarmData[p.toLowerCase()];
       const occ = occurrenceByName[p] ?? plantMetaRef.current[p]?.occurrence ?? null;
       const lowOccurrence = occ === null || occ.count < 10;
-      if (noOpenFarm && lowOccurrence) knowledgeLimitedPlants.add(p);
+      if (lowOccurrence) knowledgeLimitedPlants.add(p);
     });
     if (knowledgeLimitedPlants.size > 0) {
       setPlantMeta(prev => {
@@ -4473,7 +4403,7 @@ if (openFarmTargets.length > 0) {
 
     // ── STREAM 1: line-format tasks + enjoy ──────────────────────────────────
     const s1prompt = `You are an expert horticulturist and naturalist.
-Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtx}
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
 
 Output EXACTLY ${firstBatch.length} blocks in this order: ${firstBatch.join(", ")}.
 Use ONLY this exact line format. No extra text, no markdown, no explanation.
@@ -4683,7 +4613,7 @@ ${sowingLogSummary}`;
 
     const batchPrompt = `You are an expert horticulturist and naturalist.
 THIS GARDEN'S COMPLETE PLANT LIST — the ONLY plants you may write tasks for: ${allPlantsList}.
-Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}${openFarmCtxRef.current}
+Location: ${city}. Orientation: ${orientation}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
 ${gardenRulesReminder}
 
 Output EXACTLY ${nextBatch.length} blocks in this order: ${nextBatch.join(", ")}.
@@ -5622,13 +5552,11 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
 
             <h3>Plant knowledge</h3>
             <p>Your plant names are validated against the Global Biodiversity Information Facility (GBIF), which draws on the World Checklist of Vascular Plants maintained by the Royal Botanic Gardens, Kew. The app also checks how many times each plant has been recorded growing near your location, flagging anything that looks climatically marginal.</p>
-            <p>For vegetables and herbs, sowing and harvest timing is grounded in <a href="https://openfarm.cc" target="_blank" rel="noopener">OpenFarm</a> — an open, community-maintained database of growing guides.</p>
 
             <h3>Sources &amp; licences</h3>
             <ul className="about-sources">
               <li><span className="src-dot">◆</span><span><strong>Climate data:</strong> Open-Meteo / ERA5 (ECMWF) · CC BY 4.0 · <a href="https://open-meteo.com" target="_blank" rel="noopener">open-meteo.com</a></span></li>
               <li><span className="src-dot">◆</span><span><strong>Plant names &amp; taxonomy:</strong> GBIF · CC BY 4.0 / CC0 · <a href="https://gbif.org" target="_blank" rel="noopener">gbif.org</a> · underpinned by WCVP (Royal Botanic Gardens, Kew)</span></li>
-              <li><span className="src-dot">◆</span><span><strong>Sowing &amp; harvest data:</strong> OpenFarm · CC BY · <a href="https://openfarm.cc" target="_blank" rel="noopener">openfarm.cc</a></span></li>
               <li><span className="src-dot">◆</span><span><strong>Nearby sightings:</strong> iNaturalist · CC BY · <a href="https://inaturalist.org" target="_blank" rel="noopener">inaturalist.org</a></span></li>
               <li><span className="src-dot">◆</span><span><strong>Garden photos:</strong> Wikipedia / Wikimedia Commons · CC licences</span></li>
               <li><span className="src-dot">◆</span><span><strong>Location data:</strong> OpenStreetMap contributors · ODbL · geocoding via Photon (komoot)</span></li>
@@ -6620,8 +6548,8 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               </div>
             )}
 
-            {/* Knowledge-limited plant advisory — shown for veg/herbs where both
-                OpenFarm and GBIF occurrence data are absent. Soft advisory only,
+            {/* Knowledge-limited plant advisory — shown for veg/herbs where
+                GBIF occurrence data is absent. Soft advisory only,
                 never blocks generation. */}
             {Object.entries(plantMeta).filter(([,m]) => m?.knowledgeLimited).length > 0 && (() => {
               const society = meta?.country_code ? HORT_SOCIETY[meta.country_code.toLowerCase()] : null;
@@ -6788,10 +6716,7 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                   lineHeight:"1.8",
                 }}>
                   <div>
-                    Sowing windows for vegetables and herbs informed by{" "}
-                    <a href="https://openfarm.cc" target="_blank" rel="noopener"
-                       style={{color:"inherit",textDecoration:"underline",opacity:.8}}>OpenFarm (CC BY)</a>
-                    {" "}and your local frost dates from{" "}
+                    Sowing windows for vegetables and herbs are based on your local frost dates from{" "}
                     <a href="https://open-meteo.com" target="_blank" rel="noopener"
                        style={{color:"inherit",textDecoration:"underline",opacity:.8}}>Open-Meteo/ERA5</a>
                   </div>
