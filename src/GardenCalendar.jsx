@@ -4351,9 +4351,26 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
       setError("Failed to fetch climate data."); return;
     }
 
-    // ── OpenFarm: batch-fetch sowing/harvest data for vegetables and herbs ──────
-    // OpenFarm disabled — endpoint currently unavailable
-    let openFarmData = {};
+// ── OpenFarm: batch-fetch sowing/harvest data for vegetables and herbs ──────
+// Fires in parallel for all vegetables and herbs. fetchOpenFarm has its own
+// 5s timeout and returns null on any failure — generation always continues.
+const openFarmTargets = [
+  ...(plants.vegetables || []),
+  ...(plants.herbs || []),
+];
+let openFarmData = {};
+if (openFarmTargets.length > 0) {
+  try {
+    const results = await Promise.all(
+      openFarmTargets.map(p => fetchOpenFarm(p).then(d => ({ p, d })))
+    );
+    results.forEach(({ p, d }) => {
+      if (d && d.found) openFarmData[p.toLowerCase()] = d;
+    });
+  } catch {
+    // OpenFarm batch failed entirely — continue without sowing data
+  }
+}
     const openFarmLines = Object.entries(openFarmData)
       .map(([, attrs]) => {
         const parts = [];
