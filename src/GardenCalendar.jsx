@@ -4367,8 +4367,9 @@ if (openFarmTargets.length > 0) {
     results.forEach(({ p, d }) => {
       if (d && d.found) openFarmData[p.toLowerCase()] = d;
     });
+    console.log('[OpenFarm] results:', Object.keys(openFarmData).length, 'of', openFarmTargets.length, 'found:', Object.keys(openFarmData));
   } catch {
-    // OpenFarm batch failed entirely — continue without sowing data
+    console.warn('[OpenFarm] batch fetch failed — continuing without sowing data');
   }
 }
     const openFarmLines = Object.entries(openFarmData)
