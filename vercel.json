@@ -4,6 +4,7 @@
     { "source": "/garden-eval.html", "destination": "/garden-eval.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/contact", "destination": "/contact.html" },
+    { "source": "/manifest.json", "destination": "/manifest.json" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
