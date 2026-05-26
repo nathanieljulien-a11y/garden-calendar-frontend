@@ -5157,7 +5157,7 @@ Return ONLY valid JSON, no markdown:
 confidence high = you have clear specific knowledge of this garden collections and seasonal highlights from published sources.
 confidence medium = you know the garden exists and broadly what it contains but are less certain of specific highlights.
 known_for: the garden defining characteristic regardless of season.
-${[...alreadyChosen, ...chosenThisBatch].length > 0 ? "\nDo NOT suggest any of these (already recommended): " + [...alreadyChosen, ...chosenThisBatch].join(", ") + ". Choose a genuinely different garden." : ""}
+${chosenSoFar.length > 0 ? "\nDo NOT suggest any of these (already recommended): " + chosenSoFar.join(", ") + ". Choose a genuinely different garden." : ""}
 Respond entirely in ${langName()}.`,
           800, undefined, provider, userKey);
         // Handle "none" response — no suitable garden found
