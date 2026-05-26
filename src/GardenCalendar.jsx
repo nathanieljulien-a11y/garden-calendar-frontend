@@ -3890,6 +3890,7 @@ useEffect(() => {
   const sunByMonthRef  = useRef({}); // { "January": 1.8, ... } from Open-Meteo, replaces SUN: field
   const calTopRef     = useRef(null);
   const monthRefs     = useRef({});  // name -> DOM node
+  const inspoShownRef = useRef({});  // { monthName: [gardenName, ...] } — persists across "Find another" calls
   const scrollArrowRef = useRef(null);
 
   const nowIdx  = new Date().getMonth();
@@ -4203,6 +4204,7 @@ Respond entirely in ${langName()}. Use ${langName()} for all plant names and des
     unlockedPages.current = new Set();
     userNavigatedRef.current = false;
     setInspos({}); setInsights({state:"idle", items:[]}); setLensData({}); setLensStates({}); setPlantTraits(p => p); // preserve plantTraits across regenerations
+    inspoShownRef.current = {};
     setShowArrow(true);
     sowingLogRef.current = []; // reset sowing log for fresh generation
     setPlantMeta(prev => {
@@ -4670,7 +4672,7 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
     if (uiIntervalRef.current) { clearInterval(uiIntervalRef.current); uiIntervalRef.current = null; }
     ++prefetchIdRef.current; ++submitIdRef.current;
     unlockedPages.current = new Set();
-    setStage("form"); setFormStep("location"); setShowHome(hasSavedGardens() && gardens.length > 0); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]}); setLensData({}); setLensStates({}); setPlantTraits({});
+    setStage("form"); setFormStep("location"); setShowHome(hasSavedGardens() && gardens.length > 0); setLocationQuote({text:"",done:false}); setLoadedBatches(1); setLoadingMore(false); setMeta(null); setMonths({}); setInspos({}); setInsights({state:"idle",items:[]}); setLensData({}); setLensStates({}); setPlantTraits({}); inspoShownRef.current = {};
     setPfState("idle"); setS1Done(false); setError(""); setRateLimitMsg(""); setShowArrow(false); setFeatures([]); setPlantMeta({});
     setTodayGarden(null); setWeatherData(null); setWeatherSignals([]); setWeatherLoading(false); setWeatherError(null);
     setTodayTasks(null); setTodayTasksLoading(false); setTodayTasksError(null);
@@ -5100,12 +5102,17 @@ Return tasks for: ${batch.join(', ')}`;
       return next;
     });
 
+    // alreadyChosen: gardens shown in OTHER months (from inspos state)
     const alreadyChosen = Object.entries(inspos)
       .filter(([k, v]) => v?.data?.name && !names.includes(k))
       .map(([_, v]) => v.data.name);
 
     // Track gardens chosen within this batch to avoid duplicates across parallel calls
     const chosenThisBatch = [];
+
+    // Seed inspoShownRef for each month being fetched with any previously seen gardens
+    // This ensures "Find another" never repeats a garden shown earlier in the same month
+    names.forEach(n => { if (!inspoShownRef.current[n]) inspoShownRef.current[n] = []; });
 
     // Fetch nearby gardens shortlist from curated GARDENS array
     // Uses meta.lat/lng from geocoding — falls back gracefully if unavailable
@@ -5126,8 +5133,9 @@ Return tasks for: ${batch.join(', ')}`;
     // Fetch sequentially within a batch to allow proper deduplication
     for (const monthName of names) {
       try {
-        // Exclude gardens already chosen in this batch or previous months from the shortlist
-        const chosenSoFar = [...alreadyChosen, ...chosenThisBatch];
+        // Exclude gardens already chosen in this batch, previous months, or previously shown via "Find another"
+        const shownForMonth = inspoShownRef.current[monthName] || [];
+        const chosenSoFar = [...new Set([...alreadyChosen, ...chosenThisBatch, ...shownForMonth])];
         const availableShortlist = nearbyShortlist.filter(n => !chosenSoFar.includes(n));
         const shortlistCtx = availableShortlist.length > 0
           ? `\nKnown public gardens near ${city} include: ${availableShortlist.join(", ")}. Prefer gardens from this list where seasonally appropriate for ${monthName}, but you may suggest other nearby gardens you know of if none from the list suit the month well.`
@@ -5159,7 +5167,11 @@ Respond entirely in ${langName()}.`,
         }
         const wordCount = (result.highlight || "").trim().split(/\s+/).length;
         if (wordCount < 8) result.highlight = result.highlight + " — visit for the seasonal highlights";
-        if (result.name && result.name !== "none") chosenThisBatch.push(result.name);
+        if (result.name && result.name !== "none") {
+          chosenThisBatch.push(result.name);
+          if (!inspoShownRef.current[monthName]) inspoShownRef.current[monthName] = [];
+          inspoShownRef.current[monthName].push(result.name);
+        }
         setInspos(prev => ({ ...prev, [monthName]: { state:"done", data:result } }));
       } catch(e) {
         // Auto-retry once on JSON parse failure (typically a truncated response)
