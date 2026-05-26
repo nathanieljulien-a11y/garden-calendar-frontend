@@ -5107,10 +5107,29 @@ Return tasks for: ${batch.join(', ')}`;
     // Track gardens chosen within this batch to avoid duplicates across parallel calls
     const chosenThisBatch = [];
 
+    // Fetch nearby gardens shortlist from curated GARDENS array
+    // Uses meta.lat/lng from geocoding — falls back gracefully if unavailable
+    let nearbyShortlist = [];
+    if (meta?.lat && meta?.lng && PROXY_BASE) {
+      try {
+        const nearbyRes = await fetch(`${PROXY_BASE}/api/nearby-gardens?lat=${meta.lat}&lng=${meta.lng}&n=10`);
+        if (nearbyRes.ok) {
+          const nearby = await nearbyRes.json();
+          nearbyShortlist = nearby.map(g => g.name);
+        }
+      } catch { /* non-fatal — proceed without shortlist */ }
+    }
+
+    // Daily seed derived from city + date — nudges variety on repeat uses
+    const daySeed = (Math.floor(Date.now() / 86400000) + city.length) % 97;
+
     // Fetch sequentially within a batch to allow proper deduplication
     for (const monthName of names) {
       try {
-        const result = await callClaude(`You are a garden visiting expert. Recommend ONE public garden to visit within a reasonable journey of ${city} in ${monthName}.
+        const shortlistCtx = nearbyShortlist.length > 0
+          ? `\nKnown public gardens near ${city} include: ${nearbyShortlist.join(", ")}. Prefer gardens from this list where seasonally appropriate for ${monthName}, but you may suggest other nearby gardens you know of if none from the list suit the month well.`
+          : "";
+        const result = await callClaude(`You are a garden visiting expert. Recommend ONE public garden to visit within a reasonable journey of ${city} in ${monthName}.${shortlistCtx}
 
 Priority rules — apply in this order:
 1. First look for public gardens within 1 hour of ${city} that you know exist. A nearby garden you know with medium confidence is better than a distant garden you know very well. Do not go abroad or to another country when local options exist.
@@ -5119,6 +5138,7 @@ Priority rules — apply in this order:
 4. Never recommend a garden in a different continent. UK gardens are not appropriate suggestions for Singapore, Japan, or Australia.
 5. If you genuinely cannot find any suitable garden within the region, return {"name":"none"} rather than inventing one.
 6. Use medium confidence freely for nearby gardens — the UI will show a caveat. Medium confidence + nearby is always preferable to high confidence + far away.
+7. Seed: ${daySeed} — use this to vary your selection among equally good candidates.
 
 Return ONLY valid JSON, no markdown:
 {"name":"<Garden name or 'none'>","organisation":"<operator e.g. National Trust / RHS / local authority / independent>","location":"<Town, Region>","distance":"<approx journey time from ${city}, including ferry/flight if applicable>","highlight":"<What this garden is genuinely known for in ${monthName} — specific plant, collection or feature — 10-20 words>","known_for":"<The garden primary specialism or what it is most famous for — 8-15 words>","website":"<official website URL — only include if you are certain it is correct, e.g. rhs.org.uk/gardens/wisley — omit the field entirely if uncertain>","wikipedia":"<exact Wikipedia article title if one exists, e.g. 'RHS Garden Wisley' or 'Sissinghurst Castle Garden' — omit if uncertain>","confidence":"high or medium"}
