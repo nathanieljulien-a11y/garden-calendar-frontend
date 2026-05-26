@@ -5116,10 +5116,14 @@ Return tasks for: ${batch.join(', ')}`;
 
     // Fetch nearby gardens shortlist from curated GARDENS array
     // Uses meta.lat/lng from geocoding — falls back gracefully if unavailable
+    // Pool expands dynamically if chosenSoFar is large relative to current shortlist size
     let nearbyShortlist = [];
     if (meta?.lat && meta?.lng && PROXY_BASE) {
       try {
-        const nearbyRes = await fetch(`${PROXY_BASE}/api/nearby-gardens?lat=${meta.lat}&lng=${meta.lng}&n=15`);
+        // Start with 25; expand to 50 if user has already seen many gardens
+        const allShownSoFar = Object.values(inspoShownRef.current).flat();
+        const baseN = allShownSoFar.length >= 10 ? 50 : 25;
+        const nearbyRes = await fetch(`${PROXY_BASE}/api/nearby-gardens?lat=${meta.lat}&lng=${meta.lng}&n=${baseN}`);
         if (nearbyRes.ok) {
           const nearby = await nearbyRes.json();
           nearbyShortlist = nearby.map(g => g.name);
@@ -5147,8 +5151,8 @@ Priority rules — apply in this order:
 2. For cities like Singapore, Kuala Lumpur, Tokyo, or other major Asian/global cities: there are always multiple botanical gardens, park gardens, and horticultural attractions within the city or region — look for these before ranging to other countries. Examples for Singapore: Jurong Lake Gardens, HortPark, Fort Canning Park, Chinese Garden, Sungei Buloh, Gardens by the Bay.
 3. Only extend the search radius significantly (2-4 hours, different country) if the location is genuinely remote or rural with very few public gardens nearby — e.g. a small island, a rural village, a remote coastal town.
 4. Never recommend a garden in a different continent. UK gardens are not appropriate suggestions for Singapore, Japan, or Australia.
-5. If you genuinely cannot find any suitable garden within the region, return {"name":"none"} rather than inventing one.
-6. Use medium confidence freely for nearby gardens — the UI will show a caveat. Medium confidence + nearby is always preferable to high confidence + far away.
+5. If you genuinely cannot find any suitable garden within the region, or if the "Do NOT suggest" list is long and you are not certain remaining options exist as real public gardens, return {"name":"none"} — a blank result is always better than an invented one.
+6. Only use medium confidence for gardens you are certain exist as real, publicly accessible gardens. Never invent a garden name or assume a garden exists because it sounds plausible.
 7. Seed: ${daySeed} — use this to vary your selection among equally good candidates.
 
 Return ONLY valid JSON, no markdown:
