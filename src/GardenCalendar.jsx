@@ -5112,7 +5112,7 @@ Return tasks for: ${batch.join(', ')}`;
     let nearbyShortlist = [];
     if (meta?.lat && meta?.lng && PROXY_BASE) {
       try {
-        const nearbyRes = await fetch(`${PROXY_BASE}/api/nearby-gardens?lat=${meta.lat}&lng=${meta.lng}&n=10`);
+        const nearbyRes = await fetch(`${PROXY_BASE}/api/nearby-gardens?lat=${meta.lat}&lng=${meta.lng}&n=15`);
         if (nearbyRes.ok) {
           const nearby = await nearbyRes.json();
           nearbyShortlist = nearby.map(g => g.name);
@@ -5126,8 +5126,11 @@ Return tasks for: ${batch.join(', ')}`;
     // Fetch sequentially within a batch to allow proper deduplication
     for (const monthName of names) {
       try {
-        const shortlistCtx = nearbyShortlist.length > 0
-          ? `\nKnown public gardens near ${city} include: ${nearbyShortlist.join(", ")}. Prefer gardens from this list where seasonally appropriate for ${monthName}, but you may suggest other nearby gardens you know of if none from the list suit the month well.`
+        // Exclude gardens already chosen in this batch or previous months from the shortlist
+        const chosenSoFar = [...alreadyChosen, ...chosenThisBatch];
+        const availableShortlist = nearbyShortlist.filter(n => !chosenSoFar.includes(n));
+        const shortlistCtx = availableShortlist.length > 0
+          ? `\nKnown public gardens near ${city} include: ${availableShortlist.join(", ")}. Prefer gardens from this list where seasonally appropriate for ${monthName}, but you may suggest other nearby gardens you know of if none from the list suit the month well.`
           : "";
         const result = await callClaude(`You are a garden visiting expert. Recommend ONE public garden to visit within a reasonable journey of ${city} in ${monthName}.${shortlistCtx}
 
