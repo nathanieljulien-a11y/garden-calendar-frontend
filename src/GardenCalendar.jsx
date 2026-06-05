@@ -8,6 +8,7 @@ import { fetchNearbyObservations, normaliseInatObservations, readInatCache, writ
 import { climateToRegion, taskNeedsVideo } from './videoService.js';
 import { VideoButton, VIDEO_PANEL_STYLES } from './VideoPanel.jsx';
 import { loadCredits, useCredit, checkCredit, saveToken, initFromUrl } from './creditStore.js';
+import LibraryPanel from './LibraryPanel.jsx';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
@@ -3739,6 +3740,7 @@ const [showHome, setShowHome] = useState(() => {
   const [showHamburger, setShowHamburger]   = useState(false);
   const [showUsageTiers, setShowUsageTiers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLibrary, setShowLibrary]   = useState(false);
 
   // AI provider — "proxy" (default, rate-limited) | "claude" | "gemini"
   const [provider, setProvider] = useState(() => {
@@ -5527,6 +5529,11 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
               <button className="hamburger-item" onClick={() => { setShowSettings(true); setShowHamburger(false); }}>
                 <span className="hamburger-item-icon">⚙</span> Settings
               </button>
+              {credits?.tier === 'subscriber' && (
+                <button className="hamburger-item" onClick={() => { setShowLibrary(true); setShowHamburger(false); }}>
+                  <span className="hamburger-item-icon">📚</span> Garden Library
+                </button>
+              )}
               <a className="hamburger-item" href="/contact" target="_blank" rel="noopener">
                 <span className="hamburger-item-icon">✉</span> Contact &amp; feedback
               </a>
@@ -5672,6 +5679,18 @@ Rules: months must have exactly 12 integers (0-3), 0=Jan to 11=Dec. Include ALL 
                 Become a Clockwatcher — £1.49 for 6 months →
               </a>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Garden Library panel (Clockwatcher only) ── */}
+      {showLibrary && (
+        <div className="about-overlay" onClick={e => { if (e.target === e.currentTarget) setShowLibrary(false); }}>
+          <div className="about-panel" style={{padding:0,overflow:'hidden'}}>
+            <LibraryPanel
+              proxyBase={PROXY_BASE}
+              onClose={() => setShowLibrary(false)}
+            />
           </div>
         </div>
       )}
