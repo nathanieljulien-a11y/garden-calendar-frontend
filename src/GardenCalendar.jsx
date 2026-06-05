@@ -9,6 +9,7 @@ import { climateToRegion, taskNeedsVideo } from './videoService.js';
 import { VideoButton, VIDEO_PANEL_STYLES } from './VideoPanel.jsx';
 import { loadCredits, useCredit, checkCredit, saveToken, initFromUrl } from './creditStore.js';
 import LibraryPanel from './LibraryPanel.jsx';
+import { retrieveContext } from './libraryRetrieve.js';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
@@ -4742,7 +4743,14 @@ Respond entirely in ${langName()}. All task and enjoy text must be in ${langName
 
     const prompt = `You are an expert horticulturist. Generate garden tasks for ${batch.join(', ')}.
 Location: ${garden.city}. Orientation: ${garden.orientation || 'unspecified'}. Plants: ${allPlants}.${featuresCtx} Date: ${now}. ${metaCtx}
-
+${await (async () => {
+  try {
+    const batchMonthNums = batch.map(m => MONTH_NAMES.indexOf(m) + 1);
+    const hem = garden.hemisphere || 'northern';
+    const plantList = Object.values(garden.plants || {}).flat();
+    return await retrieveContext({ context: 'calendar', months: batchMonthNums, userPlants: plantList, userHemisphere: hem });
+  } catch { return ''; }
+})()}
 Return ONLY valid JSON — an object with month names as keys and arrays of task strings as values.
 Each task: terse imperative, under 20 words, specific plant/measurement/method.
 3 tasks in winter months, up to 4 in peak months.
@@ -4854,9 +4862,16 @@ Return tasks for: ${batch.join(', ')}`;
         ? (readTodayCache(garden.id)?.tasks || [])
         : [];
 
+      const libraryCtxWeek = await (async () => {
+        try {
+          const plantList = Object.values(garden.plants || {}).flat();
+          const hem = garden.hemisphere || 'northern';
+          return await retrieveContext({ context: 'weekly', months: [new Date().getMonth() + 1], userPlants: plantList, userHemisphere: hem });
+        } catch { return ''; }
+      })();
       const prompt = buildTodayPrompt(
         garden, weatherData, signals, monthName, calendarTasks, existingTasks, isRefresh
-      );
+      ) + (libraryCtxWeek ? `\n\n${libraryCtxWeek}` : '');
       const raw = await callAI(prompt, 1400, undefined, provider, userKey);
       const payload = validateTodayResponse(raw);
 
@@ -5146,7 +5161,13 @@ Return tasks for: ${batch.join(', ')}`;
         const shortlistCtx = availableShortlist.length > 0
           ? `\nKnown public gardens near ${city} include: ${availableShortlist.join(", ")}. Prefer gardens from this list where seasonally appropriate for ${monthName}, but you may suggest other nearby gardens you know of if none from the list suit the month well.`
           : "";
-        const result = await callClaude(`You are a garden visiting expert. Recommend ONE public garden to visit within a reasonable journey of ${city} in ${monthName}.${shortlistCtx}
+        const libraryCtxInspo = await (async () => {
+          try {
+            const hem = meta?._derived?.hemisphere === 'S' ? 'southern' : 'northern';
+            return await retrieveContext({ context: 'inspo', months: [MONTH_NAMES.indexOf(monthName) + 1], userPlants: [], userHemisphere: hem });
+          } catch { return ''; }
+        })();
+        const result = await callClaude(`You are a garden visiting expert. Recommend ONE public garden to visit within a reasonable journey of ${city} in ${monthName}.${shortlistCtx}${libraryCtxInspo ? `\n\n${libraryCtxInspo}` : ''}
 
 Priority rules — apply in this order:
 1. First look for public gardens within 1 hour of ${city} that you know exist. A nearby garden you know with medium confidence is better than a distant garden you know very well. Do not go abroad or to another country when local options exist.
@@ -5230,11 +5251,18 @@ Respond entirely in ${langName()}.`,
     const companionsRule = hasVegOrHerbs ? `\n- companions: 2–4 entries covering only plants actually in this garden's vegetables/herbs lists. Mix good (beneficial) and warn (antagonistic) pairings. type must be "good" or "warn". reason under 10 words.` : "";
 
     try {
+      const libraryCtxInsights = await (async () => {
+        try {
+          const plantList = Object.values(plants).flat();
+          const hem = meta?._derived?.hemisphere === 'S' ? 'southern' : 'northern';
+          return await retrieveContext({ context: 'insights', months: [], userPlants: plantList, userHemisphere: hem });
+        } catch { return ''; }
+      })();
       const prompt = `You are a knowledgeable, curious gardening friend — warm and non-alarmist in tone.
 Location: ${city}. Orientation: ${orientation}. ${metaCtx}
 Plants in this garden: ${allPlants}${featuresCtx}
 ${occurrenceCtx ? `\nRegional occurrence data from GBIF (citizen science records within ~50km):\n${occurrenceCtx}\n` : ""}
-IMPORTANT: GBIF records wild botanical sightings, NOT cultivated garden plants. Low GBIF counts are completely normal for roses, olives, photinia, lavender, hydrangea, fruit trees — these are garden cultivars, not wild species. Do NOT flag plants as rare or unsuitable based on low GBIF counts alone. Only flag genuine climate suitability concerns: cold hardiness for tender plants, drought tolerance, heat requirements.
+${libraryCtxInsights ? `${libraryCtxInsights}\n` : ""}IMPORTANT: GBIF records wild botanical sightings, NOT cultivated garden plants. Low GBIF counts are completely normal for roses, olives, photinia, lavender, hydrangea, fruit trees — these are garden cultivars, not wild species. Do NOT flag plants as rare or unsuitable based on low GBIF counts alone. Only flag genuine climate suitability concerns: cold hardiness for tender plants, drought tolerance, heat requirements.
 
 Return ONLY valid JSON, no markdown:
 {
