@@ -7,32 +7,31 @@
  *   ready     — library operational, shows item list + add form
  *
  * Clockwatcher-tier only — caller is responsible for gating.
+ *
+ * Source types supported:
+ *   url  — web articles (fetched via backend proxy)
+ *   text — paste text (personal notes, YouTube transcripts, paywalled content)
+ *
+ * YouTube URL ingestion removed — Render's IP is blocked by YouTube's bot
+ * detection. Users should use YouTube's "Show transcript" option and paste text.
  */
 
-import { useState, useEffect, useRef } from 'react';
-import { isLibrarySetUp, markLibrarySetUp, getAllItems, getLibraryStats, deleteItem } from './libraryStore.js';
-import { loadEmbeddingModel, indexItem, isModelLoaded } from './libraryIndex.js';
-import { putItem } from './libraryStore.js';
+import { useState, useEffect } from 'react';
+import { isLibrarySetUp, markLibrarySetUp, getAllItems, getLibraryStats, deleteItem, putItem } from './libraryStore.js';
+import { loadEmbeddingModel, indexItem } from './libraryIndex.js';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function generateId() {
   return crypto.randomUUID?.() || Math.random().toString(36).slice(2) + Date.now();
 }
+
 async function fetchUrlText(url, proxyBase) {
   const res = await fetch(`${proxyBase}/api/fetch-url?url=${encodeURIComponent(url)}`);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || 'Could not fetch this page. If it\'s behind a paywall, paste the text instead.');
   }
-  const data = await res.json();
-  return { text: data.text, title: data.title || url };
-}
-
-
-  // Web article: proxy fetch (backend handles CORS)
-  const res = await fetch(`${proxyBase}/api/fetch-url?url=${encodeURIComponent(url)}`);
-  if (!res.ok) throw new Error('Could not fetch this page. If it\'s behind a paywall, paste the text instead.');
   const data = await res.json();
   return { text: data.text, title: data.title || url };
 }
@@ -147,7 +146,7 @@ function AddItemForm({ onItemAdded, proxyBase }) {
       if (inputMode === 'url') {
         if (!urlValue.trim()) { setErrorMsg('Please enter a URL.'); setStatus('idle'); return; }
         sourceUrl = urlValue.trim();
-        sourceType = isYouTubeUrl(sourceUrl) ? 'youtube' : 'url';
+        sourceType = 'url';
         const result = await fetchUrlText(sourceUrl, proxyBase);
         rawText = result.text;
         sourceTitle = result.title;
@@ -242,14 +241,14 @@ function AddItemForm({ onItemAdded, proxyBase }) {
           <input
             style={styles.input}
             type="url"
-            placeholder="https://... or YouTube link"
+            placeholder="https://..."
             value={urlValue}
             onChange={e => setUrlValue(e.target.value)}
             disabled={busy}
           />
           <p style={styles.hint}>
-            YouTube links use the video transcript.
-            Paywalled articles won't work — paste the text instead.
+            Paywalled articles won't work via URL — paste the text instead.
+            For YouTube videos, use YouTube's "Show transcript" option and paste the text.
           </p>
         </div>
       ) : (
@@ -258,7 +257,7 @@ function AddItemForm({ onItemAdded, proxyBase }) {
           placeholder={
             type === 'observation'
               ? 'e.g. "Wisteria flowered late — third week of May. Peony didn\'t flower this year, possibly the late frost in April."'
-              : 'e.g. Paste an article, care guide, or garden description...'
+              : 'e.g. Paste an article, care guide, garden description, or YouTube transcript...'
           }
           value={textValue}
           onChange={e => setTextValue(e.target.value)}
