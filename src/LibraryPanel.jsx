@@ -19,6 +19,16 @@ import { putItem } from './libraryStore.js';
 function generateId() {
   return crypto.randomUUID?.() || Math.random().toString(36).slice(2) + Date.now();
 }
+async function fetchUrlText(url, proxyBase) {
+  const res = await fetch(`${proxyBase}/api/fetch-url?url=${encodeURIComponent(url)}`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Could not fetch this page. If it\'s behind a paywall, paste the text instead.');
+  }
+  const data = await res.json();
+  return { text: data.text, title: data.title || url };
+}
+
 
   // Web article: proxy fetch (backend handles CORS)
   const res = await fetch(`${proxyBase}/api/fetch-url?url=${encodeURIComponent(url)}`);
