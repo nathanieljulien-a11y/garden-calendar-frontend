@@ -20,19 +20,6 @@ function generateId() {
   return crypto.randomUUID?.() || Math.random().toString(36).slice(2) + Date.now();
 }
 
-function isYouTubeUrl(url) {
-  return /youtube\.com|youtu\.be/.test(url);
-}
-
-async function fetchUrlText(url, proxyBase) {
-  // YouTube: fetch transcript via backend endpoint
-  if (isYouTubeUrl(url)) {
-    const res = await fetch(`${proxyBase}/api/youtube-transcript?url=${encodeURIComponent(url)}`);
-    if (!res.ok) throw new Error('Could not fetch YouTube transcript. The video may not have captions.');
-    const data = await res.json();
-    return { text: data.transcript, title: data.title || 'YouTube video' };
-  }
-
   // Web article: proxy fetch (backend handles CORS)
   const res = await fetch(`${proxyBase}/api/fetch-url?url=${encodeURIComponent(url)}`);
   if (!res.ok) throw new Error('Could not fetch this page. If it\'s behind a paywall, paste the text instead.');
