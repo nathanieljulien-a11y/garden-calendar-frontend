@@ -10,6 +10,8 @@ import { VideoButton, VIDEO_PANEL_STYLES } from './VideoPanel.jsx';
 import { loadCredits, useCredit, checkCredit, saveToken, initFromUrl } from './creditStore.js';
 import LibraryPanel from './LibraryPanel.jsx';
 import { retrieveContext } from './libraryRetrieve.js';
+import { isLibrarySetUp } from './libraryStore.js';
+import { loadEmbeddingModel } from './libraryIndex.js';
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');`;
 
@@ -3807,6 +3809,20 @@ useEffect(() => {
   if (state.plants)      setPlants(state.plants);
   setShowHome(false);
 }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Garden Library: silent model preload ────────────────────────────────
+  // The embedding model is downloaded once during setup and cached by the
+  // browser, but the in-memory pipeline must be re-initialised on every page
+  // load before retrieval can work. Load it silently in the background for
+  // Clockwatcher users who have completed setup — does nothing for others.
+  useEffect(() => {
+    if (credits?.tier === 'subscriber' && isLibrarySetUp()) {
+      loadEmbeddingModel().catch(() => {
+        // Non-fatal — retrieveContext() falls back to metadata-only retrieval
+      });
+    }
+  }, [credits?.tier]);
+
   
   // iNat localised suggestions: { trees: ["Rose","Lavender",...], ... }
   const [localSuggestions, setLocalSuggestions] = useState({});
