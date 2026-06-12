@@ -19,6 +19,7 @@
 import { useState, useEffect } from 'react';
 import { isLibrarySetUp, markLibrarySetUp, getAllItems, getLibraryStats, deleteItem, putItem } from './libraryStore.js';
 import { loadEmbeddingModel, indexItem } from './libraryIndex.js';
+import { retrieveContext } from './libraryRetrieve.js';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -292,7 +293,93 @@ function AddItemForm({ onItemAdded, proxyBase }) {
   );
 }
 
-// ─── Library item list ────────────────────────────────────────────────────────
+// ─── Debug retrieval tool ──────────────────────────────────────────────────────
+// Runs the exact retrieveContext() function used at generation time and shows
+// the formatted output. Validates the whole pipeline: model load, metadata
+// filter, embedding similarity, prompt formatting — without running a full
+// generation. Remove or hide once the feature is validated.
+
+const CURRENT_MONTH = new Date().getMonth() + 1; // 1-12
+
+const DEBUG_CONTEXTS = [
+  { key: 'calendar', label: 'Calendar (this month)', months: [CURRENT_MONTH] },
+  { key: 'weekly',   label: 'Weekly briefing',       months: [CURRENT_MONTH] },
+  { key: 'inspo',    label: 'Inspo gardens',         months: [CURRENT_MONTH] },
+  { key: 'insights', label: 'Insights / lenses',     months: [] },
+];
+
+function DebugRetrieval() {
+  const [open, setOpen] = useState(false);
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [hemisphere, setHemisphere] = useState('northern');
+
+  async function runTest() {
+    setLoading(true);
+    setResults(null);
+    const out = {};
+    for (const ctx of DEBUG_CONTEXTS) {
+      try {
+        out[ctx.key] = await retrieveContext({
+          context: ctx.key,
+          months: ctx.months,
+          userPlants: [], // empty — tests whether plant-filter is too strict
+          userHemisphere: hemisphere,
+          topK: 4,
+        });
+      } catch (err) {
+        out[ctx.key] = `ERROR: ${err.message}`;
+      }
+    }
+    setResults(out);
+    setLoading(false);
+  }
+
+  return (
+    <div style={styles.debugSection}>
+      <button style={styles.debugToggle} onClick={() => setOpen(o => !o)}>
+        {open ? '▾' : '▸'} Test retrieval (debug)
+      </button>
+      {open && (
+        <div style={styles.debugBody}>
+          <p style={styles.debugHint}>
+            Runs the same retrieval used during generation, with no plant-list
+            filter, so you can see whether your saved items are being matched
+            and how they'd be formatted in the prompt.
+          </p>
+          <div style={styles.debugHemisphere}>
+            <label style={styles.debugLabel}>Hemisphere:</label>
+            <select
+              style={styles.debugSelect}
+              value={hemisphere}
+              onChange={e => setHemisphere(e.target.value)}
+            >
+              <option value="northern">Northern</option>
+              <option value="southern">Southern</option>
+            </select>
+          </div>
+          <button style={styles.primaryButton} onClick={runTest} disabled={loading}>
+            {loading ? 'Running…' : 'Run retrieval test'}
+          </button>
+          {results && (
+            <div style={styles.debugResults}>
+              {DEBUG_CONTEXTS.map(ctx => (
+                <div key={ctx.key} style={styles.debugResultBlock}>
+                  <div style={styles.debugResultLabel}>{ctx.label}</div>
+                  <pre style={styles.debugPre}>
+                    {results[ctx.key] || '(empty — nothing retrieved)'}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 function ItemList({ items, onDelete }) {
   if (items.length === 0) {
@@ -388,6 +475,8 @@ export default function LibraryPanel({ proxyBase = '', onClose }) {
             items={items}
             onDelete={handleDelete}
           />
+
+          <DebugRetrieval />
         </div>
       )}
     </div>
@@ -670,5 +759,74 @@ const styles = {
     cursor: 'pointer',
     padding: '2px 0',
     fontFamily: "'Georgia', serif",
+  },
+
+  // Debug retrieval tool
+  debugSection: {
+    marginTop: '24px',
+    paddingTop: '16px',
+    borderTop: '1px dashed #d4c9b0',
+  },
+  debugToggle: {
+    background: 'none',
+    border: 'none',
+    fontSize: '12px',
+    color: '#999',
+    cursor: 'pointer',
+    fontFamily: "'Georgia', serif",
+    padding: '4px 0',
+  },
+  debugBody: {
+    marginTop: '10px',
+  },
+  debugHint: {
+    fontSize: '12px',
+    color: '#888',
+    lineHeight: '1.5',
+    margin: '0 0 10px',
+  },
+  debugHemisphere: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '10px',
+  },
+  debugLabel: {
+    fontSize: '12px',
+    color: '#666',
+  },
+  debugSelect: {
+    fontSize: '12px',
+    padding: '4px 8px',
+    border: '1px solid #d4c9b0',
+    borderRadius: '4px',
+    fontFamily: "'Georgia', serif",
+    backgroundColor: '#fff',
+  },
+  debugResults: {
+    marginTop: '12px',
+  },
+  debugResultBlock: {
+    marginBottom: '12px',
+  },
+  debugResultLabel: {
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#4a7c59',
+    marginBottom: '4px',
+  },
+  debugPre: {
+    fontSize: '11px',
+    fontFamily: 'monospace',
+    backgroundColor: '#fff',
+    border: '1px solid #d4c9b0',
+    borderRadius: '6px',
+    padding: '8px 10px',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    color: '#2c3e2d',
+    margin: 0,
+    maxHeight: '200px',
+    overflowY: 'auto',
   },
 };
