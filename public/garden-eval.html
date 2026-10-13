@@ -239,7 +239,7 @@ async function generateFullCalendar(g, onProgress) {
     const batch = ordered.slice(b*3, b*3+3);
     onProgress(`Batch ${b+1}/4 — ${batch.join(", ")}…`);
     const out = await callProxy("/api/call", {
-      model: "claude-sonnet-4-20250514", max_tokens: 1000,
+      model: "claude-sonnet-5-5", max_tokens: 1000,
       messages: [{ role:"user", content: buildPrompt(g, batch, allPlants, sowingLog) }]
     });
     // Extract sowing mentions from this batch to pass to next
@@ -291,7 +291,7 @@ Return ONLY valid JSON, no markdown, no prose. Keep notes concise (max 15 words 
 {"scores":{"lifecycle_coverage":{"verdict":"pass|warn|fail","note":"one sentence with specific evidence"},"task_specificity":{"verdict":"pass|warn|fail","note":"..."},"climate_grounding":{"verdict":"pass|warn|fail","note":"..."},"language_register":{"verdict":"pass|warn|fail","note":"..."},"inventory_hygiene":{"verdict":"pass|warn|fail","note":"..."},"enjoy_quality":{"verdict":"pass|warn|fail","note":"..."}}}`;
 
   const raw = await callProxy("/api/call", {
-    model:"claude-sonnet-4-20250514", max_tokens:2000,
+    model:"claude-sonnet-5-5", max_tokens:2000,
     messages:[{role:"user", content:prompt}]
   });
   return JSON.parse(raw.replace(/```json|```/g,"").trim());
