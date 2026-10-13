@@ -1366,7 +1366,7 @@ async function streamAI(prompt, maxTokens, onChunk, signal, provider, userKey) {
 
   const res = await fetch(url, {
     method: "POST", headers,
-    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: maxTokens, stream: true, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: maxTokens, stream: true, messages: [{ role: "user", content: prompt }] }),
     signal,
   });
   if (!res.ok) {
@@ -1467,7 +1467,7 @@ async function callAI(prompt, maxTokens, signal, provider, userKey) {
 
   const res = await fetch(url, {
     method: "POST", headers,
-    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
     signal,
   });
   const data = await res.json();
